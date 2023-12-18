@@ -5,6 +5,8 @@ from pathlib import Path
 from typing import Dict
 from argparse import Namespace
 
+import numpy as np
+
 import torch
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
@@ -13,13 +15,15 @@ from torchvision.io import read_image
 import common
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
-import time
+
 
 class FrameMelDataset(Dataset):
 
-    def __init__(self, folder_tree: Dict, mode: str, args: Namespace):
+    def __init__(self, folder_tree: Dict, mode: str, args: Namespace, audio_cache_path: str = None):
         super().__init__()
 
+        logger = get_logger(args.job_dir)
+        logger.info(f"Load {len(folder_tree)} video data in {mode}")
         # dataset tree
         # {"folder_path_per_video": [img1, img2, ...]}
         # root
@@ -48,9 +52,13 @@ class FrameMelDataset(Dataset):
                 eval_length[folder] = len(eval_frames)
             self.eval_filelist = eval_filelist
             self.eval_length = eval_length
-        logger = get_logger(args.job_dir)
-        logger.info(f"Load {len(folder_tree)} video data in {mode}")
-        self.al_time = 0
+        if audio_cache_path:
+            self.audio_cache = common.io.Hdf5(audio_cache_path)
+            logger.info(f"Loading audio cache: {audio_cache_path}")
+        else:
+            self.audio_cache = None
+            logger.info(f"Loading audio from file")
+
 
     def __len__(self):
         if self.mode == common.mode.TRAIN:
@@ -119,9 +127,7 @@ class FrameMelDataset(Dataset):
             audio_idx = false_idx
             label = torch.zeros(1)
 
-        st = time.time()
         mel = self._load_audio_melspec(audio_file)
-        print(time.time() - st)
         mel = self._crop_audio_window(mel.copy(), audio_idx)
         assert mel.shape[0] == self.audio_spec['mel_step_size'], f"{mel.shape[0]} {self.audio_spec['mel_step_size']}"
 
@@ -142,8 +148,13 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_audio_melspec(self, file_name):
-        wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
-        return melspectrogram(wav).T
+        if not self.audio_cache:
+            wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
+            mel = melspectrogram(wav).T
+        else:
+            mel = np.asarray(self.audio_cache.get(str(file_name)))
+
+        return mel
 
     def _crop_audio_window(self, spec, start_frame):
         # num_frames = (T x hop_size * fps) / sample_rate

@@ -31,7 +31,13 @@ class Hdf5:
     def get(self, key):
         if not self.file:
             self.file = h5py.File(self.fname, 'r', libver='latest')
-        return self.file[key]
+        if '/' in key:
+            value = self.file
+            for k in key.split('/'):
+                value = value[k]
+        else:
+            value = self.file[key]
+        return value
 
     @property
     def keys(self):

@@ -21,5 +21,7 @@ class HDTF(FrameMelDataset):
             if mode == common.mode.EVAL:
                 frame_list = frame_list[:len(frame_list) // args.window_size * args.window_size]
             folder_tree[folder] = frame_list
-
-        super(HDTF, self).__init__(folder_tree=folder_tree, mode=mode, args=args)
+        audio_cache_path = f"data/HDTF/HDTF_audio_sr_{args.audio_spec['sample_rate']}.h5"
+        if not os.path.isfile(audio_cache_path):
+            audio_cache_path = None
+        super(HDTF, self).__init__(folder_tree=folder_tree, mode=mode, args=args, audio_cache_path=audio_cache_path)
