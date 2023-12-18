@@ -1,0 +1,2 @@
+TRAIN = 'train'
+EVAL = 'eval'

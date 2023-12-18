@@ -25,14 +25,14 @@ now=$(date +'%b%d-%H')
 experiment_name=$1
 
 if [ -z $experiment_name ]; then
-  job_dir=train_${now}
+  job_dir=runs/train_${now}
 else
-  job_dir=train_${experiment_name}_${now}
+  job_dir=runs/train_${experiment_name}_${now}
 fi
 
 if [ -d "runs/$job_dir" ]; then
-    printf '%s\n' "Removing runs/$job_dir"
-    rm -rf "runs/$job_dir"
+    printf '%s\n' "Removing $job_dir"
+    rm -rf "$job_dir"
 fi
 
 

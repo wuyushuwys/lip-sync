@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from utils import lr_scheduler, gradual_warmup_scheduler
 from utils.prefetch_dataloader import CUDAPrefetcher
 from utils.init_utils import master_only, when_attr_is_true
+from utils.helpers import default
 
 __all__ = ["create_dataloader",
            "create_criterions",
@@ -63,17 +64,15 @@ def create_dataloader(args):
                          eval_datasets]
 
     args.total_iterations = int(args.epochs * len(train_data_loader))
-    if hasattr(args, 'bn_iterations'):
-        args.bn_iterations = int(args.bn_iterations * args.total_iterations)
 
     if args.log_steps == 0:
         args.log_steps = min(len(train_data_loader) // 100, 100)
     return train_data_loader, train_sampler, eval_data_loaders, eval_sampler
 
 
-def get_subdict(dict: dict, exception: str) -> dict:
+def subdict(dict: dict, *exceptions) -> dict:
     # exceptions = exceptions.split(',')
-    return {k: v for k, v in dict.items() if k not in exception}
+    return {k: v for k, v in dict.items() if k not in exceptions}
 
 
 def create_criterions(args: argparse.Namespace):
@@ -87,7 +86,7 @@ def create_criterions(args: argparse.Namespace):
         if kwargs.get('type') == 'BitPerPixelLoss':
             kwargs['lambda_schedule']['steps'][0] *= args.total_iterations
             kwargs['target_schedule']['steps'][0] *= args.total_iterations
-        criterions[name] = loss(**get_subdict(kwargs, exception='type')).to(args.local_rank)
+        criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
     return criterions
 
@@ -100,35 +99,32 @@ def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespa
     assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
 
     optim_module = getattr(torch.optim, args.optim.get('type'))
-    optim_dict = get_subdict(args.optim, exception='type')
+    optim_dict = subdict(args.optim, 'type')
 
     if args.distributed:
-        if not hasattr(args, 'no_scale_lr') or not args.no_scale_lr:  # works due to python lazy boolean
-            original_lr = optim_dict.get('lr')
-            # scalar = args.world_size if args.world_size <= 4 else 4 + math.sqrt(args.world_size - 4)
-            scalar = args.world_size
-            optim_dict['lr'] *= scalar
-            args.logger.info(f"Scale learning from {original_lr} ==x{scalar:.02f}==> {optim_dict.get('lr')}")
+        original_lr = optim_dict.get('lr')
+        scalar = args.world_size
+        optim_dict['lr'] *= scalar
+        args.logger.info(f"Scale learning from {original_lr}X{int(scalar):d}==> {optim_dict.get('lr')}")
 
     total_iters = args.epochs * num_iters
 
     if args.warmup_lr:
         if hasattr(args, 'warmup_iters'):
-            warmup_iters = int(total_iters * args.warmup_iters)
+            warmup_iters = int(total_iters * args.warmup_iters) if args.warmup_iters < 1 else args.warmup_iters
         else:
-            args.logger.info('warmup_iters not set, using default setting')
-            warmup_iters = total_iters // args.epochs
-        args.logger.info(f"Warm up lr for"
-                         f" {warmup_iters}/{total_iters}={warmup_iters / total_iters * 100:.02f}% iterations")
+            args.logger.info('warmup_iters not set, warmup for 1% iterations')
+            warmup_iters = total_iters // 100
+        args.logger.info(f"Warm up lr {warmup_iters}/{total_iters} iterations")
         total_iters -= warmup_iters
 
     assert hasattr(args, 'scheduler'), "Missing scheduler in model config"
     assert isinstance(args.scheduler, dict), "scheduler in config should be a dictionary"
 
     scheduler_module = getattr(lr_scheduler, args.scheduler.get('type'))
-    if issubclass(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
+    if isinstance(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
         args.scheduler['milestones'] = [int(math.ceil(total_iters * i)) for i in args.scheduler['milestones']]
-    elif issubclass(scheduler_module, lr_scheduler.CosineAnnealingRestartLR):
+    elif isinstance(scheduler_module, lr_scheduler.CosineAnnealingRestartLR):
         # evenly divide periods
         args.scheduler['periods'] = [total_iters // len(args.scheduler['restart_weights']) for _ in
                                      range(len(args.scheduler['restart_weights']))]
@@ -138,7 +134,7 @@ def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespa
         #     num_iters * args.epochs * (args.scheduler['periods'][idx + 1] - args.scheduler['periods'][id]) for idx in
         #     range(len(args.scheduler['periods']) - 1)
         # ]
-    elif issubclass(scheduler_module, torch.optim.lr_scheduler.CosineAnnealingLR):
+    elif isinstance(scheduler_module, torch.optim.lr_scheduler.CosineAnnealingLR):
         args.scheduler["T_max"] = total_iters
     else:
         NotImplementedError(f"Method {scheduler_module.__class__} is not implemented")
@@ -148,7 +144,7 @@ def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespa
         # todo: modify if needed
         optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
                                  **optim_dict)
-        scheduler = scheduler_module(optimizer, **get_subdict(args.scheduler, exception='type'))
+        scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
         if args.warmup_lr:
             scheduler = gradual_warmup_scheduler.GradualWarmupScheduler(optimizer=optimizer,
@@ -185,13 +181,6 @@ def ckpt_saver(path, **kwargs):
             v = v.state_dict()
         ckpt[k] = v
     torch.save(ckpt, path)
-
-
-# def clip_gradient(optimizer, grad_clip):
-#     for group in optimizer.param_groups:
-#         for param in group["params"]:
-#             if param.grad is not None:
-#                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,6 @@ import torch
 import numpy as np
 
 from torch import distributed as dist
-from pynvml import nvmlInit, nvmlDeviceGetHandleByIndex, nvmlDeviceGetMemoryInfo, nvmlDeviceGetUtilizationRates
 
 
 def init_process(args):
@@ -48,42 +47,6 @@ def init_process(args):
         torch.manual_seed(args.rank)
         np.random.seed(args.rank)
 
-#
-# def get_memory_usage(device=0):
-#     return f"GPU info: {torch.cuda.get_device_name(device=device)}\t" \
-#            f"{' '.join(torch.cuda.list_gpu_processes(device=device).split()[4:6])} / " \
-#            f"{torch.cuda.get_device_properties(device=device).total_memory / (1024 ** 2)} MB"
-#
-#
-# def get_gpu_utilization(device=0):
-#     nvmlInit()
-#     handle = nvmlDeviceGetHandleByIndex(device)
-#     utilizationRates = nvmlDeviceGetUtilizationRates(handle)
-#     return utilizationRates.gpu, utilizationRates.memory
-#
-#
-# def get_gpu_memory(device=0):
-#     nvmlInit()
-#     handle = nvmlDeviceGetHandleByIndex(device)
-#     memoryInfo = nvmlDeviceGetMemoryInfo(handle)
-#     return memoryInfo.free / (1024 ** 2), memoryInfo.total / (1024 ** 2), memoryInfo.used / (1024 ** 2)
-#
-#
-# def get_gpu_info(device_idx: list = (0,)):
-#     if not isinstance(device_idx, list):
-#         device_idx = [device_idx]
-#     nvmlInit()
-#     output_string = ''
-#     for device in device_idx:
-#         handle = nvmlDeviceGetHandleByIndex(device)
-#         memoryInfo = nvmlDeviceGetMemoryInfo(handle)
-#         utilizationRates = nvmlDeviceGetUtilizationRates(handle)
-#         f = f"GPU {device} INFO: {torch.cuda.get_device_name(device=device)}\t" \
-#             f"{memoryInfo.used / (1024 ** 2)} / {memoryInfo.total / (1024 ** 2)} MB\t" \
-#             f"Usage: {utilizationRates.gpu}%"
-#         output_string += f"{f}\n"
-#     return output_string
-
 
 def get_dist_info():
     if dist.is_available():
@@ -115,33 +78,6 @@ def master_only(func):
             return func(*args, **kwargs)
 
     return wrapper
-
-#
-# class NVInfo(threading.Thread):
-#     def __init__(self, interval=0.1, *args, **kwargs):
-#         super(NVInfo, self).__init__(*args, **kwargs)
-#         self.interval = interval
-#         self.stopped = False
-#         self.logger_name = f'nvidia_{os.getpid()}.log'
-#
-#     def stop(self):
-#         self.stopped = True
-#         self.clear()
-#         self.join()
-#
-#     @master_only
-#     def run(self):
-#         while True:
-#             if self.stopped:
-#                 return
-#             with open(self.logger_name, 'w') as f:
-#                 f.write(get_gpu_info(device_idx=list(range(torch.cuda.device_count()))))
-#                 f.close()
-#             time.sleep(self.interval)
-#
-#     @master_only
-#     def clear(self):
-#         os.remove(self.logger_name)
 
 
 def when_attr_is_true(attr):

@@ -1,13 +1,12 @@
 import logging
-import time
 import os
 
 from utils.init_utils import get_dist_info
 
-initialized_logger = {}
+logger_initialized = {}
 
 
-def get_logger(file_path):
+def get_logger(file_path=None):
     rank, _ = get_dist_info()
     name = f"{file_path}:{rank}"
     logger = logging.getLogger(name)
@@ -24,13 +23,15 @@ def get_logger(file_path):
 
     format_str = f'%(asctime)s::%(message)s'
     formatter = logging.Formatter(format_str, "%Y-%m-%d %H:%M:%S")
-    os.makedirs(file_path, exist_ok=True)
+    if file_path:
+        os.makedirs(file_path, exist_ok=True)
 
     if rank == 0:
-        file_handler = logging.FileHandler(f"{file_path}/result.log", 'w')
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(logging.INFO)
-        logger.addHandler(file_handler)
+        if file_path:
+            file_handler = logging.FileHandler(f"{file_path}/result.log", 'w')
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(logging.INFO)
+            logger.addHandler(file_handler)
         stream_handler = logging.StreamHandler()
         stream_handler.setFormatter(formatter)
         stream_handler.setLevel(logging.INFO)

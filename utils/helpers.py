@@ -1,7 +1,5 @@
 from inspect import isfunction
 
-import torch.nn.functional as F
-
 
 def exists(x):
     return x is not None

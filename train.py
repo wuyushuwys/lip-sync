@@ -14,11 +14,10 @@ import wandb
 import config
 
 from utils import *
-from utils.logging_tool import LoggingTool
+from utils.logging_tool import get_logger
 from models import Model
 
 save_image = master_only(save_image)
-print = master_only(print)
 
 
 def train(**kwargs):
@@ -54,7 +53,6 @@ def train(**kwargs):
     #     f"Epoch-est. {time_meter.remain_time}\t" \
     #     f"Loss: {g_loss_meter.val:.04f}\t" \
     #     f"{loss_printer(losses, fmt='.04e')}"
-    # print(s)
     # logging.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{params.epochs} finished."
     #              f"\tG_loss: {g_loss_meter.avg:.6f}"
     #              f"\t{losses_meter.print_avg()}")
@@ -70,14 +68,15 @@ def main(args):
 
     # Create job and tb_writer
     writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
-
+    # todo: add project name for wandb
+    wandb.init(project=PROJ_NAME, dir=args.job_dir, name=args.job_dir.split('/')[-1], config=args)
     # Load train datasetcd
     train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
 
     # Create generator
     # model = Model(params)
 
-    logging.info(f"\n{g_model}", is_print=False)
+    logging.info(f"\n{model}")
 
     # profile_model(params)
 
@@ -132,12 +131,11 @@ if __name__ == '__main__':
 
     # Parse arguments
     params = parser.parse_args()
-    logging = LoggingTool(file_path=params.job_dir, verbose=params.verbose)
+    logging = get_logger(file_path=params.job_dir)
     params.logger = logging
     init_process(params)
 
-    # parsing args
-    # params = parser.parse_args(namespace=args)
+    # read from config file
     config.update_params(params)
 
     main(params)
