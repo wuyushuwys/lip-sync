@@ -12,6 +12,13 @@ from torch import distributed as dist
 
 def init_process(args):
     torch.cuda.empty_cache()
+
+    # Enable cudnn Optimization for static network structure
+    torch.backends.cudnn.benchmark = True
+    # Enable tensor-core
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cuda.matmul.allow_tf32 = True
+
     args.distributed = torch.cuda.device_count() > 1
     if args.distributed:
         local_rank = int(os.environ["LOCAL_RANK"])

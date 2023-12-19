@@ -1,7 +1,7 @@
 import os
 
 from glob import glob
-from typing import Dict
+from typing import Dict, AnyStr
 from argparse import Namespace
 
 import common.mode
@@ -12,9 +12,13 @@ EXT = 'jpg'
 DIR_PATH = lambda mode: f'data/HDTF/{mode}'
 
 
+def get_dataset(mode: AnyStr, args: Namespace):
+    return HDTF(mode, args)
+
+
 class HDTF(FrameMelDataset):
 
-    def __init__(self, mode: str, args: Namespace):
+    def __init__(self, mode: AnyStr, args: Namespace):
         folder_tree: Dict = dict()
         for folder in sorted(glob(f"{DIR_PATH(mode)}/*")):
             frame_list = sorted(filter(lambda x: x.endswith(EXT), os.listdir(folder)))

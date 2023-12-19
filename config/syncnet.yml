@@ -8,21 +8,11 @@ audio_spec:
 
 window_size: 5
 
-num_samples: 100
-
-
-
-
-
-classifier:
-  hidden_dim: 512
-  dropout: 0.1
-  num_encoder_layers: 3
-  num_cross_layers: 1
+num_samples: 1000
 
 optim:
   type: Adam
-  lr: 1.0e-5
+  lr: 1.0e-4
   betas: [0.9, 0.999]
 
 #scheduler:
@@ -36,6 +26,6 @@ scheduler:
 
 
 losses:
-  pos:
-    type: CrossEntropyLoss
-    label_smoothing: 0.1
+  sync_loss:
+    type: CosineLoss
+    weight: 1

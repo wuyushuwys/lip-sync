@@ -2,7 +2,7 @@ import os
 import random
 
 from pathlib import Path
-from typing import Dict
+from typing import Dict, AnyStr
 from argparse import Namespace
 
 import numpy as np
@@ -19,14 +19,14 @@ from utils.logging_tool import get_logger
 
 class FrameMelDataset(Dataset):
 
-    def __init__(self, folder_tree: Dict, mode: str, args: Namespace, audio_cache_path: str = None):
+    def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace, audio_cache_path: AnyStr = None):
         super().__init__()
 
         logger = get_logger(args.job_dir)
         logger.info(f"Load {len(folder_tree)} video data in {mode}")
         # dataset tree
         # {"folder_path_per_video": [img1, img2, ...]}
-        # root
+        # path
         #   ├── vid1
         #   │    ├── xxxxx.image : image file
         #   │    ├── ......
@@ -69,7 +69,8 @@ class FrameMelDataset(Dataset):
     def __getitem__(self, index):
         if self.model == 'syncnet':
             if self.mode == common.mode.TRAIN:
-                frame_list, audio_file = self._load_index(index)
+                index_folder, frame_list, audio_file = self._load_index(index)
+                frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
                 img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
                 return img_window, mel, label
             else:
@@ -85,8 +86,8 @@ class FrameMelDataset(Dataset):
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
         frame_list = self.folder_tree[index_folder]
-        audio_file = Path(self.folder_tree[index_folder]) / 'audio.wav'
-        return frame_list, audio_file
+        audio_file = Path(index_folder) / 'audio.wav'
+        return index_folder, frame_list, audio_file
 
     def _load_sync_train_data(self, frame_list, audio_file):
         idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
@@ -98,7 +99,7 @@ class FrameMelDataset(Dataset):
     def _load_frame_window(self, fname_list, index):
         window = []
         for fname in fname_list[index:index + self.window_size]:
-            img = resize(read_image(fname), eval(self.video_spec['size']),
+            img = resize(read_image(fname), self.video_spec['size'],
                          interpolation=InterpolationMode.BILINEAR,
                          antialias=True)
             window.append(img)

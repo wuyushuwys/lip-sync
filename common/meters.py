@@ -1,7 +1,6 @@
 """Meters."""
 import time
 import datetime
-import torch
 from utils import loss_printer
 
 

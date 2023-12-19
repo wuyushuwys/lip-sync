@@ -11,6 +11,6 @@ class CosineLoss(nn.Module):
 
     def forward(self, a, v, y):
         distance = self.cos_sim(a, v)
-        loss = self.loss(distance.unsqueeze(0), y)
+        loss = self.loss(distance.unsqueeze(1), y)
 
         return loss * self.weight

@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .ops import Conv2d
-
+from utils.evaluation import evaluate_sync
 
 class SyncNet(nn.Module):
     def __init__(self):
@@ -67,3 +67,7 @@ class SyncNet(nn.Module):
         face_embedding = F.normalize(face_embedding, p=2, dim=1)
 
         return audio_embedding, face_embedding
+
+    @staticmethod
+    def evaluate(*args, **kwargs):
+        return evaluate_sync.evaluation(*args, **kwargs)

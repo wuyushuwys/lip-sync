@@ -1,6 +1,5 @@
 import argparse
 import importlib
-import itertools
 
 import torch
 import math
@@ -13,8 +12,8 @@ from torch.utils.data import DataLoader
 
 from utils import lr_scheduler, gradual_warmup_scheduler
 from utils.prefetch_dataloader import CUDAPrefetcher
-from utils.init_utils import master_only, when_attr_is_true
-from utils.helpers import default
+from utils.init_utils import master_only
+from utils.logging_tool import get_logger
 
 __all__ = ["create_dataloader",
            "create_criterions",
@@ -22,30 +21,29 @@ __all__ = ["create_dataloader",
            "state_dict_saver",
            'ckpt_saver',
            "create_optim_scheduler",
-           # "clip_gradient"
            ]
 
 
 def create_dataloader(args):
     dataset_module = importlib.import_module(f'datasets.{args.dataset}' if args.dataset else 'datasets')
-    train_dataset = dataset_module.get_dataset(common.modes.TRAIN, args)
+    train_dataset = dataset_module.get_dataset(common.mode.TRAIN, args)
 
     # Load eval dataset
     if args.eval_datasets:
         eval_datasets = []
         for eval_dataset in args.eval_datasets:
             eval_dataset_module = importlib.import_module(f'datasets.{eval_dataset}')
-            eval_datasets.append((eval_dataset, eval_dataset_module.get_dataset(common.modes.EVAL, args)))
+            eval_datasets.append((eval_dataset, eval_dataset_module.get_dataset(common.mode.EVAL, args)))
     else:
-        eval_datasets = [(args.dataset, dataset_module.get_dataset(common.modes.EVAL, args))]
+        eval_datasets = [(args.dataset, dataset_module.get_dataset(common.mode.EVAL, args))]
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     eval_sampler = None
     prefetch_factor = 4
     # Dataloader
     train_data_loader = DataLoader(dataset=train_dataset,
-                                   num_workers=args.num_data_threads,
-                                   batch_size=args.train_batch_size,
+                                   num_workers=args.num_workers,
+                                   batch_size=args.batch_size,
                                    shuffle=(train_sampler is None),
                                    drop_last=True,
                                    pin_memory=True,
@@ -54,8 +52,8 @@ def create_dataloader(args):
 
     train_data_loader = CUDAPrefetcher(loader=train_data_loader, args=args)
 
-    eval_kwargs = {"num_workers": args.num_data_threads,
-                   "batch_size": args.eval_batch_size,
+    eval_kwargs = {"num_workers": args.num_workers,
+                   "batch_size": args.batch_size,
                    'shuffle': False,
                    'drop_last': False,
                    'pin_memory': True,
@@ -66,7 +64,7 @@ def create_dataloader(args):
     args.total_iterations = int(args.epochs * len(train_data_loader))
 
     if args.log_steps == 0:
-        args.log_steps = min(len(train_data_loader) // 100, 100)
+        args.log_steps = max(min(len(train_data_loader) // 100, 100), 1)
     return train_data_loader, train_sampler, eval_data_loaders, eval_sampler
 
 
@@ -83,17 +81,18 @@ def create_criterions(args: argparse.Namespace):
     criterions = OrderedDict()
     for name, kwargs in args.losses.items():
         loss = getattr(losses_module, kwargs.get('type'))
-        if kwargs.get('type') == 'BitPerPixelLoss':
-            kwargs['lambda_schedule']['steps'][0] *= args.total_iterations
-            kwargs['target_schedule']['steps'][0] *= args.total_iterations
+        # if kwargs.get('type') == 'BitPerPixelLoss':
+        #     kwargs['lambda_schedule']['steps'][0] *= args.total_iterations
+        #     kwargs['target_schedule']['steps'][0] *= args.total_iterations
         criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
     return criterions
 
 
-def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespace, num_iters: float):
-    if not isinstance(model_list, list):
-        model_list = [model_list]
+def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
+    # if not isinstance(model_list, list):
+    #     model_list = [model_list]
+    logger = get_logger(args.job_dir)
     assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'optim'), "Missing optim in model config"
     assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
@@ -105,26 +104,27 @@ def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespa
         original_lr = optim_dict.get('lr')
         scalar = args.world_size
         optim_dict['lr'] *= scalar
-        args.logger.info(f"Scale learning from {original_lr}X{int(scalar):d}==> {optim_dict.get('lr')}")
 
-    total_iters = args.epochs * num_iters
+        logger.info(f"Scale learning rate from {original_lr}x{int(scalar):d} --> {optim_dict.get('lr')}")
+
+    total_iters = args.epochs * num_batches
 
     if args.warmup_lr:
         if hasattr(args, 'warmup_iters'):
             warmup_iters = int(total_iters * args.warmup_iters) if args.warmup_iters < 1 else args.warmup_iters
         else:
-            args.logger.info('warmup_iters not set, warmup for 1% iterations')
+            logger.info('warmup_iters not set, warmup for 1% iterations')
             warmup_iters = total_iters // 100
-        args.logger.info(f"Warm up lr {warmup_iters}/{total_iters} iterations")
+        logger.info(f"Warm up lr {warmup_iters}/{total_iters} iterations")
         total_iters -= warmup_iters
 
     assert hasattr(args, 'scheduler'), "Missing scheduler in model config"
     assert isinstance(args.scheduler, dict), "scheduler in config should be a dictionary"
 
     scheduler_module = getattr(lr_scheduler, args.scheduler.get('type'))
-    if isinstance(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
+    if issubclass(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
         args.scheduler['milestones'] = [int(math.ceil(total_iters * i)) for i in args.scheduler['milestones']]
-    elif isinstance(scheduler_module, lr_scheduler.CosineAnnealingRestartLR):
+    elif issubclass(scheduler_module, lr_scheduler.CosineAnnealingRestartLR):
         # evenly divide periods
         args.scheduler['periods'] = [total_iters // len(args.scheduler['restart_weights']) for _ in
                                      range(len(args.scheduler['restart_weights']))]
@@ -134,7 +134,7 @@ def create_optim_scheduler(model_list: [torch.nn.Module], args: argparse.Namespa
         #     num_iters * args.epochs * (args.scheduler['periods'][idx + 1] - args.scheduler['periods'][id]) for idx in
         #     range(len(args.scheduler['periods']) - 1)
         # ]
-    elif isinstance(scheduler_module, torch.optim.lr_scheduler.CosineAnnealingLR):
+    elif issubclass(scheduler_module, torch.optim.lr_scheduler.CosineAnnealingLR):
         args.scheduler["T_max"] = total_iters
     else:
         NotImplementedError(f"Method {scheduler_module.__class__} is not implemented")
@@ -185,4 +185,3 @@ def ckpt_saver(path, **kwargs):
 
 if __name__ == "__main__":
     pass
-    # test_params = argparse.Namespace()

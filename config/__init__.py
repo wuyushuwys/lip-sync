@@ -8,7 +8,12 @@ PATH = os.path.dirname(os.path.realpath(__file__))
 
 
 def update_params(args: argparse.Namespace):
-    with open(Path(__file__).parent / args.config_file, 'r') as f:
+    if os.path.isfile(args.config_file):
+        file_path = args.config_file
+    else:
+        file_path = Path(__file__).parent / args.config_file
+
+    with open(file_path, 'r') as f:
         config = yaml.safe_load(f.read())
         for n, v in config.items():
             args.__setattr__(n, v)

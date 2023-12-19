@@ -1,7 +1,6 @@
 """File IO helper."""
 import os
 import h5py
-import numpy as np
 
 
 class Hdf5:

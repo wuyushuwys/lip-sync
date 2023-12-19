@@ -2,13 +2,19 @@ __all__ = ['arguments_parser']
 
 
 def arguments_parser(parser):
-    parser.add_argument('--config_file', default=None, type=str, required=True)
+    parser.add_argument('--config_file', default=None, type=str, required=True,
+                        help='path to config file')
+
+    parser.add_argument('--model', default=None, type=str, required=True, choices=['syncnet', ],
+                        help='model to train')
 
     # Dataset
     parser.add_argument('--dataset', default=None, type=str, required=True,
                         help='Dataset name.')
     parser.add_argument('--batch_size', default=16, type=int,
                         help='Batch size for training and evaluation.')
+    # parser.add_argument('--train_batch_size', default=256, type=int,
+    #                     help='Batch size for training.')
     # parser.add_argument('--eval_batch_size', default=256, type=int,
     #                     help='Batch size for evaluation.')
     parser.add_argument('--num_workers', default=8, type=int,
@@ -18,8 +24,8 @@ def arguments_parser(parser):
                         help='Directory to write checkpoints and export models.')
     parser.add_argument('--ckpt', default=None, type=str,
                         help='Dir path to load gan checkpoint.')
-    parser.add_argument('--g_weight', default=None, type=str,
-                        help='path to generator weight')
+    parser.add_argument('--weight', default=None, type=str,
+                        help='path to load model weight')
     parser.add_argument('--profile', action='store_true',
                         help='profile model')
     # parser.add_argument('--prefetcher', action='store_true',

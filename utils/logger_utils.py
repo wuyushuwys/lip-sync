@@ -1,6 +1,7 @@
 import importlib
 import torch
 import wandb
+from logging import Logger
 
 from torch.utils import tensorboard
 from thop import profile, clever_format
@@ -14,11 +15,10 @@ __all__ = ["attr_extractor", "loss_printer", "tb_writer", "profile_model"]
 
 @master_only
 def attr_extractor(obj):
-    from utils.logging_tool import LoggingTool
     attrs = list(filter(lambda x: not x.startswith('_'), dir(obj)))  # Remove default and help attributes
     attr_dict = dict()
     info_len = 40
-    total_len = 120
+    total_len = 80
     string = f"\n{'INFO':{'*'}{'^'}{total_len}s}\n"
     str_head = '** '
 
@@ -39,10 +39,8 @@ def attr_extractor(obj):
             attr_dict[name] = attr
 
     for k, v in attr_dict.items():
-        if isinstance(v, LoggingTool):
+        if isinstance(v, Logger):
             v = v.name
-        if inspect.isfunction(v):
-            v = inspect.getsource(v)
         v_str = str(v)
         string += f"{str_head}{f'{k}:':{''}{'<'}{info_len}s}{v_str}\n"
 
