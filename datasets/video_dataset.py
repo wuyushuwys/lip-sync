@@ -1,9 +1,11 @@
+import math
 import os
 import random
 
 from pathlib import Path
 from typing import Dict, AnyStr
 from argparse import Namespace
+from datetime import timedelta
 
 import numpy as np
 
@@ -13,6 +15,7 @@ from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.io import read_image
 
 import common
+import utils
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 
@@ -23,7 +26,7 @@ class FrameMelDataset(Dataset):
         super().__init__()
 
         logger = get_logger(args.job_dir)
-        logger.info(f"Load {len(folder_tree)} video data in {mode}")
+
         # dataset tree
         # {"folder_path_per_video": [img1, img2, ...]}
         # path
@@ -36,22 +39,32 @@ class FrameMelDataset(Dataset):
 
         self.folder_tree = folder_tree
         self.root_key = list(folder_tree.keys())  # list of each video data folder
-        self.num_samples = args.num_samples  # number of samples from each video
         self.video_spec = args.video_spec
         self.audio_spec = args.audio_spec
         self.window_size = args.window_size
         self.model = args.model
         self.mode = mode
-        # Indexing eval list
-        if self.mode == common.mode.EVAL:
-            eval_filelist = []
-            eval_length = {}
-            for folder, v in folder_tree.items():
-                eval_frames = sorted(map(lambda fname: os.path.join(folder, fname), v))
-                eval_filelist.extend(eval_frames)
-                eval_length[folder] = len(eval_frames)
-            self.eval_filelist = eval_filelist
-            self.eval_length = eval_length
+        if self.mode == utils.mode.TRAIN:
+            self.num_samples = args.num_samples  # number of samples from each video
+        elif self.mode == utils.mode.EVAL:
+            self.num_samples = args.eval_samples  # number of samples from each video
+
+        # if self.model == 'syncnet':
+        #     # Indexing eval list
+        #     if self.mode == utils.mode.EVAL:
+        #         eval_filelist = []
+        #         eval_length = {}
+        #         for folder, v in folder_tree.items():
+        #             eval_frames = sorted(map(lambda fname: os.path.join(folder, fname), v))
+        #             eval_filelist.extend(eval_frames)
+        #             eval_length[folder] = len(eval_frames)
+        #         self.eval_filelist = eval_filelist
+        #         self.eval_length = eval_length
+
+        load_frames = sum(len(v) for v in folder_tree.values())
+        logger.info(
+            f"Load {len(folder_tree)} video data in {mode} "
+            f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
             logger.info(f"Loading audio cache: {audio_cache_path}")
@@ -59,29 +72,32 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"Loading audio from file")
 
-
     def __len__(self):
-        if self.mode == common.mode.TRAIN:
-            return len(self.folder_tree) * self.num_samples
-        else:
-            return len(self.eval_filelist) // self.window_size - 1
+        # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
+        #     return len(self.eval_filelist) // self.window_size - 1
+        # else:
+        return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
         if self.model == 'syncnet':
-            if self.mode == common.mode.TRAIN:
-                index_folder, frame_list, audio_file = self._load_index(index)
-                frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
-                img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-                return img_window, mel, label
-            else:
-                self.index = index
-                frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-                assert len(frame_window) == self.window_size
-                audio_file = Path(frame_window[0]).parent / 'audio.wav'
-                img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-                return img_window, mel, label
+            # if self.mode == utils.mode.TRAIN:
+            index_folder, frame_list, audio_file = self._load_index(index)
+            frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+            return img_window, mel, label
+        # else:
+        #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
+        #     assert len(frame_window) == self.window_size
+        #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
+        #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
+        #     return img_window, mel, label
+        elif self.model == 'lipsync':
+            index_folder, frame_list, audio_file = self._load_index(index)
+            frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
+            return x, indiv_mels, mel, y
         else:
-            NotImplementedError()
+            raise NotImplementedError()
 
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
@@ -89,12 +105,14 @@ class FrameMelDataset(Dataset):
         audio_file = Path(index_folder) / 'audio.wav'
         return index_folder, frame_list, audio_file
 
-    def _load_sync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
-
-        img_window = self._load_frame_window(frame_list, idx)
-
-        return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
+    def _load_frame_window_fname(self, fname_list):
+        window = []
+        for fname in fname_list:
+            img = resize(read_image(fname), self.video_spec['size'],
+                         interpolation=InterpolationMode.BILINEAR,
+                         antialias=True)
+            window.append(img)
+        return window
 
     def _load_frame_window(self, fname_list, index):
         window = []
@@ -104,6 +122,43 @@ class FrameMelDataset(Dataset):
                          antialias=True)
             window.append(img)
         return window
+
+    def _load_lipsync_train_data(self, frame_list, audio_file):
+        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
+        true_window = self._load_frame_window(frame_list, idx)
+        wrong_window = self._load_frame_window(frame_list, false_idx)
+        try:
+            data = self._load_lipsync_data(idx, true_window=true_window, wrong_window=wrong_window,
+                                           audio_file=audio_file)
+        except AssertionError as e:
+            print(e)
+            raise AssertionError(f"true: {idx}, false: {false_idx} {len(frame_list)}")
+        return data
+
+    def _load_lipsync_data(self, idx, true_window, wrong_window, audio_file):
+        assert idx - 2 >= 0
+        audio_mel = self._load_audio_melspec(audio_file)
+        mel = self._crop_audio_window(audio_mel.copy(), idx)
+        indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
+
+        true_window = torch.stack(true_window, dim=1) / 255
+        gt = true_window.clone()
+        true_window[:, :, true_window.size(2) // 2:] = 0
+        wrong_window = torch.stack(wrong_window, dim=1) / 255
+
+        x = torch.cat([true_window, wrong_window], dim=0)
+        indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
+        mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
+        y = gt
+
+        return x, indiv_mels, mel, y
+
+    def _load_sync_train_data(self, frame_list, audio_file):
+        idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+
+        img_window = self._load_frame_window(frame_list, idx)
+
+        return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
 
     def _load_sync_eval_data(self, frame_window, audio_file):
         idx = eval(Path(frame_window[0]).stem.lstrip('0')) - 1  # int
@@ -130,23 +185,30 @@ class FrameMelDataset(Dataset):
 
         mel = self._load_audio_melspec(audio_file)
         mel = self._crop_audio_window(mel.copy(), audio_idx)
-        assert mel.shape[0] == self.audio_spec['mel_step_size'], f"{mel.shape[0]} {self.audio_spec['mel_step_size']}"
 
-        img_window = torch.cat(img_window, dim=0) / 255 - 0.5
+        img_window = torch.cat(img_window, dim=0) / 255
         img_window = img_window[:, img_window.size(1) // 2:, :]
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
         return img_window, mel, label
 
-    def _load_frame_window_fname(self, fname_list):
-        window = []
-        for fname in fname_list:
-            img = resize(read_image(fname), self.video_spec['size'],
-                         interpolation=InterpolationMode.BILINEAR,
-                         antialias=True)
-            window.append(img)
-        return window
+    @staticmethod
+    def _aug_mask_mel(crop_mel):
+        block_size = 0.1
+        time_size = math.ceil(block_size * crop_mel.shape[0])
+        freq_size = math.ceil(block_size * crop_mel.shape[1])
+        time_lim = crop_mel.shape[0] - time_size
+        freq_lim = crop_mel.shape[1] - freq_size
+
+        time_st = random.randint(0, time_lim)
+        freq_st = random.randint(0, freq_lim)
+
+        mel = crop_mel.copy()
+        mel[time_st:time_st + time_size] = -4.
+        mel[:, freq_st:freq_st + freq_size] = -4.
+
+        return mel
 
     def _load_audio_melspec(self, file_name):
         if not self.audio_cache:
@@ -157,10 +219,24 @@ class FrameMelDataset(Dataset):
 
         return mel
 
-    def _crop_audio_window(self, spec, start_frame):
+    def _crop_audio_window(self, spec, start_frame_num):
         # num_frames = (T x hop_size * fps) / sample_rate
-        start_idx = int(80. * (start_frame / self.video_spec['fps']))  # 80 = 16000 / 200
+        start_idx = int(80. * (start_frame_num / self.video_spec['fps']))  # 80 = 16000 / 200
 
         end_idx = start_idx + self.audio_spec['mel_step_size']
+        mel = spec[start_idx: end_idx, :]
+        # if self.mode == utils.mode.TRAIN and random.random() < 0.3:
+        #     mel = self._aug_mask_mel(mel)
+        assert mel.shape[0] == self.audio_spec[
+            'mel_step_size'], f"{start_frame_num} {start_idx} {mel.shape[0]} {self.audio_spec['mel_step_size']} {spec.shape}"
+        return mel
 
-        return spec[start_idx: end_idx, :]
+    def _segmented_mels(self, spec, start_frame_num):
+        mels = []
+        assert start_frame_num - 2 >= 0
+        for i in range(start_frame_num, start_frame_num + self.window_size):
+            try:
+                mels.append(self._crop_audio_window(spec, i - 2).T)
+            except AssertionError:
+                raise AssertionError(f"{start_frame_num} {i} {start_frame_num + self.window_size}")
+        return np.asarray(mels)

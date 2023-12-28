@@ -60,17 +60,32 @@ def loss_printer(loss_dict: dict, fmt='.4f'):
 
 @master_only
 def tb_writer(writer: tensorboard.writer, loss_dict: dict, nb: int, tag: str = 'train'):
+    wandb.log({f'{tag}/{k}': v for k, v in loss_dict.items()})
     for k, v in loss_dict.items():
         if torch.is_tensor(v):
             v = v.item()
         writer.add_scalar(f'{tag}/{k}', v, nb)
-        wandb.log({f'{tag}/{k}': v})
+
+
+@master_only
+def eval_tb_writer(writer: tensorboard.writer,
+                   loss_dict: dict,
+                   nb: int,
+                   eval_data_name: str = 'dataset'):
+    log_string = f"Eval: {eval_data_name}"
+    wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
+    for k, v in loss_dict.items():
+        log_string += f"\t{k}: {v.avg:.04e}"
+        writer.add_scalar(f'eval_{eval_data_name}/{k}', v.avg, nb)
+    return log_string
 
 
 @when_attr_is_true('profile')
 @master_only
-def profile_model(args):
-    model = None
-    input = None
-    macs, param = clever_format(profile(model, inputs=(input,), verbose=False))
-    args.logger.info(f"Model :[ #MACs: {macs}\t #Params: {param}]")
+def profile_model(model, args):
+    trainable_params = clever_format(sum(p for p in model.parameters() if p.requires_grad))
+    args.logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
+    # model = None
+    # input = None
+    # macs, param = clever_format(profile(model, inputs=(input,), verbose=False))
+    # args.logger.info(f"Model :[ #MACs: {macs}\t #Params: {param}]")

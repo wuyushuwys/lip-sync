@@ -5,6 +5,7 @@ from torch.nn import functional as F
 from .ops import Conv2d
 from utils.evaluation import evaluate_sync
 
+
 class SyncNet(nn.Module):
     def __init__(self):
         super(SyncNet, self).__init__()
@@ -55,6 +56,8 @@ class SyncNet(nn.Module):
             Conv2d(256, 512, kernel_size=3, stride=1, padding=0),
             Conv2d(512, 512, kernel_size=1, stride=1, padding=0), )
 
+        self._init_weights()
+
     def forward(self, audio_sequences, face_sequences):  # audio_sequences := (B, dim, T)
         # print(audio_sequences.shape, face_sequences.shape)
         face_embedding = self.face_encoder(face_sequences)
@@ -67,6 +70,17 @@ class SyncNet(nn.Module):
         face_embedding = F.normalize(face_embedding, p=2, dim=1)
 
         return audio_embedding, face_embedding
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def __str__(self):
+        return "SyncNet"
 
     @staticmethod
     def evaluate(*args, **kwargs):

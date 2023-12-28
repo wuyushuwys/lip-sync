@@ -17,7 +17,7 @@ from utils.train_utils import (create_dataloader, create_criterions, create_opti
 from utils.logger_utils import tb_writer, loss_printer, attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet import SyncNet
+from models.wav2lip import Wav2Lip
 
 
 def train(model, optimizer, scheduler, criterion,
@@ -32,21 +32,28 @@ def train(model, optimizer, scheduler, criterion,
     for batch_idx, batch in enumerate(train_data_loader, start=1):
         total_batches = (epoch - 1) * nb + batch_idx
 
-        x, mel, y = batch
+        x, indiv_mels, mel, y = batch
+
         x = x.to(args.local_rank, non_blocking=True)
+        indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
         mel = mel.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
 
         optimizer.zero_grad()
 
-        a, v = model(mel, x)
+        pred_y = model(indiv_mels, x)
 
-        loss = criterion['sync_loss'](a, v, y)
+        sync_weight = criterion['sync_loss'].loss_weight
+        sync_loss = criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+
+        recon_loss = criterion['recon_loss'](pred_y, y)
+        perceptual_loss = criterion['perceptual_loss'](pred_y, y)
+        loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
+
         loss.backward()
-
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-
-        log_vars['sync_loss'] = loss.item()
+        log_vars['sync_loss'] = sync_loss.item() if torch.is_tensor(sync_loss) else sync_loss
+        log_vars['recon_loss'] = recon_loss.item()
+        log_vars['perceptual_loss'] = perceptual_loss.item()
         log_vars['lr'] = scheduler.get_last_lr()[0]
         log_vars['@loss'] = loss.item()
 
@@ -76,10 +83,10 @@ def main(args):
     if args.rank == 0:
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1], config=vars(args))
     # Load dataset
-    train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
+    train_data_loader, train_sampler, eval_data_loaders, eval_samplers = create_dataloader(args)
 
     # Create generator
-    model = SyncNet()
+    model = Wav2Lip()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
@@ -87,33 +94,31 @@ def main(args):
     # Loss function
     criterion = create_criterions(args)
 
+    # create optimizers and schedulers
+    [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
+
+    # Load ckpt
+    if args.resume and args.ckpt:
+        ckpt = torch.load(args.ckpt, map_location=lambda storage, loc: storage.cuda(args.local_rank))
+        load_values = ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
+        start_epoch = load_values['epoch']
+        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
+    else:
+        start_epoch = 0
+
+    # Load state_dict
+
+    if args.weight:
+        ckpt = torch.load(args.weight)
+        model.load_state_dict(ckpt)
+        logger.info(f"Load weight from {args.weight}")
+
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
         model = DDP(model.to(device), device_ids=[device], output_device=device)
     else:
         model.to(device)
-
-    # create optimizers and schedulers
-    [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
-
-    # Load ckpt
-    if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location=f'cuda:{args.local_rank}')
-        ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
-        start_epoch = ckpt['epoch'] - 1
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-    if args.weight:
-        ckpt = torch.load(args.weight, map_location=f'cuda:{args.local_rank}')
-        if args.distributed:
-            model.module.load_state_dict(ckpt)
-        else:
-            model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
 
     logger.info(attr_extractor(args))
 
@@ -124,9 +129,12 @@ def main(args):
         train(model, optimizer, scheduler, criterion, train_data_loader, epoch, writer, args, logger)
         # Eval model
         evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                 epoch=epoch, criterions=criterion,
-                 writer=writer, args=args, logger=logger)
+        sync_avg = evaluate(model=model, eval_data_loaders=eval_data_loaders,
+                            epoch=epoch, criterions=criterion,
+                            writer=writer, args=args, logger=logger)
+        if sync_avg < 0.75:
+            criterion['sync_loss'].loss_weight = 0.03
+
         # save model weight
         state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'), model)
         ckpt_saver(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),

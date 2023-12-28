@@ -1,5 +1,7 @@
 import argparse
+import logging
 import os
+import numpy as np
 from glob import glob
 from tqdm import tqdm
 
@@ -11,7 +13,7 @@ from utils.logging_tool import get_logger
 
 def load_audio_melspec(file_name):
     wav = load_wav(path=file_name, sr=hparams.sample_rate)
-    return melspectrogram(wav).T
+    return melspectrogram(wav).T.astype(np.float32)
 
 
 if __name__ == '__main__':
@@ -21,16 +23,16 @@ if __name__ == '__main__':
     parser.add_argument("--name", type=str, required=True, help='Name for hdf5 file {name}.h5')
     parser.add_argument('--ext', type=str, choices=['wav', 'mp3'], default='wav', help='audio extension')
     args = parser.parse_args()
-    logger = get_logger()
-    logger.info(
+    logging.basicConfig(level=logging.INFO)
+    logging.info(
         f"Create cache {os.path.join(args.output_dir, f'{args.name}.h5')} from {args.input_dir}/**/*.{args.ext}")
 
-    audio_list = sorted(glob(os.path.join(args.output_dir, f"**/*.{args.ext}"), recursive=True))
+    audio_list = sorted(glob(os.path.join(args.input_dir, f"**/*.{args.ext}"), recursive=True))
+    os.makedirs(args.output_dir, exist_ok=True)
+    dataset = Hdf5(fname=os.path.join(args.output_dir, f"{args.name}_sr_{int(hparams.sample_rate)}.h5"), overwrite=True)
 
-    dataset = Hdf5(fname=os.path.join(args.output_dir, f"{args.name}_sr_{int(hparams.sample_rate)}.h5"))
-
-    for audio_file in tqdm(audio_list):
+    for audio_file in tqdm(audio_list, dynamic_ncols=True):
         audio_data = load_audio_melspec(audio_file)
         dataset.add(audio_file, audio_data)
 
-    logger.info("Cache complete")
+    logging.info("Cache complete")

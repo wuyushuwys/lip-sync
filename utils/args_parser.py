@@ -5,7 +5,7 @@ def arguments_parser(parser):
     parser.add_argument('--config_file', default=None, type=str, required=True,
                         help='path to config file')
 
-    parser.add_argument('--model', default=None, type=str, required=True, choices=['syncnet', ],
+    parser.add_argument('--model', default=None, type=str, required=True, choices=['syncnet', 'lipsync'],
                         help='model to train')
 
     # Dataset
@@ -43,21 +43,21 @@ def arguments_parser(parser):
                         help='Path to evaluation model.')
     parser.add_argument('--eval_datasets', default=None, type=str, nargs='+',
                         help='Dataset names for evaluation.')
-    parser.add_argument('--lpips_arch', default='alex', type=str, choices=['vgg', 'alex'],
-                        help='lpips evaluation architecture.')
 
     # Experiment arguments
     parser.add_argument('--epochs', default=50, type=int,
                         help='Number of epochs to train gan.')
     parser.add_argument('--log_steps', default=0, type=int,
                         help='Number of steps for training logging.')
-    parser.add_argument('--opt_level', default='O1', type=str,
-                        help='Recognized opt_levels are O0, O1, O2, and O3')
+    parser.add_argument('--log_scale', default=10, type=int,
+                        help='Scale for logging per epoch.e.g., log_steps = ')
 
     parser.add_argument('--resume', default=False, action='store_true',
                         help='resume GAN training from gan_ckpt_path')
     parser.add_argument('--warmup_lr', default=False, action='store_true',
                         help='Using warmup lr')
+    parser.add_argument('--scale_lr', default=False, action='store_true',
+                        help='Using scaled lr in multi-gpu')
 
     # gradient clipper
     parser.add_argument('--clip_grad', default=False, action='store_true',

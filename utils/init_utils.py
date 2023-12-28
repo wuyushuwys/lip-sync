@@ -39,9 +39,10 @@ def init_process(args):
                                 init_method=args.dist_url,
                                 world_size=args.world_size,
                                 rank=args.rank)
-        print(f"Init rank: {args.rank}\t local rank: {local_rank}")
 
-        # dist.barrier(device_ids=[device])
+        global_rank, world_size = get_dist_info()
+        print(f"global rank: {global_rank}\tlocal rank: {local_rank}\tworld size: {world_size}")
+
     else:
         args.local_rank = 0
         args.rank = 0
@@ -56,16 +57,9 @@ def init_process(args):
 
 
 def get_dist_info():
-    if dist.is_available():
-        initialized = dist.is_initialized()
-    else:
-        initialized = False
-    if initialized:
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-    else:
-        rank = 0
-        world_size = 1
+    initialized = dist.is_initialized()
+    world_size = dist.get_world_size() if initialized else 1
+    rank = dist.get_rank() if initialized else 0
     return rank, world_size
 
 
@@ -73,8 +67,7 @@ def get_device(is_gpu=True):
     """Return the correct device"""
     rank, _ = get_dist_info()
     local_rank = rank % torch.cuda.device_count()
-    return torch.device(local_rank if torch.cuda.is_available() and is_gpu
-                        else "cpu")
+    return torch.device(local_rank if torch.cuda.is_available() and is_gpu else "cpu")
 
 
 def master_only(func):

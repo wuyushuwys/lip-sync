@@ -6,7 +6,7 @@ num_gpus=$(nvidia-smi --list-gpus | wc -l)
 # Experiments
 
 dataset=hdtf
-model=syncnet
+model=lipsync
 
 now=$(date +'%b%d-%H')
 
@@ -20,11 +20,10 @@ fi
 
 printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 
-torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_syncnet.py \
+torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_lipsync.py \
   --config ${model}.yml \
   --dataset ${dataset} \
   --model ${model} \
   --job_dir "${job_dir}" \
-  --batch_size 64 \
-  --warmup_lr \
+  --batch_size 8 \
   --epochs 100

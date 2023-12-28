@@ -7,7 +7,6 @@ class Hdf5:
 
     def __init__(self, fname, lib='h5py', overwrite=False):
         self.fname = fname
-        self.lib = lib
         self.file = None
         if overwrite and os.path.exists(fname):
             os.remove(fname)
@@ -28,7 +27,7 @@ class Hdf5:
                 )
 
     def get(self, key):
-        if not self.file:
+        if self.file is None:
             self.file = h5py.File(self.fname, 'r', libver='latest')
         if '/' in key:
             value = self.file
@@ -40,5 +39,6 @@ class Hdf5:
 
     @property
     def keys(self):
-        with h5py.File(self.fname, mode='r', libver='latest') as f:
-            return list(f.keys())
+        if self.file is None:
+            self.file = h5py.File(self.fname, 'r', libver='latest')
+        return list(self.file.keys())

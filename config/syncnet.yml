@@ -9,16 +9,17 @@ audio_spec:
 window_size: 5
 
 num_samples: 1000
+eval_samples: 50
 
 optim:
   type: Adam
-  lr: 1.0e-4
+  lr: 1.0e-5
   betas: [0.9, 0.999]
 
 #scheduler:
 #  type: MultiStepLR
-#  milestones: [0.8]
-#  gamma: 0.5
+#  milestones: [0.4, 0.8]
+#  gamma: 0.1
 
 scheduler:
   type: CosineAnnealingLR
@@ -28,4 +29,4 @@ scheduler:
 losses:
   sync_loss:
     type: CosineLoss
-    weight: 1
+    loss_weight: 1

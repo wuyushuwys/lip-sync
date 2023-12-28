@@ -4,7 +4,7 @@ from torch.nn import functional as F
 import math
 
 from .ops import Conv2dTranspose, Conv2d, nonorm_Conv2d
-
+from utils.evaluation import evaluate_lip
 
 class Wav2Lip(nn.Module):
     def __init__(self):
@@ -89,11 +89,14 @@ class Wav2Lip(nn.Module):
             nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
             nn.Sigmoid())
 
+        self._init_weights()
+
     def forward(self, audio_sequences, face_sequences):
+        face_sequences = 2 * face_sequences - 1
         # audio_sequences = (B, T, 1, 80, 16)
         B = audio_sequences.size(0)
 
-        input_dim_size = len(face_sequences.size())
+        input_dim_size = face_sequences.dim()
         if input_dim_size > 4:
             audio_sequences = torch.cat([audio_sequences[:, i] for i in range(audio_sequences.size(1))], dim=0)
             face_sequences = torch.cat([face_sequences[:, :, i] for i in range(face_sequences.size(2))], dim=0)
@@ -110,7 +113,6 @@ class Wav2Lip(nn.Module):
         for f in self.face_decoder_blocks:
             x = f(x)
             try:
-                # print(x.size(), feats[-1].size())
                 x = torch.cat((x, feats[-1]), dim=1)
             except Exception as e:
                 print(x.size(), feats[-1].size())
@@ -128,8 +130,24 @@ class Wav2Lip(nn.Module):
         else:
             outputs = x
 
+        outputs = (outputs + 1) / 2
+
         return outputs
 
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def __str__(self):
+        return "wav2lip"
+
+    @staticmethod
+    def evaluate(*args, **kwargs):
+        return evaluate_lip.evaluation(*args, **kwargs)
 
 class Wav2Lip_disc_qual(nn.Module):
     def __init__(self):

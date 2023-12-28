@@ -1,15 +1,16 @@
 import argparse
 import importlib
+import os.path
 
 import torch
 import math
 
 from collections import OrderedDict
-
-import common
+from pathlib import Path
 
 from torch.utils.data import DataLoader
 
+import utils
 from utils import lr_scheduler, gradual_warmup_scheduler
 from utils.prefetch_dataloader import CUDAPrefetcher
 from utils.init_utils import master_only
@@ -26,20 +27,24 @@ __all__ = ["create_dataloader",
 
 def create_dataloader(args):
     dataset_module = importlib.import_module(f'datasets.{args.dataset}' if args.dataset else 'datasets')
-    train_dataset = dataset_module.get_dataset(common.mode.TRAIN, args)
+    train_dataset = dataset_module.get_dataset(utils.mode.TRAIN, args)
 
     # Load eval dataset
     if args.eval_datasets:
         eval_datasets = []
+        eval_samplers = dict()
         for eval_dataset in args.eval_datasets:
             eval_dataset_module = importlib.import_module(f'datasets.{eval_dataset}')
-            eval_datasets.append((eval_dataset, eval_dataset_module.get_dataset(common.mode.EVAL, args)))
+            eval_datasets.append((eval_dataset, eval_dataset_module.get_dataset(utils.mode.EVAL, args)))
+            eval_samplers[eval_dataset](
+                torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None)
     else:
-        eval_datasets = [(args.dataset, dataset_module.get_dataset(common.mode.EVAL, args))]
-
+        eval_dataset = dataset_module.get_dataset(utils.mode.EVAL, args)
+        eval_datasets = [(args.dataset, eval_dataset)]
+        eval_samplers = {
+            args.dataset: torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None}
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
-    eval_sampler = None
-    prefetch_factor = 4
+    prefetch_factor = 2
     # Dataloader
     train_data_loader = DataLoader(dataset=train_dataset,
                                    num_workers=args.num_workers,
@@ -50,40 +55,36 @@ def create_dataloader(args):
                                    sampler=train_sampler,
                                    prefetch_factor=prefetch_factor)
 
-    train_data_loader = CUDAPrefetcher(loader=train_data_loader, args=args)
+    # train_data_loader = CUDAPrefetcher(loader=train_data_loader, args=args)
 
     eval_kwargs = {"num_workers": args.num_workers,
                    "batch_size": args.batch_size,
                    'shuffle': False,
                    'drop_last': False,
-                   'pin_memory': True,
-                   'sampler': eval_sampler}
-    eval_data_loaders = [(data_name, DataLoader(dataset=dataset, **eval_kwargs)) for data_name, dataset in
-                         eval_datasets]
+                   'pin_memory': True}
+    eval_data_loaders = [(data_name, DataLoader(dataset=dataset,
+                                                sampler=eval_samplers[data_name], **eval_kwargs)) for
+                         data_name, dataset in eval_datasets]
 
     args.total_iterations = int(args.epochs * len(train_data_loader))
 
     if args.log_steps == 0:
-        args.log_steps = max(min(len(train_data_loader) // 100, 100), 1)
-    return train_data_loader, train_sampler, eval_data_loaders, eval_sampler
+        args.log_steps = max(min(len(train_data_loader) // args.log_scale, 100), 1)
+    return train_data_loader, train_sampler, eval_data_loaders, eval_samplers
 
 
 def subdict(dict: dict, *exceptions) -> dict:
-    # exceptions = exceptions.split(',')
     return {k: v for k, v in dict.items() if k not in exceptions}
 
 
 def create_criterions(args: argparse.Namespace):
     assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'losses'), "Missing losses in model config"
-    assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
+    # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
     criterions = OrderedDict()
     for name, kwargs in args.losses.items():
         loss = getattr(losses_module, kwargs.get('type'))
-        # if kwargs.get('type') == 'BitPerPixelLoss':
-        #     kwargs['lambda_schedule']['steps'][0] *= args.total_iterations
-        #     kwargs['target_schedule']['steps'][0] *= args.total_iterations
         criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
     return criterions
@@ -100,7 +101,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     optim_module = getattr(torch.optim, args.optim.get('type'))
     optim_dict = subdict(args.optim, 'type')
 
-    if args.distributed:
+    if args.distributed and args.scale_lr:
         original_lr = optim_dict.get('lr')
         scalar = args.world_size
         optim_dict['lr'] *= scalar
@@ -165,12 +166,14 @@ def load_ckpt(ckpt, **kwargs):
 
 @master_only
 def state_dict_saver(path, model):
+    dir_checker(path)
     state_dict = model.state_dict() if not hasattr(model, 'module') else model.module.state_dict()
     torch.save(state_dict, path)
 
 
 @master_only
 def ckpt_saver(path, **kwargs):
+    dir_checker(path)
     ckpt = {}
     for k, v in kwargs.items():
         if isinstance(v, int):
@@ -181,6 +184,23 @@ def ckpt_saver(path, **kwargs):
             v = v.state_dict()
         ckpt[k] = v
     torch.save(ckpt, path)
+
+
+def ckpt_loader(ckpt, **kwargs):
+    for k, module in ckpt.items():
+        if isinstance(module, int):
+            pass
+        else:
+            if hasattr(kwargs[k], 'module'):
+                kwargs[k].module.load_state_dict(ckpt[k])
+            else:
+                kwargs[k].load_state_dict(ckpt[k])
+
+
+def dir_checker(file_path):
+    path = Path(file_path).parent
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 
 if __name__ == "__main__":
