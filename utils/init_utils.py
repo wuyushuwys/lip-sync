@@ -1,7 +1,7 @@
 import os
 import argparse
 import functools
-import subprocess
+import random
 
 import torch
 import numpy as np
@@ -66,8 +66,9 @@ def init_process(args):
     debug_mode(args)
 
     if args.manual_seed:
-        torch.manual_seed(args.rank)
-        np.random.seed(args.rank)
+        torch.manual_seed(args.manual_seed)
+        np.random.seed(args.manual_seed)
+        random.seed(args.manual_seed)
 
 
 def get_dist_info():

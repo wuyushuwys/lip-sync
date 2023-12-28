@@ -1,3 +1,5 @@
+manual_seed: 1234
+
 video_spec:
   fps: 25
   size: [ 192, 192 ]

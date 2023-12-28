@@ -13,6 +13,7 @@ class CosineLoss(nn.Module):
         self.cos_sim = nn.CosineSimilarity()
 
     def forward(self, a, v, y):
+        assert a.size() == v.size()
         distance = self.cos_sim(a, v)
         loss = self.loss(distance.unsqueeze(1), y)
 

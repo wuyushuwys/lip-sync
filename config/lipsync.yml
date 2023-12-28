@@ -1,6 +1,6 @@
 video_spec:
   fps: 25
-  size: [ 192, 192 ]
+  size: [ 256, 256 ]
 
 audio_spec:
   mel_step_size: 16
@@ -13,7 +13,7 @@ eval_samples: 50
 
 optim:
   type: Adam
-  lr: 1.0e-4
+  lr: 1.0e-5
   betas: [ 0.9, 0.999 ]
 
 #scheduler:
@@ -23,7 +23,7 @@ optim:
 
 scheduler:
   type: CosineAnnealingLR
-#  eta_min: 1.0e-5
+  eta_min: 1.0e-5
 
 
 losses:
@@ -45,5 +45,5 @@ losses:
 
   sync_loss:
     type: SyncLoss
-    ckpt_path: runs/train_syncnet_hdtf/weights/syncnet.pt
+    ckpt_path: runs/train_syncnet_hdtf_expert_aligned/weights/syncnet.pt
     loss_weight: 0

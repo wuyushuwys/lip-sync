@@ -17,7 +17,7 @@ from utils.train_utils import (create_dataloader, create_criterions, create_opti
 from utils.logger_utils import tb_writer, loss_printer, attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet import SyncNet
+from models.syncnet import SyncNet, SyncNet_Color
 
 
 def train(model, optimizer, scheduler, criterion,
@@ -44,7 +44,7 @@ def train(model, optimizer, scheduler, criterion,
         loss = criterion['sync_loss'](a, v, y)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
 
         log_vars['sync_loss'] = loss.item()
         log_vars['lr'] = scheduler.get_last_lr()[0]
@@ -82,7 +82,7 @@ def main(args):
     train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
 
     # Create generator
-    model = SyncNet()
+    model = SyncNet_Color()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")

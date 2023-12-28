@@ -10,8 +10,13 @@ from datetime import timedelta
 import numpy as np
 
 import torch
+import torchvision
+
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
+from torchvision.transforms import (Compose, ColorJitter,
+                                    RandomApply, RandomAutocontrast,
+                                    RandomGrayscale, RandomAdjustSharpness)
 from torchvision.io import read_image
 
 import common
@@ -49,17 +54,17 @@ class FrameMelDataset(Dataset):
         elif self.mode == utils.mode.EVAL:
             self.num_samples = args.eval_samples  # number of samples from each video
 
-        # if self.model == 'syncnet':
-        #     # Indexing eval list
-        #     if self.mode == utils.mode.EVAL:
-        #         eval_filelist = []
-        #         eval_length = {}
-        #         for folder, v in folder_tree.items():
-        #             eval_frames = sorted(map(lambda fname: os.path.join(folder, fname), v))
-        #             eval_filelist.extend(eval_frames)
-        #             eval_length[folder] = len(eval_frames)
-        #         self.eval_filelist = eval_filelist
-        #         self.eval_length = eval_length
+        if self.model == 'syncnet':
+            # Indexing eval list
+            if self.mode == utils.mode.EVAL:
+                eval_filelist = []
+                eval_length = {}
+                for folder, v in folder_tree.items():
+                    eval_frames = sorted(map(lambda fname: os.path.join(folder, fname), v))
+                    eval_filelist.extend(eval_frames[:len(eval_frames) // self.window_size * self.window_size])
+                    eval_length[folder] = len(eval_frames)
+                self.eval_filelist = eval_filelist
+                self.eval_length = eval_length
 
         load_frames = sum(len(v) for v in folder_tree.values())
         logger.info(
@@ -72,25 +77,32 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"Loading audio from file")
 
+        self.transform = Compose([
+            RandomApply([ColorJitter(brightness=0.2, saturation=0.2, hue=0.2), ], p=0.2),
+            RandomGrayscale(p=0.1),
+            RandomAutocontrast(p=0.1),
+            RandomAdjustSharpness(sharpness_factor=2, p=0.1)
+        ])
+
     def __len__(self):
-        # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
-        #     return len(self.eval_filelist) // self.window_size - 1
-        # else:
-        return len(self.folder_tree) * self.num_samples
+        if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
+            return len(self.eval_filelist) // self.window_size - 1
+        else:
+            return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
         if self.model == 'syncnet':
-            # if self.mode == utils.mode.TRAIN:
-            index_folder, frame_list, audio_file = self._load_index(index)
-            frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-            return img_window, mel, label
-        # else:
-        #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-        #     assert len(frame_window) == self.window_size
-        #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
-        #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-        #     return img_window, mel, label
+            if self.mode == utils.mode.TRAIN:
+                index_folder, frame_list, audio_file = self._load_index(index)
+                frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+                img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+                return img_window, mel, label
+            else:
+                frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
+                assert len(frame_window) == self.window_size
+                audio_file = Path(frame_window[0]).parent / 'audio.wav'
+                img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
+                return img_window, mel, label
         elif self.model == 'lipsync':
             index_folder, frame_list, audio_file = self._load_index(index)
             frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
@@ -186,8 +198,15 @@ class FrameMelDataset(Dataset):
         mel = self._load_audio_melspec(audio_file)
         mel = self._crop_audio_window(mel.copy(), audio_idx)
 
-        img_window = torch.cat(img_window, dim=0) / 255
-        img_window = img_window[:, img_window.size(1) // 2:, :]
+        if self.mode == utils.mode.TRAIN:
+            img_window = torch.stack(img_window, dim=0) / 255
+            img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+            t, c, h, w = img_window.size()
+            img_window = self.transform(img_window)
+            img_window = img_window.reshape(t * c, h, w)
+        else:
+            img_window = torch.cat(img_window, dim=0) / 255
+            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
