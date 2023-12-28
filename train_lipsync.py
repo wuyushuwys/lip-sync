@@ -77,11 +77,14 @@ def main(args):
     logger = get_logger(args.job_dir)
     device = args.local_rank
 
-    # Create job and tb_writer
-    writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
     # init wandb
     if args.rank == 0:
+        wandb.tensorboard.patch(root_logdir=args.job_dir)
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1], config=vars(args))
+
+    # Create job and tb_writer
+    writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
+
     # Load dataset
     train_data_loader, train_sampler, eval_data_loaders, eval_samplers = create_dataloader(args)
 
