@@ -1,0 +1,8 @@
+--index-url https://download.pytorch.org/whl/cu117torchvision
+torch
+torchvision
+tensorboard
+tqdm
+wandb
+h5py
+librosa
