@@ -25,6 +25,7 @@ pip install -r requirements.txt
 
 ## Training
 
+- configuration defined in `config/[exp].yml`
 
 ```bash
 bash scripts/train_syncnet.bash

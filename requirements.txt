@@ -3,3 +3,4 @@ tqdm
 wandb
 h5py
 librosa
+thop

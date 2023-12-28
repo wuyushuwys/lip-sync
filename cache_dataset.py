@@ -28,6 +28,7 @@ if __name__ == '__main__':
         f"Create cache {os.path.join(args.output_dir, f'{args.name}.h5')} from {args.input_dir}/**/*.{args.ext}")
 
     audio_list = sorted(glob(os.path.join(args.input_dir, f"**/*.{args.ext}"), recursive=True))
+    logging.info(f"Trying to cache {len(audio_list)} audio")
     os.makedirs(args.output_dir, exist_ok=True)
     dataset = Hdf5(fname=os.path.join(args.output_dir, f"{args.name}_sr_{int(hparams.sample_rate)}.h5"), overwrite=True)
 
