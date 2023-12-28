@@ -43,13 +43,14 @@ def init_process(args):
             # args.rank = int(os.environ['SLURM_PROCID']) * ngpus_per_node + local_rank  # global rank
 
             node_list = os.environ['SLURM_NODELIST']
-            # addr = subprocess.getoutput(f'scontrol show hostname {node_list} | head -n1')
+            addr = subprocess.getoutput(f'scontrol show hostname {node_list} | head -n1')
             args.node_list = node_list  # All node you are using
             args.job_id = os.environ["SLURM_JOB_ID"]  # get job id
             args.local_rank = local_rank
 
             # set environs
-            os.environ['MASTER_ADDR'] = os.environ['SLURM_LAUNCH_NODE_IPADDR']  # get master addr
+            # os.environ['MASTER_ADDR'] = os.environ['SLURM_LAUNCH_NODE_IPADDR']  # get master addr
+            os.environ['MASTER_ADDR'] = addr  # get master addr
             os.environ['WORLD_SIZE'] = str(args.world_size)
             os.environ['LOCAL_RANK'] = str(local_rank)
             os.environ['RANK'] = str(args.rank)
