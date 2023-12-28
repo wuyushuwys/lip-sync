@@ -19,12 +19,15 @@ def init_process(args):
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cuda.matmul.allow_tf32 = True
 
-    args.distributed = torch.cuda.device_count() > 1
+    if 'SLURM_NPROCS' in os.environ:
+        ngpus_per_node = torch.cuda.device_count()
+        args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node
+        args.distributed = args.world_size > 1
+    else:
+        args.distributed = torch.cuda.device_count() > 1
     if args.distributed:
         local_rank = int(os.environ["LOCAL_RANK"])
         if 'SLURM_NPROCS' in os.environ:
-            ngpus_per_node = torch.cuda.device_count()
-            args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node  # compute world_size for multi-node
             os.environ['MASTER_ADDR'] = os.environ['SLURM_LAUNCH_NODE_IPADDR']  # get master addr
             args.rank = int(os.environ['SLURM_PROCID']) * ngpus_per_node + local_rank  # global rank
             args.node_list = os.environ["SLURM_NODELIST"]  # All node you are using
