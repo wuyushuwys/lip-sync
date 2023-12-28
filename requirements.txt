@@ -4,3 +4,4 @@ wandb
 h5py
 librosa
 thop
+lpips
