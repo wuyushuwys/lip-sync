@@ -19,17 +19,31 @@ def init_process(args):
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cuda.matmul.allow_tf32 = True
 
-    if 'SLURM_NPROCS' in os.environ:
-        ngpus_per_node = torch.cuda.device_count()
-        args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node
-        args.distributed = args.world_size > 1
-    else:
-        args.distributed = torch.cuda.device_count() > 1
+    # if 'SLURM_NPROCS' in os.environ:
+    #     ngpus_per_node = torch.cuda.device_count()
+    #     if ngpus_per_node == 1:
+    #         args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node
+    #     else:
+    #         args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node
+    #     args.distributed = args.world_size > 1
+    #     local_rank = int(os.environ["LOCAL_RANK"])
+    # else:
+    args.distributed = torch.cuda.device_count() > 1
+
     if args.distributed:
         local_rank = int(os.environ["LOCAL_RANK"])
         if 'SLURM_NPROCS' in os.environ:
+            ngpus_per_node = torch.cuda.device_count()
+            # multi-task single-gpu
+            local_rank = int(os.environ['SLURM_NPROCS']) % ngpus_per_node
+            args.world_size = int(os.environ['SLURM_NPROCS'])
+            args.rank = int(os.environ['SLURM_PROCID'])  # global rank
+
+            # multi-task multi-gpu
+            # args.world_size = int(os.environ['SLURM_NPROCS']) * ngpus_per_node
+            # args.rank = int(os.environ['SLURM_PROCID']) * ngpus_per_node + local_rank  # global rank
+
             os.environ['MASTER_ADDR'] = os.environ['SLURM_LAUNCH_NODE_IPADDR']  # get master addr
-            args.rank = int(os.environ['SLURM_PROCID']) * ngpus_per_node + local_rank  # global rank
             args.node_list = os.environ["SLURM_NODELIST"]  # All node you are using
             args.job_id = os.environ["SLURM_JOB_ID"]  # get job id
             args.local_rank = local_rank
