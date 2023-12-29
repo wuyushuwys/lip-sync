@@ -55,7 +55,7 @@ def train(model, optimizer, scheduler, criterion,
         loss.backward()
         log_vars['sync_loss'] = sync_loss.item() if torch.is_tensor(sync_loss) else sync_loss
         log_vars['recon_loss'] = recon_loss.item()
-        log_vars['perceptual_loss'] = perceptual_loss.item()
+        log_vars['perceptual_loss'] = perceptual_loss.item() if torch.is_tensor(perceptual_loss) else perceptual_loss
         log_vars['lr'] = scheduler.get_last_lr()[0]
         log_vars['@loss'] = loss.item()
 

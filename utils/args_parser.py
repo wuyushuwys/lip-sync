@@ -60,12 +60,12 @@ def arguments_parser(parser):
                         help='Using scaled lr in multi-gpu')
 
     # gradient clipper
-    parser.add_argument('--clip_grad', default=False, action='store_true',
-                        help='Using gradient clipper to avoid gradient explosive or diminish')
-    parser.add_argument('--gradient_range', default=5, type=float,
-                        help='Gradient clip range')
-    parser.add_argument('--clip_epoch', default=0.1, type=float,
-                        help='% of epochs to perform gradient clipper')
+    # parser.add_argument('--clip_grad', default=False, action='store_true',
+    #                     help='Using gradient clipper to avoid gradient explosive or diminish')
+    # parser.add_argument('--gradient_range', default=5, type=float,
+    #                     help='Gradient clip range')
+    # parser.add_argument('--clip_epoch', default=0.1, type=float,
+    #                     help='% of epochs to perform gradient clipper')
 
     # Verbose
     parser.add_argument('-v', '--verbose', action='count', default=1,
