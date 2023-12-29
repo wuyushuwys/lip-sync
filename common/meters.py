@@ -2,6 +2,8 @@
 import time
 import datetime
 
+import torch
+
 from utils import loss_printer
 
 
@@ -77,6 +79,7 @@ class LossesMeter:
 
     def update(self, loss_dict: dict, size=1):
         for key, value in loss_dict.items():
+            value = value.item() if torch.is_tensor(value) else value
             if key not in self._loss.keys():
                 self._loss[key] = AverageMeter()
                 self._loss[key].update(value, n=size)

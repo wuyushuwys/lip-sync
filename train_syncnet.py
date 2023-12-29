@@ -46,9 +46,9 @@ def train(model, optimizer, scheduler, criterion,
 
         # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
 
-        log_vars['sync_loss'] = loss.item()
+        log_vars['sync_loss'] = loss
         log_vars['lr'] = scheduler.get_last_lr()[0]
-        log_vars['@loss'] = loss.item()
+        log_vars['@loss'] = loss
 
         optimizer.step()
         scheduler.step()
