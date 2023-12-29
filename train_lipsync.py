@@ -46,8 +46,10 @@ def train(model, optimizer, scheduler, criterion,
         sync_weight = criterion['sync_loss'].loss_weight
         sync_loss = criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
 
-        recon_loss = criterion['recon_loss'](pred_y, y)
-        perceptual_loss = criterion['perceptual_loss'](pred_y, y)
+        recon_loss = criterion['recon_loss'](pred_y, y) if 'recon_loss' in criterion.keys() else 0
+
+        perceptual_loss = criterion['perceptual_loss'](pred_y, y) if 'perceptual_loss' in criterion.keys() else 0
+
         loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
         loss.backward()
@@ -156,11 +158,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     init_process(args)
 
+    # read from config file
+    config.update_params(args)
+
     # create logger
     logger = get_logger(file_path=args.job_dir)
     args.logger = logger
-
-    # read from config file
-    config.update_params(args)
 
     main(args)

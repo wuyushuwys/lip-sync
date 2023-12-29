@@ -48,11 +48,7 @@ def test(dataloader: DataLoader,
          epoch: int,
          img_folder: str,
          args: argparse.Namespace):
-    loss_dict = {
-        "sync_loss": AverageMeter(),
-        "recon_loss": AverageMeter(),
-        "perceptual_loss": AverageMeter(),
-    }
+    loss_dict = {k: AverageMeter() for k in criterions.keys()}
 
     for idx, (x, indiv_mels, mel, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
@@ -62,13 +58,17 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
 
         pred_y = model(indiv_mels, x)
-        sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
-        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y))
-        perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y))
 
+        sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
         loss_dict['sync_loss'].update(sync_loss, bsz)
+
+        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y))
         loss_dict['recon_loss'].update(recon_loss, bsz)
-        loss_dict['perceptual_loss'].update(perceptual_loss, bsz)
+
+        if 'perceptual_loss' in criterions.keys():
+            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y))
+            loss_dict['perceptual_loss'].update(perceptual_loss, bsz)
+
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
     return loss_dict

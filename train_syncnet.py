@@ -148,11 +148,11 @@ if __name__ == '__main__':
     args = parser.parse_args()
     init_process(args)
 
+    # read from config file
+    config.update_params(args)
+
     # create logger
     logger = get_logger(file_path=args.job_dir)
     args.logger = logger
-
-    # read from config file
-    config.update_params(args)
 
     main(args)

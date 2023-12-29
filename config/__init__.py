@@ -18,6 +18,10 @@ def update_params(args: argparse.Namespace):
         for n, v in config.items():
             args.__setattr__(n, v)
 
+    # save current config in yml
+    with open(os.path.join(args.job_dir, 'config.yml'), 'w') as f:
+        yaml.safe_dump(vars(args), f)
+
 
 if __name__ == "__main__":
     pass
