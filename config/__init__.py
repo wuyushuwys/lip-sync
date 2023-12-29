@@ -19,6 +19,7 @@ def update_params(args: argparse.Namespace):
             args.__setattr__(n, v)
 
     # save current config in yml
+    os.makedirs(args.job_dir, exist_ok=True)
     with open(os.path.join(args.job_dir, 'config.yml'), 'w') as f:
         yaml.safe_dump(vars(args), f)
 
