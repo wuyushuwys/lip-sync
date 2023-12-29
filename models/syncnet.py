@@ -33,8 +33,8 @@ class SyncNet(nn.Module):
             Conv2d(1024, 1024, kernel_size=3, stride=1, padding=1, residual=True),
 
             Conv2d(1024, 1024, kernel_size=3, stride=2, padding=1),
-            Conv2d(1024, 1024, kernel_size=3, stride=1, padding=0),
-            Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0),
+            Conv2d(1024, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
+            Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0, act='relu'),
 
             nn.AdaptiveAvgPool2d(1)
         )
@@ -60,8 +60,8 @@ class SyncNet(nn.Module):
             Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
             Conv2d(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
 
-            Conv2d(512, 1024, kernel_size=3, stride=1, padding=0),
-            Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0), )
+            Conv2d(512, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
+            Conv2d(1024, 1024, kernel_size=1, stride=1, padding=0, act='relu'), )
 
         self._init_weights()
 
@@ -81,10 +81,12 @@ class SyncNet(nn.Module):
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="leaky_relu")
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 0)
 
     def __str__(self):
         return "SyncNet"
@@ -107,8 +109,10 @@ class SyncNet_Color(nn.Module):
 
             ResBlock(32, 64, kernel_size=5, stride=(1, 2)),
             ResBlock(64, 64, kernel_size=3, stride=1),
+            ResBlock(64, 64, kernel_size=3, stride=1),
 
             ResBlock(64, 128, kernel_size=3, stride=2),
+            ResBlock(128, 128, kernel_size=3, stride=1),
             ResBlock(128, 128, kernel_size=3, stride=1),
 
             ResBlock(128, 256, kernel_size=3, stride=2),
@@ -124,7 +128,7 @@ class SyncNet_Color(nn.Module):
             ResBlock(512, 512, kernel_size=3, stride=1),
 
             ResBlock(512, 1024, kernel_size=3, stride=2),
-            ResBlock(1024, 1024, kernel_size=3, stride=1),
+            ResBlock(1024, 1024, kernel_size=3, stride=1, act='relu'),
             ResBlock(1024, 1024, kernel_size=3, stride=1, act='relu'),
 
             nn.AdaptiveAvgPool2d(1),
@@ -155,7 +159,7 @@ class SyncNet_Color(nn.Module):
             ResBlock(512, 512, kernel_size=3, stride=1),
 
             ResBlock(512, 1024, kernel_size=3, stride=2),
-            ResBlock(1024, 1024, kernel_size=3, stride=1),
+            ResBlock(1024, 1024, kernel_size=3, stride=1, act='relu'),
             ResBlock(1024, 1024, kernel_size=3, stride=1, act='relu'),
 
             nn.AdaptiveAvgPool2d(1),
@@ -180,10 +184,12 @@ class SyncNet_Color(nn.Module):
     def _init_weights(self):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="leaky_relu")
             elif isinstance(m, nn.BatchNorm2d):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 0)
 
     def __str__(self):
         return "SyncNet"

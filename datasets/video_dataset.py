@@ -81,7 +81,6 @@ class FrameMelDataset(Dataset):
             RandomApply([ColorJitter(brightness=0.2, saturation=0.2, hue=0.2), ], p=0.2),
             RandomGrayscale(p=0.1),
             RandomAutocontrast(p=0.1),
-            RandomAdjustSharpness(sharpness_factor=2, p=0.1)
         ])
 
     def __len__(self):
