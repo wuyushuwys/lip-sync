@@ -82,7 +82,7 @@ def main(args):
     train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
 
     # Create generator
-    model = SyncNet_Color()
+    model = SyncNet()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
