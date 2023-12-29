@@ -197,15 +197,15 @@ class FrameMelDataset(Dataset):
         mel = self._load_audio_melspec(audio_file)
         mel = self._crop_audio_window(mel.copy(), audio_idx)
 
-        if self.mode == utils.mode.TRAIN:
-            img_window = torch.stack(img_window, dim=0) / 255
-            img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
-            t, c, h, w = img_window.size()
-            img_window = self.transform(img_window)
-            img_window = img_window.reshape(t * c, h, w)
-        else:
-            img_window = torch.cat(img_window, dim=0) / 255
-            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+        # if self.mode == utils.mode.TRAIN:
+        #     img_window = torch.stack(img_window, dim=0) / 255
+        #     img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+        #     t, c, h, w = img_window.size()
+        #     # img_window = self.transform(img_window)
+        #     img_window = img_window.reshape(t * c, h, w)
+        # else:
+        img_window = torch.cat(img_window, dim=0) / 255
+        img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 

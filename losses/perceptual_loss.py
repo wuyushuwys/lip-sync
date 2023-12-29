@@ -101,7 +101,7 @@ class PerceptualLoss(nn.Module):
                  use_input_norm=True,
                  perceptual_weight=1.0,
                  style_weight=0.0,
-                 norm_img=True,
+                 norm_img=False,
                  criterion='l1',
                  reduction='mean'):
         super().__init__()

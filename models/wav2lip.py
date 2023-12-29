@@ -104,7 +104,7 @@ class Wav2Lip(nn.Module):
         self._init_weights()
 
     def forward(self, audio_sequences, face_sequences):
-        face_sequences = 2 * face_sequences - 1
+        # face_sequences = 2 * face_sequences - 1
         # audio_sequences = (B, T, 1, 80, 16)
         B = audio_sequences.size(0)
 
@@ -145,7 +145,7 @@ class Wav2Lip(nn.Module):
         else:
             outputs = x
 
-        outputs = (outputs + 1) / 2
+        # outputs = (outputs + 1) / 2
 
         return outputs
 
