@@ -25,7 +25,7 @@ optim:
 
 scheduler:
   type: CosineAnnealingLR
-  eta_min: 1.0e-5
+  eta_min: 1.0e-7
 
 
 losses:
@@ -47,5 +47,5 @@ losses:
 
   sync_loss:
     type: SyncLoss
-    ckpt_path: runs/train_syncnet_hdtf_expert_aligned/weights/syncnet.pt
+    ckpt_path: runs/train_syncnet_hdtf_ori_expert/weights/syncnet.pt
     loss_weight: 0
