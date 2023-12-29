@@ -135,7 +135,7 @@ class Wav2Lip(nn.Module):
 
             feats.pop()
 
-        x = F.interpolate(x, scale_factor=2, mode='bicubic')
+        # x = F.interpolate(x, scale_factor=2, mode='bicubic')
         x = self.output_block(x)
 
         if input_dim_size > 4:
