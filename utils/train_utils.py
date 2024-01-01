@@ -5,6 +5,8 @@ import os.path
 import torch
 import math
 
+from torch.utils.data import ConcatDataset
+
 from collections import OrderedDict
 from pathlib import Path
 
@@ -26,8 +28,9 @@ __all__ = ["create_dataloader",
 
 
 def create_dataloader(args):
-    dataset_module = importlib.import_module(f'datasets.{args.dataset}' if args.dataset else 'datasets')
-    train_dataset = dataset_module.get_dataset(utils.mode.TRAIN, args)
+
+    dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
+    train_dataset = ConcatDataset([module.get_dataset(utils.mode.TRAIN, args) for module in dataset_modules])
 
     # Load eval dataset
     if args.eval_datasets:
@@ -36,13 +39,15 @@ def create_dataloader(args):
         for eval_dataset in args.eval_datasets:
             eval_dataset_module = importlib.import_module(f'datasets.{eval_dataset}')
             eval_datasets.append((eval_dataset, eval_dataset_module.get_dataset(utils.mode.EVAL, args)))
-            eval_samplers[eval_dataset](
-                torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None)
+            eval_samplers[eval_dataset] = torch.utils.data.distributed.DistributedSampler(
+                eval_dataset) if args.distributed else None
     else:
-        eval_dataset = dataset_module.get_dataset(utils.mode.EVAL, args)
-        eval_datasets = [(args.dataset, eval_dataset)]
-        eval_samplers = {
-            args.dataset: torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None}
+        for dataset in args.dataset:
+            dataset_module = importlib.import_module(f'datasets.{dataset}')
+            eval_dataset = dataset_module.get_dataset(utils.mode.EVAL, args)
+            eval_datasets = [(dataset, eval_dataset)]
+            eval_samplers = {
+                dataset: torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None}
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     prefetch_factor = 2
     # Dataloader
@@ -69,7 +74,7 @@ def create_dataloader(args):
     args.total_iterations = int(args.epochs * len(train_data_loader))
 
     if args.log_steps == 0:
-        args.log_steps = max(min(len(train_data_loader) // args.log_scale, 100), 1)
+        args.log_steps = max(min(len(train_data_loader) // 10, 100), 1)
     return train_data_loader, train_sampler, eval_data_loaders, eval_samplers
 
 

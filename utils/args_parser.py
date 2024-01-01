@@ -9,7 +9,7 @@ def arguments_parser(parser):
                         help='model to train')
 
     # Dataset
-    parser.add_argument('--dataset', default=None, type=str, required=True,
+    parser.add_argument('--dataset', default=None, type=str, required=True, nargs='+',
                         help='Dataset name.')
     parser.add_argument('--batch_size', default=16, type=int,
                         help='Batch size for training and evaluation.')
@@ -21,9 +21,11 @@ def arguments_parser(parser):
                         help='Number of workers for data loading.')
 
     parser.add_argument('--job_dir', default=None, type=str,
-                        help='Directory to write checkpoints and export models.')
+                        help='Directory to write ckpt and export models.')
     parser.add_argument('--ckpt', default=None, type=str,
-                        help='Dir path to load gan checkpoint.')
+                        help='Dir path to load ckpt.')
+    parser.add_argument('--resume', default=False, action='store_true',
+                        help='resume training from ckpt')
     parser.add_argument('--weight', default=None, type=str,
                         help='path to load model weight')
     parser.add_argument('--profile', action='store_true',
@@ -41,6 +43,7 @@ def arguments_parser(parser):
                         help='Running evaluation only.')
     parser.add_argument('--eval_model', default=None, type=str,
                         help='Path to evaluation model.')
+
     parser.add_argument('--eval_datasets', default=None, type=str, nargs='+',
                         help='Dataset names for evaluation.')
 
@@ -49,13 +52,12 @@ def arguments_parser(parser):
                         help='Number of epochs to train gan.')
     parser.add_argument('--log_steps', default=0, type=int,
                         help='Number of steps for training logging.')
-    parser.add_argument('--log_scale', default=10, type=int,
-                        help='Scale for logging per epoch.e.g., log_steps = ')
+    # parser.add_argument('--log_scale', default=10, type=int,
+    #                     help='Scale for logging per epoch.e.g., log_steps = ')
 
-    parser.add_argument('--resume', default=False, action='store_true',
-                        help='resume GAN training from gan_ckpt_path')
     parser.add_argument('--warmup_lr', default=False, action='store_true',
                         help='Using warmup lr')
+
     parser.add_argument('--scale_lr', default=False, action='store_true',
                         help='Using scaled lr in multi-gpu')
 
