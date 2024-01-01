@@ -28,7 +28,6 @@ __all__ = ["create_dataloader",
 
 
 def create_dataloader(args):
-
     dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
     train_dataset = ConcatDataset([module.get_dataset(utils.mode.TRAIN, args) for module in dataset_modules])
 
@@ -42,12 +41,14 @@ def create_dataloader(args):
             eval_samplers[eval_dataset] = torch.utils.data.distributed.DistributedSampler(
                 eval_dataset) if args.distributed else None
     else:
-        for dataset in args.dataset:
-            dataset_module = importlib.import_module(f'datasets.{dataset}')
-            eval_dataset = dataset_module.get_dataset(utils.mode.EVAL, args)
-            eval_datasets = [(dataset, eval_dataset)]
-            eval_samplers = {
-                dataset: torch.utils.data.distributed.DistributedSampler(eval_dataset) if args.distributed else None}
+
+        dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
+        eval_datasets = [module.get_dataset(utils.mode.EVAL, args) for module in dataset_modules]
+        eval_datasets = [(name, eval_dataset) for name, eval_dataset in zip(args.dataset, eval_datasets)]
+        eval_samplers = {}
+        for name, dataset in eval_datasets:
+            eval_samplers[name] = torch.utils.data.distributed.DistributedSampler(dataset) if args.distributed else None
+
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     prefetch_factor = 2
     # Dataloader
