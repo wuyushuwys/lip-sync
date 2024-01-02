@@ -41,4 +41,4 @@ class Hdf5:
     def keys(self):
         if self.file is None:
             self.file = h5py.File(self.fname, 'r', libver='latest')
-        return list(self.file.keys())
+        return sorted(list(self.file.keys()))

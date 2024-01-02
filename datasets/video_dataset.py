@@ -27,7 +27,8 @@ from utils.logging_tool import get_logger
 
 class FrameMelDataset(Dataset):
 
-    def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace, audio_cache_path: AnyStr = None):
+    def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace,
+                 data_mode: AnyStr = 'image', audio_cache_path: AnyStr = None) -> None:
         super().__init__()
 
         logger = get_logger(args.job_dir)
@@ -49,6 +50,7 @@ class FrameMelDataset(Dataset):
         self.window_size = args.window_size
         self.model = args.model
         self.mode = mode
+        self.data_mode = data_mode
         if self.mode == utils.mode.TRAIN:
             self.num_samples = args.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
@@ -60,13 +62,25 @@ class FrameMelDataset(Dataset):
                 eval_filelist = []
                 eval_length = {}
                 for folder, v in folder_tree.items():
-                    eval_frames = sorted(map(lambda fname: os.path.join(folder, fname), v))
+                    if self.data_mode == 'image':
+                        eval_frames = sorted(map(lambda k: os.path.join(folder, k), v))
+                    elif self.data_mode == 'h5':
+                        eval_frames = sorted(map(lambda k: os.path.join(folder, k), v.keys))
+                    else:
+                        raise NotImplementedError(f"{self.data_mode} not supported")
                     eval_filelist.extend(eval_frames[:len(eval_frames) // self.window_size * self.window_size])
                     eval_length[folder] = len(eval_frames)
+
                 self.eval_filelist = eval_filelist
                 self.eval_length = eval_length
 
-        load_frames = sum(len(v) for v in folder_tree.values())
+        if self.data_mode == 'image':
+            load_frames = sum(len(v) for v in folder_tree.values())
+        elif self.data_mode == 'h5':
+            load_frames = sum(len(v.keys) for v in folder_tree.values())
+        else:
+            raise NotImplementedError(f"{self.data_mode} not supported")
+
         logger.info(
             f"Load {len(folder_tree)} video data in {mode} "
             f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
@@ -92,8 +106,7 @@ class FrameMelDataset(Dataset):
     def __getitem__(self, index):
         if self.model == 'syncnet':
             if self.mode == utils.mode.TRAIN:
-                index_folder, frame_list, audio_file = self._load_index(index)
-                frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+                frame_list, audio_file = self._load_index(index)
                 img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
                 return img_window, mel, label
             else:
@@ -103,8 +116,7 @@ class FrameMelDataset(Dataset):
                 img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
                 return img_window, mel, label
         elif self.model == 'lipsync':
-            index_folder, frame_list, audio_file = self._load_index(index)
-            frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+            frame_list, audio_file = self._load_index(index)
             x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
             return x, indiv_mels, mel, y
         else:
@@ -113,13 +125,28 @@ class FrameMelDataset(Dataset):
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
         frame_list = self.folder_tree[index_folder]
+        if self.data_mode == 'image':
+            frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
+        elif self.data_mode == 'h5':
+            frame_list = [os.path.join(index_folder, fname) for fname in frame_list.keys]
+        else:
+            raise NotImplementedError(f"{self.data_mode}")
         audio_file = Path(index_folder) / 'audio.wav'
-        return index_folder, frame_list, audio_file
+        return frame_list, audio_file
+
+    def _load_image(self, fname):
+        if self.data_mode == 'image':
+            return read_image(fname)
+        elif self.data_mode == 'h5':
+            root, key = os.path.split(fname)
+            return torch.tensor(np.asarray(self.folder_tree[root].get(key)))
+        else:
+            raise NotImplementedError()
 
     def _load_frame_window_fname(self, fname_list):
         window = []
         for fname in fname_list:
-            img = resize(read_image(fname), self.video_spec['size'],
+            img = resize(self._load_image(fname), self.video_spec['size'],
                          interpolation=InterpolationMode.BILINEAR,
                          antialias=True)
             window.append(img)
@@ -128,7 +155,7 @@ class FrameMelDataset(Dataset):
     def _load_frame_window(self, fname_list, index):
         window = []
         for fname in fname_list[index:index + self.window_size]:
-            img = resize(read_image(fname), self.video_spec['size'],
+            img = resize(self._load_image(fname), self.video_spec['size'],
                          interpolation=InterpolationMode.BILINEAR,
                          antialias=True)
             window.append(img)

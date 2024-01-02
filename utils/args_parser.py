@@ -17,6 +17,8 @@ def arguments_parser(parser):
     #                     help='Batch size for training.')
     # parser.add_argument('--eval_batch_size', default=256, type=int,
     #                     help='Batch size for evaluation.')
+    parser.add_argument('--data_mode', default='image', type=str, choices=['image', 'h5'],
+                        help='data mode to load')
     parser.add_argument('--num_workers', default=8, type=int,
                         help='Number of workers for data loading.')
 
