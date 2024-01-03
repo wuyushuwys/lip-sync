@@ -91,11 +91,11 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"Loading audio from file")
 
-        self.transform = Compose([
-            RandomApply([ColorJitter(brightness=0.2, saturation=0.2, hue=0.2), ], p=0.2),
-            RandomGrayscale(p=0.1),
-            RandomAutocontrast(p=0.1),
-        ])
+        # self.transform = Compose([
+        #     RandomApply([ColorJitter(brightness=0.2, saturation=0.2, hue=0.2), ], p=0.2),
+        #     RandomGrayscale(p=0.1),
+        #     RandomAutocontrast(p=0.1),
+        # ])
 
     def __len__(self):
         if self.model == 'syncnet' and self.mode == utils.mode.EVAL:

@@ -7,7 +7,7 @@ from argparse import Namespace
 from common.io import Hdf5
 from .video_dataset import FrameMelDataset
 
-# DIR_PATH = lambda mode: f'data/HDTF/{mode}'
+
 META_PATH = lambda mode: f'data/finetune/{mode}.txt'
 
 

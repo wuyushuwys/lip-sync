@@ -1,8 +1,11 @@
 manual_seed: 1234
 
+data_mode: 'image'
+
 video_spec:
   fps: 25
   size: [ 256, 256 ]
+  crop_pad: [ 50, 50, -50, -50 ]
 
 audio_spec:
   mel_step_size: 16
