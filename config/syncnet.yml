@@ -1,8 +1,10 @@
 manual_seed: 1234
 
+data_mode: 'image'
+
 video_spec:
   fps: 25
-  size: [ 192, 192 ]
+  size: [ 256, 256 ]
 
 audio_spec:
   mel_step_size: 16
@@ -18,14 +20,14 @@ optim:
   lr: 1.0e-5
   betas: [ 0.9, 0.999 ]
 
-#scheduler:
-#  type: MultiStepLR
-#  milestones: [0.4, 0.8]
-#  gamma: 0.1
-
 scheduler:
-  type: CosineAnnealingLR
-  eta_min: 1.0e-5
+  type: MultiStepLR
+  milestones: [0.4, 0.8]
+  gamma: 0.5
+
+#scheduler:
+#  type: CosineAnnealingLR
+#  eta_min: 1.0e-5
 
 
 losses:
