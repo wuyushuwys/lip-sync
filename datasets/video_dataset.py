@@ -181,7 +181,11 @@ class FrameMelDataset(Dataset):
 
         true_window = torch.stack(true_window, dim=1) / 255
         gt = true_window.clone()
-        true_window[:, :, true_window.size(2) // 2:] = 0
+        if 'crop_pad' in self.video_spec.keys():
+            y1, y2, x1, x2 = self.video_spec['crop_pad']
+            true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
+        else:
+            true_window[:, :, true_window.size(2) // 2:] = 0
         wrong_window = torch.stack(wrong_window, dim=1) / 255
 
         x = torch.cat([true_window, wrong_window], dim=0)
