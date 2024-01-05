@@ -27,4 +27,5 @@ torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_syncnet.py 
   --job_dir "${job_dir}" \
   --batch_size 64 \
   --warmup_lr \
+  --num_workers 4 \
   --epochs 100

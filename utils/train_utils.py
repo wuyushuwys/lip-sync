@@ -50,7 +50,7 @@ def create_dataloader(args):
             eval_samplers[name] = torch.utils.data.distributed.DistributedSampler(dataset) if args.distributed else None
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
-    prefetch_factor = args.prefetch_factor if hasattr(args, 'prefetch_factor') else 2
+    prefetch_factor = args.data_spec['prefetch_factor'] if 'prefetch_factor' in args.data_spec.keys() else 2
     # Dataloader
     train_data_loader = DataLoader(dataset=train_dataset,
                                    num_workers=args.num_workers,
