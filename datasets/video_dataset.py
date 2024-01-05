@@ -74,16 +74,17 @@ class FrameMelDataset(Dataset):
                 self.eval_filelist = eval_filelist
                 self.eval_length = eval_length
 
-        if self.data_mode == 'image':
-            load_frames = sum(len(v) for v in folder_tree.values())
-        elif self.data_mode == 'h5':
-            load_frames = sum(len(v.keys) for v in folder_tree.values())
-        else:
-            raise NotImplementedError(f"{self.data_mode} not supported")
+        if 'verbose' in args.data_spec.keys() and args.data_spec['verbose']:
+            if self.data_mode == 'image':
+                load_frames = sum(len(v) for v in folder_tree.values())
+            elif self.data_mode == 'h5':
+                load_frames = sum(len(v.keys) for v in folder_tree.values())
+            else:
+                raise NotImplementedError(f"{self.data_mode} not supported")
 
-        logger.info(
-            f"Load {len(folder_tree)} video data in {mode} "
-            f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
+            logger.info(
+                f"Load {len(folder_tree)} video data in {mode} "
+                f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
             logger.info(f"Loading audio cache: {audio_cache_path}")

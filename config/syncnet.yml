@@ -1,6 +1,8 @@
 manual_seed: 1234
 
-data_mode: 'image'
+data_spec:
+  mode: 'h5'  # h5 or image
+  verbose: False  # might be super-slow for hugh datasets
 
 video_spec:
   fps: 25

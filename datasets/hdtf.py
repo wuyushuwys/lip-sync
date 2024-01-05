@@ -5,6 +5,7 @@ from typing import Dict, AnyStr
 from argparse import Namespace
 
 from common.io import Hdf5
+
 from .video_dataset import FrameMelDataset
 
 # DIR_PATH = lambda mode: f'data/HDTF/{mode}'
@@ -25,12 +26,12 @@ class HDTF(FrameMelDataset):
             lines = f.readlines()
             for line in lines:
                 folder = line.strip('\n')
-                if args.data_mode == 'image':
+                if args.data_spec['mode'] == 'image':
                     folder_tree[folder] = sorted(filter(lambda x: x.endswith(self.EXT), os.listdir(folder)))
-                elif args.data_mode == 'h5':
+                elif args.data_spec['mode'] == 'h5':
                     folder_tree[folder] = Hdf5(os.path.join(folder, 'cache.h5'))
                 else:
-                    raise NotImplementedError(f"{args.data_mode} not supported")
+                    raise NotImplementedError(f"{args.data_spec['mode']} not supported")
         # for folder in sorted(glob(f"{DIR_PATH(mode)}/*")):
         #     frame_list = sorted(filter(lambda x: x.endswith(EXT), os.listdir(folder)))
         #     if mode == utils.mode.EVAL:
@@ -39,5 +40,5 @@ class HDTF(FrameMelDataset):
         audio_cache_path = f"data/HDTF/HDTF_audio_sr_{args.audio_spec['sample_rate']}.h5"
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
-        super(HDTF, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_mode,
-                                       audio_cache_path=audio_cache_path)
+        super(HDTF, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
+                                   audio_cache_path=audio_cache_path)

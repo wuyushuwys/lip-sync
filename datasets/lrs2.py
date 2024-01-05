@@ -3,10 +3,8 @@ import os
 from glob import glob
 from typing import Dict, AnyStr
 from argparse import Namespace
-from tqdm import tqdm
 
 from common.io import Hdf5
-from utils.init_utils import get_dist_info
 
 from .video_dataset import FrameMelDataset
 
@@ -26,17 +24,14 @@ class LRS2(FrameMelDataset):
 
         with open(META_PATH(mode), 'r') as f:
             lines = f.readlines()
-            rank, _ = get_dist_info()
-            if rank == 0:
-                lines = tqdm(lines, desc='load LRS dataset')
             for line in lines:
                 folder = os.path.join('data/LRS2/data', line.strip('\n'))
-                if args.data_mode == 'image':
+                if args.data_spec['mode'] == 'image':
                     folder_tree[folder] = sorted(filter(lambda x: x.endswith(self.EXT), os.listdir(folder)))
-                elif args.data_mode == 'h5':
+                elif args.data_spec['mode'] == 'h5':
                     folder_tree[folder] = Hdf5(os.path.join(folder, 'cache.h5'))
                 else:
-                    raise NotImplementedError(f"{args.data_mode} not supported")
+                    raise NotImplementedError(f"{args.data_spec['mode']} not supported")
         # for folder in sorted(glob(f"{DIR_PATH(mode)}/*")):
         #     frame_list = sorted(filter(lambda x: x.endswith(EXT), os.listdir(folder)))
         #     if mode == utils.mode.EVAL:
@@ -45,5 +40,5 @@ class LRS2(FrameMelDataset):
         audio_cache_path = f"data/LRS2/LRS2_audio_sr_{args.audio_spec['sample_rate']}.h5"
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
-        super(LRS2, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_mode,
+        super(LRS2, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
                                    audio_cache_path=audio_cache_path)
