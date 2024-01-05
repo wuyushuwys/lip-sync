@@ -79,15 +79,18 @@ def main(args):
     writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
 
     # Load dataset
+    logger.info(f"Load Dataset")
     train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
 
     # Create generator
+    logger.info(f"Create Model")
     model = SyncNet()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
+    logger.info(f"Load loss function")
     criterion = create_criterions(args)
 
     # allocate model to gpu
