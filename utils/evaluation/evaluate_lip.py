@@ -2,16 +2,23 @@ import argparse
 import os
 import torch
 from typing import Dict
+from functools import partial
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
+from pytorch_msssim import SSIM, MS_SSIM
 
 from common.meters import AverageMeter
+from utils.helpers import compute_per_image
 from utils.init_utils import master_only
 from utils.logger_utils import eval_tb_writer
 from logging import Logger
 
 from .utils import reduce_all
+from .metrics import calculate_psnr_pt
+
+psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=0))
+psnr_y = compute_per_image(partial(calculate_psnr_pt, crop_border=0, test_y_channel=True))
 
 
 @torch.no_grad()
@@ -49,6 +56,11 @@ def test(dataloader: DataLoader,
          img_folder: str,
          args: argparse.Namespace):
     loss_dict = {k: AverageMeter() for k in criterions.keys()}
+    loss_dict["SSIM"] = AverageMeter()
+    loss_dict["MS_SSIM"] = AverageMeter()
+    loss_dict["PSNR"] = AverageMeter()
+    ssim = compute_per_image(SSIM(data_range=1))
+    ms_ssim = compute_per_image(MS_SSIM(data_range=1))
 
     for idx, (x, indiv_mels, mel, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
@@ -68,6 +80,10 @@ def test(dataloader: DataLoader,
         if 'perceptual_loss' in criterions.keys():
             perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y))
             loss_dict['perceptual_loss'].update(perceptual_loss, bsz)
+
+        loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
+        loss_dict['SSIM'].update(ssim(pred_y, y))
+        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))
 
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 

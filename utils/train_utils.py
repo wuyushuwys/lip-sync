@@ -184,6 +184,8 @@ def ckpt_saver(path, **kwargs):
     for k, v in kwargs.items():
         if isinstance(v, int):
             pass
+        elif isinstance(v, torch.optim.Optimizer):
+            v.zero_grad()  # clean grad in optimizer
         elif hasattr(v, 'module'):
             v = v.module
         if hasattr(v, 'state_dict'):

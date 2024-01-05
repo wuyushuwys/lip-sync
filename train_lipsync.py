@@ -102,28 +102,30 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    # Load ckpt
-    if args.resume and args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location=lambda storage, loc: storage.cuda(args.local_rank))
-        load_values = ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
-        start_epoch = load_values['epoch']
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-
-    if args.weight:
-        ckpt = torch.load(args.weight)
-        model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
-
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
         model = DDP(model.to(device), device_ids=[device], output_device=device)
     else:
         model.to(device)
+
+    # Load ckpt
+    if args.ckpt:
+        ckpt = torch.load(args.ckpt, map_location=f'cuda:{args.local_rank}')
+        ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
+        start_epoch = ckpt['epoch'] - 1
+        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
+    else:
+        start_epoch = 0
+
+    # Load state_dict
+    if args.weight:
+        ckpt = torch.load(args.weight, map_location=f'cuda:{args.local_rank}')
+        if args.distributed:
+            model.module.load_state_dict(ckpt)
+        else:
+            model.load_state_dict(ckpt)
+        logger.info(f"Load weight from {args.weight}")
 
     logger.info(attr_extractor(args))
 

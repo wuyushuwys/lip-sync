@@ -26,7 +26,7 @@ class SyncLoss(nn.Module):
         super().__init__()
 
         self.expert_model = SyncNet()
-        self.expert_model.load_state_dict(torch.load(ckpt_path))
+        self.expert_model.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.loss_weight = loss_weight
         self.window_size = window_size
 

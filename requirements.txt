@@ -5,3 +5,7 @@ h5py
 librosa
 thop
 lpips
+ffmpeg-python
+facexlib
+pytorch-msssim
+einops
