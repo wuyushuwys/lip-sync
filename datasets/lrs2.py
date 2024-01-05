@@ -24,7 +24,7 @@ class LRS2(FrameMelDataset):
         with open(META_PATH(mode), 'r') as f:
             lines = f.readlines()
             for line in lines:
-                folder = os.path.join('data/LRS2', line.strip('\n'))
+                folder = os.path.join('data/LRS2/data', line.strip('\n'))
                 if args.data_mode == 'image':
                     folder_tree[folder] = sorted(filter(lambda x: x.endswith(self.EXT), os.listdir(folder)))
                 elif args.data_mode == 'h5':
