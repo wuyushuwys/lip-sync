@@ -8,7 +8,8 @@ from common.io import Hdf5
 from .video_dataset import FrameMelDataset
 from .utils import load_from_folder
 
-META_PATH = lambda mode: f'data/finetune/{mode}.txt'
+DATA_ROOT = "data/finetune"
+META_PATH = lambda mode: f'{DATA_ROOT}/{mode}.txt'
 
 
 def get_dataset(mode: AnyStr, args: Namespace):
@@ -27,7 +28,7 @@ class Finetune(FrameMelDataset):
                 folder = line.strip('\n')
                 load_from_folder(folder_tree=folder_tree, folder=folder, mode=args.data_spec['mode'], ext=self.EXT)
 
-        audio_cache_path = f"data/finetune/finetune_audio_sr_{args.audio_spec['sample_rate']}.h5"
+        audio_cache_path = f"{DATA_ROOT}/finetune_audio_sr_{args.audio_spec['sample_rate']}.h5"
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
         super(Finetune, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],

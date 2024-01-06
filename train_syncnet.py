@@ -122,7 +122,7 @@ def main(args):
         logger.info(f"Load weight from {args.weight}")
 
     logger.info(attr_extractor(args))
-
+    best_loss = 1000
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
         if train_sampler is not None:
@@ -130,11 +130,14 @@ def main(args):
         train(model, optimizer, scheduler, criterion, train_data_loader, epoch, writer, args, logger)
         # Eval model
         evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                 epoch=epoch, criterions=criterion,
-                 writer=writer, args=args, logger=logger)
+        loss = evaluate(model=model, eval_data_loaders=eval_data_loaders,
+                        epoch=epoch, criterions=criterion,
+                        writer=writer, args=args, logger=logger)
         # save model weight
         state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'), model)
+        if best_loss > loss:
+            state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}_best.pt'), model)
+            best_loss = loss
         ckpt_saver(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
                    model=model,
                    optimizer=optimizer, scheduler=scheduler,
