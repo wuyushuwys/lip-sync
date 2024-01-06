@@ -140,7 +140,7 @@ class FrameMelDataset(Dataset):
             return read_image(fname)
         elif self.data_mode == 'h5':
             root, key = os.path.split(fname)
-            return torch.tensor(np.asarray(self.folder_tree[root].get(key)))
+            return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
         else:
             raise NotImplementedError()
 
