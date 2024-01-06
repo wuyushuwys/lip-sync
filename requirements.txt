@@ -1,3 +1,5 @@
+torch>2.0
+torchvision
 tensorboard
 tqdm
 wandb
@@ -6,6 +8,8 @@ librosa
 thop
 lpips
 ffmpeg-python
+opencv-python
+numpy
 facexlib
 pytorch-msssim
 einops
