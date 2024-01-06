@@ -1,5 +1,5 @@
 import argparse
-
+import math
 from typing import Dict
 
 import torch
@@ -30,11 +30,14 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
     """
 
     model.eval()
+    sync_losses = {}
     for eval_data_name, eval_data_loader in eval_data_loaders:
         loss_dict = test(eval_data_loader, model, criterions, args)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
+        sync_losses['eval_data_name'] = loss_dict['sync_loss'].avg
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
+    return sum(sync_losses.values()) / len(sync_losses.values())
 
 
 @torch.no_grad()
