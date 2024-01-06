@@ -20,6 +20,7 @@ pip install -r requirements.txt
 
 - HDTF
 - TalkingHead-1KF
+- LRS2
 
 ### Data pre-processing
 

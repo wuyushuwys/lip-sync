@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Dict, AnyStr
 from argparse import Namespace
 from datetime import timedelta
+from tqdm import tqdm
 
 import numpy as np
 
@@ -23,6 +24,7 @@ import common
 import utils
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
+from utils.init_utils import get_dist_info
 
 
 class FrameMelDataset(Dataset):
@@ -75,10 +77,12 @@ class FrameMelDataset(Dataset):
                 self.eval_length = eval_length
 
         if 'verbose' in args.data_spec.keys() and args.data_spec['verbose']:
+            rank, _ = get_dist_info()
+            iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
             if self.data_mode == 'image':
-                load_frames = sum(len(v) for v in folder_tree.values())
+                load_frames = sum(len(v) for v in iterator)
             elif self.data_mode == 'h5':
-                load_frames = sum(len(v.keys) for v in folder_tree.values())
+                load_frames = sum(len(v.keys) for v in iterator)
             else:
                 raise NotImplementedError(f"{self.data_mode} not supported")
 
