@@ -17,7 +17,8 @@ from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms import (Compose, ColorJitter,
                                     RandomApply, RandomAutocontrast,
-                                    RandomGrayscale, RandomAdjustSharpness)
+                                    RandomGrayscale, RandomAdjustSharpness,
+                                    RandomRotation)
 from torchvision.io import read_image
 
 import common
@@ -49,6 +50,7 @@ class FrameMelDataset(Dataset):
         self.root_key = list(folder_tree.keys())  # list of each video data folder
         self.video_spec = args.video_spec
         self.audio_spec = args.audio_spec
+        self.data_spec = args.data_spec
         self.window_size = args.window_size
         self.model = args.model
         self.mode = mode
@@ -76,7 +78,7 @@ class FrameMelDataset(Dataset):
                 self.eval_filelist = eval_filelist
                 self.eval_length = eval_length
 
-        if 'verbose' in args.data_spec.keys() and args.data_spec['verbose']:
+        if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
             rank, _ = get_dist_info()
             iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
             if self.data_mode == 'image':
@@ -101,6 +103,12 @@ class FrameMelDataset(Dataset):
         #     RandomGrayscale(p=0.1),
         #     RandomAutocontrast(p=0.1),
         # ])
+
+        if 'aug' in self.data_spec.keys() and self.data_spec['aug']:
+            h, w = self.video_spec['size']
+            self.transform = RandomRotation(degrees=15,
+                                            interpolation=InterpolationMode.BILINEAR,
+                                            center=(h // 2, w // 2))
 
     def __len__(self):
         if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
@@ -167,7 +175,7 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
+        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
         try:
@@ -233,15 +241,19 @@ class FrameMelDataset(Dataset):
         mel = self._load_audio_melspec(audio_file)
         mel = self._crop_audio_window(mel.copy(), audio_idx)
 
-        # if self.mode == utils.mode.TRAIN:
-        #     img_window = torch.stack(img_window, dim=0) / 255
-        #     img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
-        #     t, c, h, w = img_window.size()
-        #     # img_window = self.transform(img_window)
-        #     img_window = img_window.reshape(t * c, h, w)
-        # else:
-        img_window = torch.cat(img_window, dim=0) / 255
-        img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+        if 'aug' in self.data_spec.keys() and self.data_spec['aug']:
+            if self.mode == utils.mode.TRAIN:
+                img_window = torch.stack(img_window, dim=0) / 255
+                img_window = self.transform(img_window)
+                img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+                t, c, h, w = img_window.size()
+                img_window = img_window.reshape(t * c, h, w)
+            else:
+                img_window = torch.cat(img_window, dim=0) / 255
+                img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+        else:
+            img_window = torch.cat(img_window, dim=0) / 255
+            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
