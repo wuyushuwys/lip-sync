@@ -10,11 +10,11 @@ from utils import loss_printer
 class AverageMeter:
     """Computes and stores the average and current value"""
 
-    def __init__(self):
+    def __init__(self, sum=0, count=0):
         self._val = 0
         self._avg = 0
-        self._sum = 0
-        self._count = 0
+        self._sum = sum
+        self._count = count
 
     def reset(self):
         self._val = 0
@@ -34,6 +34,17 @@ class AverageMeter:
     @property
     def val(self):
         return self._val
+
+    @property
+    def sum(self):
+        return self._sum
+
+    @property
+    def count(self):
+        return self._count
+
+    def __add__(self, other):
+        return AverageMeter(sum=self._sum + other.sum, count=self.count + other.count)
 
 
 class TimeMeter:

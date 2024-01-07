@@ -1,6 +1,7 @@
 import argparse
 import math
 from typing import Dict
+from functools import reduce
 
 import torch
 
@@ -35,9 +36,9 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
         loss_dict = test(eval_data_loader, model, criterions, args)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
-        sync_losses['eval_data_name'] = loss_dict['sync_loss'].avg
+        sync_losses['eval_data_name'] = loss_dict['sync_loss']
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
-    return sum(sync_losses.values()) / len(sync_losses.values())
+    return reduce(lambda x, y: x + y, sync_losses.values()).avg
 
 
 @torch.no_grad()
@@ -54,6 +55,6 @@ def test(dataloader: DataLoader,
 
         a, v = model(mel, x)
         sync_loss = reduce_all(criterions["sync_loss"](a, v, y))
-        loss_dict['sync_loss'].update(sync_loss, x.size(0))
+        loss_dict['sync_loss'].update(sync_loss.item(), x.size(0))
 
     return loss_dict

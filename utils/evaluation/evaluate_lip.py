@@ -1,8 +1,9 @@
 import argparse
 import os
 import torch
+
 from typing import Dict
-from functools import partial
+from functools import partial, reduce
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
@@ -43,9 +44,9 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
         loss_dict = test(eval_data_loader, model, criterions, epoch, img_folder, args)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
-        sync_losses[eval_data_name] = loss_dict['sync_loss'].avg
+        sync_losses[eval_data_name] = loss_dict['sync_loss']
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
-    return torch.tensor(list(sync_losses.values())).mean()
+    return torch.tensor(reduce(lambda x, y: x + y, sync_losses.values()).avg)
 
 
 @torch.no_grad()
@@ -72,14 +73,14 @@ def test(dataloader: DataLoader,
         pred_y = model(indiv_mels, x)
 
         sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
-        loss_dict['sync_loss'].update(sync_loss, bsz)
+        loss_dict['sync_loss'].update(sync_loss.item(), bsz)
 
         recon_loss = reduce_all(criterions['recon_loss'](pred_y, y))
-        loss_dict['recon_loss'].update(recon_loss, bsz)
+        loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
         if 'perceptual_loss' in criterions.keys():
             perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y))
-            loss_dict['perceptual_loss'].update(perceptual_loss, bsz)
+            loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
         loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
         loss_dict['SSIM'].update(ssim(pred_y, y))
