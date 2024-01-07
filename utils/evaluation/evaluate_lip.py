@@ -46,7 +46,7 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
         logger.info(log_string)
         sync_losses[eval_data_name] = loss_dict['sync_loss']
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
-    return torch.tensor(reduce(lambda x, y: x + y, sync_losses.values()).avg)
+    return reduce(lambda x, y: x + y, sync_losses.values()).avg
 
 
 @torch.no_grad()
