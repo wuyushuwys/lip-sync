@@ -176,7 +176,7 @@ class FrameMelDataset(Dataset):
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
 
-        idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
