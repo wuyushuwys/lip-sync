@@ -178,8 +178,11 @@ class FrameMelDataset(Dataset):
     def _load_lipsync_train_data(self, frame_list, audio_file):
         if self.window_range:
             window_range = self.window_range * self.video_spec['fps']
-            anchor = random.choice(range(len(frame_list) - self.window_size - window_range))
-            idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
+            if window_range < len(frame_list):
+                idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+            else:
+                anchor = random.choice(range(len(frame_list) - self.window_size - window_range))
+                idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
         else:
             idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
         # idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
@@ -218,8 +221,11 @@ class FrameMelDataset(Dataset):
     def _load_sync_train_data(self, frame_list, audio_file):
         if self.window_range:
             window_range = self.window_range * self.video_spec['fps']
-            anchor = random.choice(range(len(frame_list) - self.window_size - window_range))
-            idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
+            if window_range < len(frame_list):
+                idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+            else:
+                anchor = random.choice(range(len(frame_list) - self.window_size - window_range))
+                idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
         else:
             idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
 
