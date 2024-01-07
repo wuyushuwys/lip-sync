@@ -2,8 +2,12 @@ manual_seed: 1234
 
 data_spec:
   mode: 'h5'  # h5 or image
-  prefetch_factor: 2  # prefetch_factor for dataloader (default: 2)
-  verbose: False  # might be super-slow for hugh datasets
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  verbose: False  # might be super-slow for large scale datasets
+  window_range: 10 # window range in seconds
+                   # (find true window and false window within x seconds range)
+  window_size: 5
+
 
 video_spec:
   fps: 25
@@ -13,7 +17,6 @@ audio_spec:
   mel_step_size: 16
   sample_rate: 16000
 
-window_size: 5
 
 num_samples: 1000
 eval_samples: 50

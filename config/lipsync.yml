@@ -2,8 +2,11 @@ manual_seed: 1234
 
 data_spec:
   mode: 'h5'  # h5 or image
-  prefetch_factor: 2  # prefetch_factor for dataloader (default: 2)
-  verbose: False  # might be super-slow for hugh datasets
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  verbose: False  # might be super-slow for large scale datasets
+  window_range: 10 # window range in seconds
+  # (find true window and false window within x seconds range)
+  window_size: 5
 
 video_spec:
   fps: 25
@@ -13,8 +16,6 @@ video_spec:
 audio_spec:
   mel_step_size: 16
   sample_rate: 16000
-
-window_size: 5
 
 num_samples: 500
 eval_samples: 50
@@ -37,19 +38,19 @@ scheduler:
 losses:
   recon_loss:
     type: PixelLoss
-    criterion: mse
-    loss_weight: 0.1
-  #  perceptual_loss:
-  #    type: LPIPSLoss
-  #    loss_weight: 1
-  #    lpips_loss_arch: 'alex'
+    criterion: l1
+    loss_weight: 1
   perceptual_loss:
-    type: PerceptualLoss
-    layer_weights: { '2': 0.1, '7': 0.1, '16': 1, '25': 1, '34': 1, }
-    vgg_type: 'vgg19'
-    norm_img: False
-    criterion: 'l1'
-    perceptual_weight: 1
+    type: LPIPSLoss
+    loss_weight: 0.1
+    lpips_loss_arch: 'vgg'
+  #  perceptual_loss:
+  #    type: PerceptualLoss
+  #    layer_weights: { '2': 0.1, '7': 0.1, '16': 1, '25': 1, '34': 1, }
+  #    vgg_type: 'vgg19'
+  #    norm_img: False
+  #    criterion: 'l1'
+  #    perceptual_weight: 1
 
   sync_loss:
     type: SyncLoss
