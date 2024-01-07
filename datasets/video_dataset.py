@@ -175,9 +175,7 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
-
-        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
-
+        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
         try:
@@ -211,9 +209,7 @@ class FrameMelDataset(Dataset):
         return x, indiv_mels, mel, y
 
     def _load_sync_train_data(self, frame_list, audio_file):
-
         idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
-
         img_window = self._load_frame_window(frame_list, idx)
 
         return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
