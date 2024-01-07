@@ -51,7 +51,8 @@ class FrameMelDataset(Dataset):
         self.video_spec = args.video_spec
         self.audio_spec = args.audio_spec
         self.data_spec = args.data_spec
-        self.window_size = args.window_size
+        self.window_size = args.data_spec['window_size']
+        self.window_range = args.data_spec['window_range'] if 'window_range' in args.data_spec.keys() else None
         self.model = args.model
         self.mode = mode
         self.data_mode = data_mode
@@ -175,7 +176,13 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
+        if self.window_range:
+            window_range = self.window_range * self.video_spec['fps']
+            anchor = random.sample(range(len(frame_list) - self.window_size - window_range), 1)
+            idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
+        else:
+            idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+        # idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size), 2)
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
         try:
@@ -209,7 +216,12 @@ class FrameMelDataset(Dataset):
         return x, indiv_mels, mel, y
 
     def _load_sync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+        if self.window_range:
+            window_range = self.window_range * self.video_spec['fps']
+            anchor = random.sample(range(len(frame_list) - self.window_size - window_range), 1)
+            idx, false_idx = random.sample(range(anchor, anchor + window_range), 2)
+        else:
+            idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
 
         img_window = self._load_frame_window(frame_list, idx)
 
