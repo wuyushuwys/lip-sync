@@ -53,7 +53,7 @@ def face_crop():
     face_detector = init_detection_model(model_name='retinaface_resnet50', half=True,
                                          device='cuda' if torch.cuda.is_available() else 'cpu')
     bsz = dataset.max_bsz_retinaface(0)
-    dataloader = DataLoader(dataset, batch_size=bsz)
+    dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
     bbox_ema = EMA()
     with open(os.path.join(TMP_FOLDER, 'meta.txt'), 'w') as f:
         for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True):

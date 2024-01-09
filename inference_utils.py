@@ -58,8 +58,10 @@ class GenerateDataset(Dataset):
                  fps=25, mel_step_size=16,
                  ext='jpg', face_size=(256, 256)) -> None:
         super().__init__()
-        self.face_lists = cycle(sorted(glob(f"{folder}/crop_face/*.{ext}")))
-        self.frame_lists = cycle(sorted(glob(f"{folder}/frames/*.{ext}")))
+
+        self.face_lists = sorted(glob(f"{folder}/crop_face/*.{ext}"))
+        self.frame_lists = sorted(glob(f"{folder}/frames/*.{ext}"))
+        self.num_video_frames = len(self.frame_lists)
         self.coords = dict()
         with open(os.path.join(folder, 'meta.txt'), 'r') as f:
             lines = f.readlines()
@@ -90,33 +92,8 @@ class GenerateDataset(Dataset):
 
     def __getitem__(self, index: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, AnyStr]:
         index = index
-
-        # fnames = [next(self.face_lists) for _ in range(self.window_size)]
-        # ori_frames = [next(self.frame_lists) for _ in range(self.window_size)]
-
-        # meta_name = ','.join([(Path(name).stem) for name in fnames])
-
-        # # window = []
-
-        # # for fname in fnames:
-        # #     img =  resize(read_image(fname), self.face_size,
-        # #                  interpolation=InterpolationMode.BILINEAR,
-        # #                  antialias=True)
-        # #     window.append(img)
-
-        # ref = torch.stack(window, dim=1) / 255
-        # mask_window = ref_window.clone()
-        # mask_window[:, :, mask_window.size(2) // 2:] = 0
-        # x = torch.cat([mask_window, ref_window], dim=0)
-
-        # indiv_mels = self._segmented_mels(self.mel_spec.copy(), index)
-        # indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
-
-        # ori_window = torch.stack([torch.tensor(cv2.imread(fname)) for fname in ori_frames], dim=1)
-
-        # return x, indiv_mels, ori_window, meta_name
-        fname = next(self.face_lists)
-        ori_frame = next(self.frame_lists)
+        fname = self.face_lists[index % self.num_video_frames]
+        ori_frame = self.frame_lists[index % self.num_video_frames]
 
         meta_name = Path(fname).stem
 
