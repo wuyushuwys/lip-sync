@@ -93,6 +93,7 @@ if __name__ == '__main__':
     extract_frames(args.input)
     h, w = face_crop()
     # h, w = 720, 1280
+    # h, w = 1080, 1920
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
 
     dataset = GenerateDataset(TMP_FOLDER, mel)
@@ -110,8 +111,6 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(TMP_FOLDER, 'sync_frames'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'diff'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'compare'), exist_ok=True)
-    tmp_vname = f'{TMP_FOLDER}/result.mp4'
-    # tmp_video = cv2.VideoWriter(tmp_vname,  cv2.VideoWriter_fourcc(*'DIVX'), FPS, (w, h))
     process = (
         ffmpeg
         .input('pipe:', format='rawvideo',
@@ -135,8 +134,7 @@ if __name__ == '__main__':
         pbar = enumerate(dataloader)
     else:
         pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='lip-sync', dynamic_ncols=True)
-    for i, data in pbar:
-        x, indiv_mels, ori_window, meta = data
+    for i, (x, indiv_mels, ori_window, meta) in pbar:
         x = x.to(device, non_blocking=True)
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
@@ -147,7 +145,6 @@ if __name__ == '__main__':
             frame_idx = i * bsz + batch_id
             x1, y1, x2, y2 = coords[name]
             frame = frame.flip(-1).numpy()
-            # save_image(face, os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"))
             face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
             if args.verbose:
                 g = face.copy()
@@ -160,19 +157,15 @@ if __name__ == '__main__':
             # w_offset = int(48 / 256 * (x2 - x1))
             # h_offset = int(16 / 256 * (y2 - y1))
             resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1))
-            if args.verbose:
-                cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
             # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
             frame[y1:y2, x1:x2] = resize_face
             if args.verbose:
+                cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
-            # tmp_video.write(frame.astype(uint8))
             process.stdin.write(frame.astype(np.uint8).tobytes())
 
     process.stdin.close()
     process.wait()
-    # ffmpeg.output(ffmpeg.input(tmp_vname),
-    #               ffmpeg.input(args.audio),
-    #               args.output).run(overwrite_output=True, quiet=False)
+
     if args.verbose:
         shutil.rmtree(TMP_FOLDER)
