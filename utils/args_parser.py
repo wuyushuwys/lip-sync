@@ -26,8 +26,6 @@ def arguments_parser(parser):
                         help='Directory to write ckpt and export models.')
     parser.add_argument('--ckpt', default=None, type=str,
                         help='Dir path to load ckpt.')
-    parser.add_argument('--resume', default=False, action='store_true',
-                        help='resume training from ckpt')
     parser.add_argument('--weight', default=None, type=str,
                         help='path to load model weight')
     parser.add_argument('--profile', action='store_true',

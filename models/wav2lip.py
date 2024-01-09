@@ -6,6 +6,7 @@ import math
 from .ops import Conv2dTranspose, Conv2d, nonorm_Conv2d
 from utils.evaluation import evaluate_lip
 
+
 class Wav2Lip(nn.Module):
     def __init__(self):
         super(Wav2Lip, self).__init__()
@@ -18,7 +19,7 @@ class Wav2Lip(nn.Module):
 
             nn.Sequential(Conv2d(32, 32, kernel_size=3, stride=2, padding=1),  # 48,48 64
                           Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
-                          Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True),),
+                          Conv2d(32, 32, kernel_size=3, stride=1, padding=1, residual=True), ),
 
             nn.Sequential(Conv2d(32, 64, kernel_size=3, stride=2, padding=1),  # 24,24 32
                           Conv2d(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
@@ -40,7 +41,7 @@ class Wav2Lip(nn.Module):
                           Conv2d(512, 512, kernel_size=1, stride=1, padding=0), ),
 
             nn.Sequential(Conv2d(512, 512, kernel_size=2, stride=1, padding=0),  # 1, 1 1
-                          Conv2d(512, 512, kernel_size=1, stride=1, padding=0),), ])
+                          Conv2d(512, 512, kernel_size=1, stride=1, padding=0), ), ])
 
         self.audio_encoder = nn.Sequential(
             Conv2d(1, 32, kernel_size=3, stride=1, padding=1),
@@ -99,13 +100,16 @@ class Wav2Lip(nn.Module):
         self.output_block = nn.Sequential(
             Conv2d(80, 32, kernel_size=3, stride=1, padding=1),
             nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
-            nn.Sigmoid())
+            nn.Sigmoid()
+        )
 
         self._init_weights()
 
     def forward(self, audio_sequences, face_sequences):
-        # face_sequences = 2 * face_sequences - 1
+        # face_sequences = 2 * face_sequences - 1  # shift data range from [0, 1] to [-1, 1]
+        # face_sequences = face_sequences - 0.5  # shift data range from [0, 1] to [-0.5, 0.5]
         # audio_sequences = (B, T, 1, 80, 16)
+
         B = audio_sequences.size(0)
 
         input_dim_size = face_sequences.dim()
@@ -144,8 +148,8 @@ class Wav2Lip(nn.Module):
 
         else:
             outputs = x
-
-        # outputs = (outputs + 1) / 2
+        # outputs = outputs + 0.5  # shift data range from [-0.5, 0.5] to [0, 1]
+        # outputs = (outputs + 1) / 2  # shift data range from [-1, 1] to [0, 1]
 
         return outputs
 
@@ -163,6 +167,7 @@ class Wav2Lip(nn.Module):
     @staticmethod
     def evaluate(*args, **kwargs):
         return evaluate_lip.evaluation(*args, **kwargs)
+
 
 class Wav2Lip_disc_qual(nn.Module):
     def __init__(self):

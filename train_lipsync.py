@@ -102,9 +102,6 @@ def main(args):
     logger.info(f"Load loss function")
     criterion = create_criterions(args)
 
-    # create optimizers and schedulers
-    [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
-
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
@@ -112,9 +109,12 @@ def main(args):
     else:
         model.to(device)
 
+    # create optimizers and schedulers
+    [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
+
     # Load ckpt
     if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location=f'cuda:{args.local_rank}')
+        ckpt = torch.load(args.ckpt, map_location='cpu')
         ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
         start_epoch = ckpt['epoch'] - 1
         logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
@@ -123,7 +123,7 @@ def main(args):
 
     # Load state_dict
     if args.weight:
-        ckpt = torch.load(args.weight, map_location=f'cuda:{args.local_rank}')
+        ckpt = torch.load(args.weight, map_location='cpu')
         if args.distributed:
             model.module.load_state_dict(ckpt)
         else:

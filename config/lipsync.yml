@@ -9,7 +9,7 @@ data_spec:
 video_spec:
   fps: 25
   size: [ 256, 256 ]
-#  crop_pad: [ 16, -16, 48, -48 ]
+  crop_pad: [ 16, -16, 48, -48 ]
 
 audio_spec:
   mel_step_size: 16

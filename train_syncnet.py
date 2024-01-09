@@ -105,7 +105,7 @@ def main(args):
 
     # Load ckpt
     if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location=f'cuda:{args.local_rank}')
+        ckpt = torch.load(args.ckpt, map_location='cpu')
         ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
         start_epoch = ckpt['epoch'] - 1
         logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
@@ -114,7 +114,7 @@ def main(args):
 
     # Load state_dict
     if args.weight:
-        ckpt = torch.load(args.weight, map_location=f'cuda:{args.local_rank}')
+        ckpt = torch.load(args.weight, map_location='cpu')
         if args.distributed:
             model.module.load_state_dict(ckpt)
         else:
