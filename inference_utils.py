@@ -4,7 +4,7 @@ import math
 import os
 from itertools import cycle
 
-from typing import Dict
+from typing import Dict, AnyStr
 from pathlib import Path
 from glob import glob
 from PIL import Image
@@ -40,13 +40,13 @@ class ImageFolder(Dataset):
 
     def max_bsz_sfd(self, gpu_idx):
         return 2 ** int(math.log2(int(torch.cuda.mem_get_info(gpu_idx)[1] / 1024 ** 2 - 361) / (
-                    0.000696875 * read_image(self.img_lists[0]).numel())))
+                0.000696875 * read_image(self.img_lists[0]).numel())))
 
     def max_bsz_retinaface(self, gpu_idx):
         return 2 ** int(math.log2(int(torch.cuda.mem_get_info(gpu_idx)[1] / 1024 ** 2 - 620) / (
-                    0.00015 * read_image(self.img_lists[0]).numel())))
+                0.00015 * read_image(self.img_lists[0]).numel())))
 
-    def pop(self) -> Dict:
+    def pop(self) -> [AnyStr, torch.Tensor]:
         fname = self.img_lists.pop()
         return Path(fname).stem, read_image(fname)
 
@@ -88,7 +88,7 @@ class GenerateDataset(Dataset):
     def __len__(self):
         return len(self.mel_chunks)
 
-    def __getitem__(self, index: int) -> Dict:
+    def __getitem__(self, index: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, AnyStr]:
         index = index
 
         # fnames = [next(self.face_lists) for _ in range(self.window_size)]
@@ -126,9 +126,9 @@ class GenerateDataset(Dataset):
 
         ref = img / 255
         mask = ref.clone()
-        # y1, y2, x1, x2 = [ 16, -16, 48, -48 ]
-        # mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
-        mask[:, mask.size(1) // 2:, :] = 0
+        y1, y2, x1, x2 = [16, -16, 48, -48]
+        mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
+        # mask[:, mask.size(1) // 2:, :] = 0
 
         x = torch.cat([mask, ref], dim=0)
 

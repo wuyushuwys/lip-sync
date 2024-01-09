@@ -80,6 +80,7 @@ def face_crop():
                 if bbox:
                     bbox_ema.update(np.array(bbox))
                     x1, y1, x2, y2 = bbox_ema.avg_value.astype(int).tolist()
+                    bbox = x1, y1, x2, y2
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
                     f.write(meta_line(name, *bbox))
@@ -127,17 +128,21 @@ if __name__ == '__main__':
                 crf=18,
                 )
         .overwrite_output()
-        .run_async(pipe_stdin=True, quiet=False)
+        .run_async(pipe_stdin=True, quiet=not args.verbose)
     )
-    # pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='lip-sync', dynamic_ncols=True)
-    for i, data in enumerate(dataloader):
+
+    if args.verbose:
+        pbar = enumerate(dataloader)
+    else:
+        pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='lip-sync', dynamic_ncols=True)
+    for i, data in pbar:
         x, indiv_mels, ori_window, meta = data
         x = x.to(device, non_blocking=True)
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
         with torch.no_grad():
             g = model(indiv_mels.half(), x.half()).clamp(0, 1)
-        # for batch_id, (_g, _ori, names) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
+
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
             frame_idx = i * bsz + batch_id
             x1, y1, x2, y2 = coords[name]
@@ -149,16 +154,15 @@ if __name__ == '__main__':
                 ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))
                 concat = np.flip(np.concatenate([ref, g], axis=1), axis=-1)
                 diff = np.abs(g.astype(float) - ref.astype(float))
-                # diff /= diff.max() diff.mean(axis=-1, keepdims=True) * 255
+                diff /= diff.max()  # diff.mean(axis=-1, keepdims=True) * 255
                 cv2.imwrite(f'{TMP_FOLDER}/diff/{frame_idx:06d}.jpg', np.abs(diff).astype(np.uint8))
                 cv2.imwrite(f'{TMP_FOLDER}/compare/{frame_idx:06d}.jpg', concat.astype(np.uint8))
-            # w_offset = int(48 / 256 * (x2-x1))
-            # h_offset = int(16 / 256 * (y2-y1))
-            # resize_face = cv2.resize(face, dsize=(x2-x1, y2-y1))[:-h_offset, w_offset:-w_offset]
+            # w_offset = int(48 / 256 * (x2 - x1))
+            # h_offset = int(16 / 256 * (y2 - y1))
             resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1))
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
-            # frame[y1:y2-h_offset,x1+w_offset:x2-w_offset] = resize_face
+            # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
             frame[y1:y2, x1:x2] = resize_face
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
