@@ -104,7 +104,7 @@ if __name__ == '__main__':
     model.to(device)
     model.half()
     model.eval()
-    dataloader = DataLoader(dataset, batch_size=64, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=64, shuffle=False, prefetch_factor=8, num_workers=8)
 
     os.makedirs(os.path.join(TMP_FOLDER, 'sync_face'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'sync_frames'), exist_ok=True)
