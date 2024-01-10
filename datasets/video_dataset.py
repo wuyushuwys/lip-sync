@@ -89,8 +89,10 @@ class FrameMelDataset(Dataset):
                 raise NotImplementedError(f"{self.data_mode} not supported")
 
             logger.info(
-                f"Load {len(folder_tree)} video data in {mode} "
+                f"Load {len(folder_tree)} video clips in {mode} "
                 f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
+        else:
+            logger.info(f"Load {len(folder_tree)} video clips in {mode}")
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
             logger.info(f"Loading audio cache: {audio_cache_path}")

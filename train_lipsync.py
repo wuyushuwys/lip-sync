@@ -132,6 +132,12 @@ def main(args):
 
     logger.info(attr_extractor(args))
 
+    if args.weight:
+        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
+        sync_avg = evaluate(model=model, eval_data_loaders=eval_data_loaders,
+                            epoch=0, criterions=criterion,
+                            writer=writer, args=args, logger=logger)
+
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
         if train_sampler is not None:

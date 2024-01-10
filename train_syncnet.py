@@ -123,6 +123,13 @@ def main(args):
 
     logger.info(attr_extractor(args))
     best_loss = 1000
+
+    if args.weight:
+        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
+        best_loss = evaluate(model=model, eval_data_loaders=eval_data_loaders,
+                             epoch=0, criterions=criterion,
+                             writer=writer, args=args, logger=logger)
+
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
         if train_sampler is not None:
