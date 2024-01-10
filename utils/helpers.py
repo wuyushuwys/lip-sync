@@ -26,7 +26,7 @@ def default(val, d):
 def compute_per_image(func):
     @functools.wraps(func)
     def wrapper(x, y):
-        assert x.shape == y.shape
+        assert x.shape == y.shape, f"{x.shape}, {y.shape}"
         if x.dim() == 4:
             assert x.size(1) == 3 or x.size(1) == 1, f"Image Channel Error"
         elif x.dim() == 5:
