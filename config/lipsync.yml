@@ -66,5 +66,5 @@ losses:
 
   sync_loss:
     type: SyncLoss
-    ckpt_path: runs/train_syncnet_hdtf_ori_expert/weights/syncnet.pt
+    ckpt_path: syncnet_best.pt
     loss_weight: 0
