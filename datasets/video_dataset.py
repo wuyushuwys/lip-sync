@@ -16,9 +16,9 @@ import torchvision
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms import (Compose, ColorJitter,
-                                    RandomApply, RandomAutocontrast,
+                                    RandomAutocontrast,
                                     RandomGrayscale, RandomAdjustSharpness,
-                                    RandomRotation)
+                                    RandomRotation, RandomHorizontalFlip)
 from torchvision.io import read_image
 
 import common
@@ -26,6 +26,8 @@ import utils
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
+
+from .utils import exists
 
 
 class FrameMelDataset(Dataset):
@@ -100,17 +102,21 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"Loading audio from file")
 
-        # self.transform = Compose([
-        #     RandomApply([ColorJitter(brightness=0.2, saturation=0.2, hue=0.2), ], p=0.2),
-        #     RandomGrayscale(p=0.1),
-        #     RandomAutocontrast(p=0.1),
-        # ])
-
-        if 'aug' in self.data_spec.keys() and self.data_spec['aug']:
-            h, w = self.video_spec['size']
-            self.transform = RandomRotation(degrees=15,
-                                            interpolation=InterpolationMode.BILINEAR,
-                                            center=(h // 2, w // 2))
+        if 'aug' in self.data_spec.keys():
+            aug_spec = self.data_spec['aug']
+            transforms = []
+            if exists('rotate', aug_spec):
+                transforms.append(RandomRotation(**aug_spec['rotate'],
+                                                 interpolation=InterpolationMode.BILINEAR))
+            if exists('flip', aug_spec):
+                transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
+            if exists('contrast', aug_spec):
+                transforms.append(RandomAutocontrast(**aug_spec['contrast']))
+            if exists('grayscale', aug_spec):
+                transforms.append(RandomGrayscale(**aug_spec['grayscale']))
+            if exists('sharpness', aug_spec):
+                transforms.append(RandomAdjustSharpness(**aug_spec['sharpness']))
+            self.transform = Compose(transforms)
 
     def __len__(self):
         if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
@@ -195,13 +201,33 @@ class FrameMelDataset(Dataset):
         indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
 
         true_window = torch.stack(true_window, dim=1) / 255
+        wrong_window = torch.stack(wrong_window, dim=1) / 255
+
+        if hasattr(self, 'transform'):
+            if self.mode == utils.mode.TRAIN:
+                true_window = true_window.permute(1, 0, 2, 3)
+                wrong_window = wrong_window.permute(1, 0, 2, 3)
+                window = torch.cat([true_window, wrong_window], dim=0)
+                true_window, wrong_window = self.transform(window).split(self.window_size, dim=0)
+                true_window = true_window.permute(1, 0, 2, 3)
+                wrong_window = wrong_window.permute(1, 0, 2, 3)
+
         gt = true_window.clone()
+
         if 'crop_pad' in self.video_spec.keys():
-            y1, y2, x1, x2 = self.video_spec['crop_pad']
-            true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
+            if self.mode == utils.mode.TRAIN:
+
+                if exists('random_crop', self.video_spec) and self.video_spec['random_crop']:
+                    y1, y2, x1, x2 = [random.randint(b // 2, b) if b > 0 else random.randint(b, b // 2) for b in
+                                      self.video_spec['crop_pad']]
+                else:
+                    y1, y2, x1, x2 = self.video_spec['crop_pad']
+                true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
+            else:
+                y1, y2, x1, x2 = self.video_spec['crop_pad']
+                true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
         else:
             true_window[:, :, true_window.size(2) // 2:] = 0
-        wrong_window = torch.stack(wrong_window, dim=1) / 255
 
         x = torch.cat([true_window, wrong_window], dim=0)
         indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)

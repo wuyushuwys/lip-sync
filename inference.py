@@ -34,8 +34,11 @@ parser.add_argument('--audio', type=str, required=True, help='input audio')
 parser.add_argument('--ckpt', type=str, required=True, help='model ckpt path')
 parser.add_argument('--output', type=str, default='output.mp4', help='output video path')
 parser.add_argument('--verbose', action='store_true', help='whether save results during generation for debug')
+parser.add_argument('--clean', action='store_true', help='whether clean intermedia results afterwards')
 
 args = parser.parse_args()
+
+TMP_FOLDER = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(args.input)[0].split('/')))
 
 
 def extract_frames(file_path):
@@ -89,9 +92,14 @@ def face_crop():
 
 
 if __name__ == '__main__':
-    if os.path.exists(TMP_FOLDER): shutil.rmtree(TMP_FOLDER)
-    extract_frames(args.input)
-    h, w = face_crop()
+    if not os.path.exists(TMP_FOLDER):
+        extract_frames(args.input)
+        h, w = face_crop()
+    else:
+        frame_dir = os.path.join(TMP_FOLDER, 'frames')
+        img_file = [fname for fname in os.listdir(frame_dir) if fname.endswith(EXT)][0]
+        h, w, _ = cv2.imread(os.path.join(frame_dir, img_file)).shape
+    print(f"Video Resolution {h}x{w}")
     # h, w = 720, 1280
     # h, w = 1080, 1920
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
@@ -167,5 +175,5 @@ if __name__ == '__main__':
     process.stdin.close()
     process.wait()
 
-    if args.verbose:
+    if args.clean:
         shutil.rmtree(TMP_FOLDER)

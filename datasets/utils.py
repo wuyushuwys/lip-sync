@@ -14,3 +14,7 @@ def load_from_folder(folder_tree, folder, mode, ext):
     else:
         raise NotImplementedError(f"{mode} not supported")
     return folder_tree
+
+
+def exists(key, args):
+    return key in args

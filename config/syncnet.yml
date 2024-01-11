@@ -6,6 +6,18 @@ data_spec:
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
 
+  aug:
+    rotate:
+      degrees: 5
+      center: [ 128, 128 ]
+    sharpness:
+      sharpness_factor: 2
+      p: 0.1
+    flip:
+      p: 0.1
+    contrast:
+      p: 0.1
+
 
 video_spec:
   fps: 25
@@ -26,7 +38,7 @@ optim:
 
 scheduler:
   type: MultiStepLR
-  milestones: [0.4, 0.8]
+  milestones: [ 0.4, 0.8 ]
   gamma: 0.5
 
 #scheduler:

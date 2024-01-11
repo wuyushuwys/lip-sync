@@ -6,10 +6,24 @@ data_spec:
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
 
+  aug:
+    rotate:
+      degrees: 10
+      center: [ 128, 128 ]
+    sharpness:
+      sharpness_factor: 2
+      p: 0.1
+    flip:
+      p: 0.3
+    contrast:
+      p: 0.1
+
+
 video_spec:
   fps: 25
   size: [ 256, 256 ]
   crop_pad: [ 16, -16, 48, -48 ]
+  random_crop: true
 
 audio_spec:
   mel_step_size: 16
