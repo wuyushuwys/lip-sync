@@ -29,7 +29,7 @@ audio_spec:
   mel_step_size: 16
   sample_rate: 16000
 
-num_samples: 500
+num_samples: 300
 eval_samples: 50
 
 optim:
