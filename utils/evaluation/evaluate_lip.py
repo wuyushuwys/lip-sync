@@ -75,24 +75,24 @@ def test(dataloader: DataLoader,
         sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
         loss_dict['sync_loss'].update(sync_loss.item(), bsz)
 
-        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y))
+        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, eval=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
         if 'perceptual_loss' in criterions.keys():
-            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y))
+            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, eval=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
         loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
-        b, c, t, h, w = pred_y.size()
-        if 'crop_pad' in args.video_spec.keys():
-            y1, y2, x1, x2 = args.video_spec['crop_pad']
-            pred_y = pred_y[..., h // 2 + y1: y2, x1: x2]
-            y = y[..., h // 2 + y1: y2, x1: x2]
-        else:
-            pred_y = pred_y[..., h // 2:, :]
-            y = y[..., h // 2:, :]
+        # b, c, t, h, w = pred_y.size()
+        # if 'crop_pad' in args.video_spec.keys():
+        #     y1, y2, x1, x2 = args.video_spec['crop_pad']
+        #     pred_y = pred_y[..., h // 2 + y1: y2, x1: x2]
+        #     y = y[..., h // 2 + y1: y2, x1: x2]
+        # else:
+        #     pred_y = pred_y[..., h // 2:, :]
+        #     y = y[..., h // 2:, :]
 
         loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
         loss_dict['SSIM'].update(ssim(pred_y, y))

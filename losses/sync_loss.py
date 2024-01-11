@@ -34,7 +34,7 @@ class SyncLoss(nn.Module):
 
         self.expert_model.eval()
 
-    def forward(self, mel: torch.Tensor, pred_y: torch.Tensor):
+    def forward(self, mel: torch.Tensor, pred_y: torch.Tensor, eval=False):
         pred_y = pred_y[..., pred_y.size(3) // 2:, :]
         pred_y = torch.cat(pred_y.unbind(dim=2), dim=1)
         # B, 3 * T, H//2, W

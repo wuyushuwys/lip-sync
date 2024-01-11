@@ -26,15 +26,18 @@ class LPIPSLoss(nn.Module):
     def forward(self,
                 source: torch.Tensor,
                 target: torch.Tensor,
-                normalize: bool = True
+                normalize: bool = True,
+                eval=False
                 ) -> torch.Tensor:
         if source.dim() > 4:
             source = torch.cat(source.unbind(2), dim=0)
             target = torch.cat(target.unbind(2), dim=0)
 
         lpips_loss = torch.mean(self.model(source, target, normalize=normalize))
-
-        return lpips_loss * self.loss_weight
+        if not eval:
+            return lpips_loss * self.loss_weight
+        else:
+            return lpips_loss
 
 
 # Source code reference from `https://github.com/jxgu1016/Total_Variation_Loss.pytorch/blob/master/TVLoss.py`.
@@ -125,7 +128,7 @@ class PerceptualLoss(nn.Module):
                 f'{criterion} criterion has not been supported in'
                 ' this version.')
 
-    def forward(self, x, gt):
+    def forward(self, x, gt, eval=False):
 
         if x.dim() > 4:
             x = torch.cat(x.unbind(2), dim=0)

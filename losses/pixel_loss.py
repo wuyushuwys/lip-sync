@@ -22,10 +22,13 @@ class PixelLoss(nn.Module):
             raise NotImplementedError(
                 f'{criterion} criterion has not been supported in this version.')
 
-    def forward(self, x, gt):
+    def forward(self, x, gt, eval=False):
         pixel_loss = self.criterion(x, gt)
         pixel_loss *= self.loss_weight
-        return pixel_loss
+        if not eval:
+            return pixel_loss * self.loss_weight
+        else:
+            return pixel_loss
 
 
 class CharbonnierLoss(nn.Module):
