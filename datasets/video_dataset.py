@@ -12,7 +12,7 @@ import numpy as np
 
 import torch
 import torchvision
-
+torchvision.disable_beta_transforms_warning()
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms.v2 import (Compose, ColorJitter,
