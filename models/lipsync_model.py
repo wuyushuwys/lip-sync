@@ -55,8 +55,11 @@ class LipSyncModel(BasicModel):
             indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
             mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
-
-            x = self.mask(x)
+            try:
+                x = self.mask(x)
+            except RuntimeError as e:
+                self.logger.error(f'failed at face masking {e}')
+                continue
 
             self.optimizer.zero_grad()
 
