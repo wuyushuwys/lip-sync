@@ -6,7 +6,7 @@ from logging import Logger
 from torch.utils import tensorboard
 from thop import profile, clever_format
 
-import models
+import arch
 
 from utils.init_utils import master_only, when_attr_is_true
 

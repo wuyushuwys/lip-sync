@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from models.syncnet import SyncNet
+from arch.syncnet import SyncNet
 
 
 class CosineLoss(nn.Module):

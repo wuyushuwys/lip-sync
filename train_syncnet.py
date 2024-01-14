@@ -8,62 +8,16 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 
 import config
-import common
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
 from utils.train_utils import (create_dataloader, create_criterions, create_optim_scheduler,
-                               ckpt_saver, state_dict_saver, ckpt_loader)
-from utils.logger_utils import tb_writer, loss_printer, attr_extractor
+                               ckpt_loader)
+from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet import SyncNet, SyncNet_Color
-
-
-def train(model, optimizer, scheduler, criterion,
-          train_data_loader, epoch, writer, args, logger):
-    time_meter = common.meters.TimeMeter()
-    losses_meter = common.meters.LossesMeter(fmt='.04e')
-
-    model.train()
-    nb = len(train_data_loader)
-    log_vars = {'@loss': None, 'lr': None}
-
-    for batch_idx, batch in enumerate(train_data_loader, start=1):
-        total_batches = (epoch - 1) * nb + batch_idx
-
-        x, mel, y = batch
-        x = x.to(args.local_rank, non_blocking=True)
-        mel = mel.to(args.local_rank, non_blocking=True)
-        y = y.to(args.local_rank, non_blocking=True)
-
-        optimizer.zero_grad()
-
-        a, v = model(mel, x)
-
-        loss = criterion['sync_loss'](a, v, y)
-        loss.backward()
-
-        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
-
-        log_vars['sync_loss'] = loss
-        log_vars['lr'] = scheduler.get_last_lr()[0]
-        log_vars['@loss'] = loss
-
-        optimizer.step()
-        scheduler.step()
-
-        time_meter.update()
-        losses_meter.update(log_vars, x.size(0))
-
-        if batch_idx % args.log_steps == 0:
-            time_meter.complete_time(nb - batch_idx)
-            tb_writer(writer=writer, loss_dict=log_vars, nb=total_batches, tag='train')
-            s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{args.epochs} " \
-                f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
-                f"est. {time_meter.remain_time} {loss_printer(log_vars, fmt='.04e')}"
-            logger.info(s)
-    logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{args.epochs} finished. SyncLoss: {losses_meter.avg}")
+from models.syncnet_model import SyncNetModel
+from arch.syncnet import SyncNet, SyncNet_Color
 
 
 def main(args):
@@ -124,31 +78,31 @@ def main(args):
     logger.info(attr_extractor(args))
     best_loss = 1000
 
+    trainer = SyncNetModel(model=model,
+                           optimizer=optimizer,
+                           scheduler=scheduler,
+                           criterion=criterion,
+                           train_data_loader=train_data_loader,
+                           eval_data_loaders=eval_data_loaders,
+                           logger=logger,
+                           args=args,
+                           writer=writer)
+
     if args.weight:
-        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        best_loss = evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                             epoch=0, criterions=criterion,
-                             writer=writer, args=args, logger=logger)
+        trainer.evaluating_epoch(epoch=0)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
-        train(model, optimizer, scheduler, criterion, train_data_loader, epoch, writer, args, logger)
-        # Eval model
-        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        loss = evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                        epoch=epoch, criterions=criterion,
-                        writer=writer, args=args, logger=logger)
+        trainer.training_epoch(epoch=epoch)
+        loss = trainer.evaluating_epoch(epoch=epoch)
         # save model weight
-        state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'), model)
+        trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
         if best_loss > loss:
-            state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}_best.pt'), model)
+            trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}_best.pt'))
             best_loss = loss
-        ckpt_saver(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
-                   model=model,
-                   optimizer=optimizer, scheduler=scheduler,
-                   epoch=epoch)
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"), epoch=epoch)
 
     logger.info(f"Finish Training")
 

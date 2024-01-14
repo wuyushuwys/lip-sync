@@ -18,7 +18,7 @@ import ffmpeg
 from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset, EMA
-from models.wav2lip import Wav2Lip
+from arch.wav2lip import Wav2Lip
 from utils import audio
 
 EXT = 'jpg'

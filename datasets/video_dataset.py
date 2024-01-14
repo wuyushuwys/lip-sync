@@ -214,20 +214,20 @@ class FrameMelDataset(Dataset):
 
         gt = true_window.clone()
 
-        if 'crop_pad' in self.video_spec.keys():
-            if self.mode == utils.mode.TRAIN:
-
-                if exists('random_crop', self.video_spec) and self.video_spec['random_crop']:
-                    y1, y2, x1, x2 = [random.randint(b // 2, b) if b > 0 else random.randint(b, b // 2) for b in
-                                      self.video_spec['crop_pad']]
-                else:
-                    y1, y2, x1, x2 = self.video_spec['crop_pad']
-                true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
-            else:
-                y1, y2, x1, x2 = self.video_spec['crop_pad']
-                true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
-        else:
-            true_window[:, :, true_window.size(2) // 2:] = 0
+        # if 'crop_pad' in self.video_spec.keys():
+        #     if self.mode == utils.mode.TRAIN:
+        #
+        #         if exists('random_crop', self.video_spec) and self.video_spec['random_crop']:
+        #             y1, y2, x1, x2 = [random.randint(b // 2, b) if b > 0 else random.randint(b, b // 2) for b in
+        #                               self.video_spec['crop_pad']]
+        #         else:
+        #             y1, y2, x1, x2 = self.video_spec['crop_pad']
+        #         true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
+        #     else:
+        #         y1, y2, x1, x2 = self.video_spec['crop_pad']
+        #         true_window[:, :, true_window.size(2) // 2 + y1: y2, x1: x2] = 0
+        # else:
+        #     true_window[:, :, true_window.size(2) // 2:] = 0
 
         x = torch.cat([true_window, wrong_window], dim=0)
         indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)

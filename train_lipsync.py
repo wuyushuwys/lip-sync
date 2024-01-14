@@ -17,7 +17,7 @@ from utils.train_utils import (create_dataloader, create_criterions, create_opti
 from utils.logger_utils import tb_writer, loss_printer, attr_extractor
 from utils.logging_tool import get_logger
 
-from models.wav2lip import Wav2Lip
+from arch.wav2lip import Wav2Lip
 
 
 def train(model, optimizer, scheduler, criterion,

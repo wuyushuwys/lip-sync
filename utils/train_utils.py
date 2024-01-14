@@ -22,6 +22,7 @@ __all__ = ["create_dataloader",
            "create_criterions",
            "load_ckpt",
            "state_dict_saver",
+           "ckpt_loader",
            'ckpt_saver',
            "create_optim_scheduler",
            ]
