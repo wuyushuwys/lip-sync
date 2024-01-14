@@ -18,6 +18,7 @@ from utils.logger_utils import tb_writer, loss_printer, attr_extractor
 from utils.logging_tool import get_logger
 
 from arch.wav2lip import Wav2Lip
+from models.lipsync_model import LipSyncModel
 
 
 def train(model, optimizer, scheduler, criterion,
@@ -132,31 +133,31 @@ def main(args):
 
     logger.info(attr_extractor(args))
 
+    trainer = LipSyncModel(model=model,
+                           optimizer=optimizer,
+                           scheduler=scheduler,
+                           criterion=criterion,
+                           train_data_loader=train_data_loader,
+                           eval_data_loaders=eval_data_loaders,
+                           logger=logger,
+                           args=args,
+                           writer=writer)
+
     if args.weight:
-        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        sync_avg = evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                            epoch=0, criterions=criterion,
-                            writer=writer, args=args, logger=logger)
+        trainer.evaluating_epoch(epoch=0)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
-        train(model, optimizer, scheduler, criterion, train_data_loader, epoch, writer, args, logger)
+        trainer.training_epoch(epoch=epoch)
         # Eval model
-        evaluate = model.evaluate if hasattr(model, 'evaluate') else model.module.evaluate
-        sync_avg = evaluate(model=model, eval_data_loaders=eval_data_loaders,
-                            epoch=epoch, criterions=criterion,
-                            writer=writer, args=args, logger=logger)
-        if sync_avg < 0.75:
-            criterion['sync_loss'].loss_weight = 0.03
+        sync_loss = trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
-        state_dict_saver(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'), model)
-        ckpt_saver(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
-                   model=model,
-                   optimizer=optimizer, scheduler=scheduler,
-                   epoch=epoch)
+        trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
+                          epoch=epoch)
 
     logger.info(f"Finish Training")
 

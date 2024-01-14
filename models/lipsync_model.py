@@ -3,13 +3,14 @@ from argparse import Namespace
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_sync
+from utils.evaluation import evaluate_lip
 from utils.train_utils import state_dict_saver, ckpt_saver
 
+from .modules.masking import Masking
 from .basic_model import BasicModel
 
 
-class SyncNetModel(BasicModel):
+class LipSyncModel(BasicModel):
 
     def __init__(self,
                  model,
@@ -37,6 +38,8 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
+        self.mask = Masking().to(self.local_rank)
+
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
         losses_meter = common.meters.LossesMeter(fmt='.04e')
@@ -46,19 +49,33 @@ class SyncNetModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
-            x, mel, y = batch
+            x, indiv_mels, mel, y = batch
+
             x = x.to(self.local_rank, non_blocking=True)
+            indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
             mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
 
+            x = self.mask(x)
+
             self.optimizer.zero_grad()
 
-            a, v = self.model(mel, x)
+            pred_y = self.model(indiv_mels, x)
 
-            loss = self.criterion['sync_loss'](a, v, y)
+            sync_weight = self.criterion['sync_loss'].loss_weight
+            sync_loss = self.criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+
+            recon_loss = self.criterion['recon_loss'](pred_y, y) if 'recon_loss' in self.criterion.keys() else 0
+
+            perceptual_loss = self.criterion['perceptual_loss'](pred_y,
+                                                                y) if 'perceptual_loss' in self.criterion.keys() else 0
+
+            loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
+
             loss.backward()
-
-            log_vars['sync_loss'] = loss
+            log_vars['sync_loss'] = sync_loss
+            log_vars['recon_loss'] = recon_loss
+            log_vars['perceptual_loss'] = perceptual_loss
             log_vars['lr'] = self.scheduler.get_last_lr()[0]
             log_vars['@loss'] = loss
 
@@ -78,13 +95,15 @@ class SyncNetModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        return evaluate_sync.evaluation(model=self.model,
-                                        eval_data_loaders=self.eval_data_loaders,
-                                        epoch=epoch,
-                                        criterions=self.criterion,
-                                        writer=self.writer,
-                                        args=self.args,
-                                        logger=self.logger)
+        sync_loss = evaluate_lip.evaluation(model=self.model,
+                                            eval_data_loaders=self.eval_data_loaders,
+                                            epoch=epoch,
+                                            criterions=self.criterion,
+                                            writer=self.writer,
+                                            args=self.args,
+                                            logger=self.logger)
+        if sync_loss < 0.75:
+            self.criterion['sync_loss'].loss_weight = 0.03
 
     def save_model(self, name):
         state_dict_saver(name, self.model)
