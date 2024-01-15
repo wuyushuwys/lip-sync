@@ -37,23 +37,31 @@ class Masking(nn.Module):
             nose_bbox = masks_to_boxes(nose_masks).int().tolist()
         except RuntimeError as e:
             nose_bbox = []
-            for nose_mask, face_mask in zip(nose_masks, face_masks):
+            for nose_mask in nose_masks:
                 try:
                     nose_bbox.append(masks_to_boxes(nose_mask.unsqueeze(0)).int().tolist()[0])
                 except RuntimeError as e:
-                    try:
-                        x1, y1, x2, y2 = masks_to_boxes(face_mask.unsqueeze(0)).int().tolist()[0]
-                        nose_bbox.append([x1, y1, x2, (y2 * 3) // 5])
-                    except RuntimeError as e:
-                        x1, y1, x2, y2 = 0, 0, face_masks.size(2), face_masks.size(1) // 2
-                        nose_bbox.append([x1, y1, x2, y2])
+                    nose_bbox.append(None)
+            # for nose_mask, face_mask in zip(nose_masks, face_masks):
+            #     try:
+            #         nose_bbox.append(masks_to_boxes(nose_mask.unsqueeze(0)).int().tolist()[0])
+            #     except RuntimeError as e:
+            #         try:
+            #             x1, y1, x2, y2 = masks_to_boxes(face_mask.unsqueeze(0)).int().tolist()[0]
+            #             nose_bbox.append([x1, y1, x2, (y2 * 3) // 5])
+            #         except RuntimeError as e:
+            #             x1, y1, x2, y2 = 0, 0, face_masks.size(2), face_masks.size(1) // 2
+            #             nose_bbox.append([x1, y1, x2, y2])
 
         # nose_bound = masks_to_boxes(nose_mask)[:-1].mean().int().item()
 
         # face_mask[:, :nose_bound, ...] = 1
         for idx, bbox in enumerate(nose_bbox):
-            x1, y1, x2, y2 = bbox
-            face_masks[idx][:y2, ...] = 1
+            if bbox is None:
+                face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
+            else:
+                x1, y1, x2, y2 = bbox
+                face_masks[idx][:y2, ...] = 1
 
         return face_masks.unsqueeze(1)
 
