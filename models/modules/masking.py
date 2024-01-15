@@ -30,18 +30,29 @@ class Masking(nn.Module):
         flag = (mask == 1) | (mask == 2) | (mask == 3) | (mask == 4) | (mask == 5) | (mask == 6) | (mask == 10) | (
                 mask == 11) | (mask == 12) | (mask == 13)
 
-        face_mask = torch.where(flag, torch.zeros_like(mask), 1)
-        nose_mask = torch.where(mask == 10, torch.ones_like(mask), 0)
+        face_masks = torch.where(flag, torch.zeros_like(mask), 1)
+        nose_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
 
-        nose_bbox = masks_to_boxes(nose_mask).int().tolist()
+        nose_bbox = []
+        for nose_mask, face_mask in zip(nose_masks, face_masks):
+            try:
+                nose_bbox.append(masks_to_boxes(nose_mask).int().tolist())
+            except RuntimeError as e:
+                try:
+                    x1, y1, x2, y2 = masks_to_boxes(face_mask).int().tolist()
+                    nose_bbox.append([x1, y1, x2, (y2 * 3) // 5])
+                except RuntimeError as e:
+                    x1, y1, x2, y2 = 0, 0, face_masks.size(2), face_masks.size(1) // 2
+                    nose_bbox.append([x1, y1, x2, y2])
+
         # nose_bound = masks_to_boxes(nose_mask)[:-1].mean().int().item()
 
         # face_mask[:, :nose_bound, ...] = 1
         for idx, bbox in enumerate(nose_bbox):
             x1, y1, x2, y2 = bbox
-            face_mask[idx][:y2, ...] = 1
+            face_masks[idx][:y2, ...] = 1
 
-        return face_mask.unsqueeze(1)
+        return face_masks.unsqueeze(1)
 
     def forward(self, x: torch.Tensor):
         bsz = x.size(0)
