@@ -38,7 +38,7 @@ class LipSyncModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.mask = Masking().to(self.local_rank)
+        self.mask = Masking().to(self.local_rank).half()
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -56,9 +56,9 @@ class LipSyncModel(BasicModel):
             mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
             try:
-                x = self.mask(x)
+                x = self.mask(x.half())
             except RuntimeError as e:
-                self.logger.error(f'failed at face masking {e}')
+                # self.logger.error(f'failed at face masking {e}')
                 continue
 
             self.optimizer.zero_grad()
@@ -104,7 +104,8 @@ class LipSyncModel(BasicModel):
                                             criterions=self.criterion,
                                             writer=self.writer,
                                             args=self.args,
-                                            logger=self.logger)
+                                            logger=self.logger,
+                                            mask=self.mask)
         if sync_loss < 0.75:
             self.criterion['sync_loss'].loss_weight = 0.03
 

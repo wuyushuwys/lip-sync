@@ -207,8 +207,8 @@ class FrameMelDataset(Dataset):
             # if self.mode == utils.mode.TRAIN:
             true_window = true_window.permute(1, 0, 2, 3)
             wrong_window = wrong_window.permute(1, 0, 2, 3)
-            window = torch.cat([true_window, wrong_window], dim=0)
-            true_window, wrong_window = self.transform(window).split(self.window_size, dim=0)
+            # window = torch.cat([true_window, wrong_window], dim=0)
+            true_window, wrong_window = self.transform([true_window, wrong_window])
             true_window = true_window.permute(1, 0, 2, 3)
             wrong_window = wrong_window.permute(1, 0, 2, 3)
 
