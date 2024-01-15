@@ -58,7 +58,7 @@ class LipSyncModel(BasicModel):
             try:
                 x = self.mask(x.half())
             except RuntimeError as e:
-                # self.logger.error(f'failed at face masking {e}')
+                self.logger.error(f'failed at face masking {e}')
                 continue
 
             self.optimizer.zero_grad()

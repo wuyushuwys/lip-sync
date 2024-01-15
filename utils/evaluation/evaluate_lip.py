@@ -75,6 +75,7 @@ def test(dataloader: DataLoader,
             try:
                 x = mask(x)
             except RuntimeError as e:
+                args.logger.error(f'failed at face masking {e}')
                 continue
 
         pred_y = model(indiv_mels, x)
