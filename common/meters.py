@@ -29,7 +29,10 @@ class AverageMeter:
 
     @property
     def avg(self):
-        return self._sum / self._count
+        if self._count != 0:
+            return self._sum / self._count
+        else:
+            return 0
 
     @property
     def val(self):
