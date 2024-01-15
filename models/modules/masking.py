@@ -11,12 +11,16 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256):
+    def __init__(self, size=256, half_precision=True):
         super().__init__()
         self.detector = BiSeNet(n_classes=19)
+        self.half_precision = half_precision
         ckpt_path = Path(__file__).parent / f"weights/face_parsing_{size}.pth"
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.detector.eval()
+
+        if half_precision:
+            self.detector.half()
 
     @torch.no_grad()
     def mask(self, x):
@@ -46,9 +50,9 @@ class Masking(nn.Module):
             # face [bsz, 6, t, h, w]
             face, ref = x.split(3, dim=1)
             face = rearrange(face, 'b c t h w -> (b t) c h w')
-            face = face * self.mask(face)
+            face = face * self.mask(face.half() if self.half_precision else face)
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         else:
             assert x.size(1) == 3
-            return x * self.mask(x)
+            return x * self.mask(x.half() if self.half_precision else x)
