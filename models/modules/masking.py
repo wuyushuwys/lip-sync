@@ -33,17 +33,20 @@ class Masking(nn.Module):
         face_masks = torch.where(flag, torch.zeros_like(mask), 1)
         nose_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
 
-        nose_bbox = []
-        for nose_mask, face_mask in zip(nose_masks, face_masks):
-            try:
-                nose_bbox.append(masks_to_boxes(nose_mask).int().tolist())
-            except RuntimeError as e:
+        try:
+            nose_bbox = masks_to_boxes(nose_masks).int().tolist()
+        except RuntimeError as e:
+            nose_bbox = []
+            for nose_mask, face_mask in zip(nose_masks, face_masks):
                 try:
-                    x1, y1, x2, y2 = masks_to_boxes(face_mask).int().tolist()
-                    nose_bbox.append([x1, y1, x2, (y2 * 3) // 5])
+                    nose_bbox.append(masks_to_boxes(nose_mask.unsqueeze(0)).int().tolist()[0])
                 except RuntimeError as e:
-                    x1, y1, x2, y2 = 0, 0, face_masks.size(2), face_masks.size(1) // 2
-                    nose_bbox.append([x1, y1, x2, y2])
+                    try:
+                        x1, y1, x2, y2 = masks_to_boxes(face_mask.unsqueeze(0)).int().tolist()[0]
+                        nose_bbox.append([x1, y1, x2, (y2 * 3) // 5])
+                    except RuntimeError as e:
+                        x1, y1, x2, y2 = 0, 0, face_masks.size(2), face_masks.size(1) // 2
+                        nose_bbox.append([x1, y1, x2, y2])
 
         # nose_bound = masks_to_boxes(nose_mask)[:-1].mean().int().item()
 
