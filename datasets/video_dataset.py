@@ -15,6 +15,7 @@ import torchvision
 torchvision.disable_beta_transforms_warning()
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
+from torchvision.transforms.v2 import Transform
 from torchvision.transforms.v2 import (Compose, ColorJitter,
                                        RandomAutocontrast,
                                        RandomGrayscale, RandomAdjustSharpness,
@@ -207,8 +208,10 @@ class FrameMelDataset(Dataset):
             # if self.mode == utils.mode.TRAIN:
             true_window = true_window.permute(1, 0, 2, 3)
             wrong_window = wrong_window.permute(1, 0, 2, 3)
-            # window = torch.cat([true_window, wrong_window], dim=0)
-            true_window, wrong_window = self.transform([true_window, wrong_window])
+            window = torch.cat([true_window, wrong_window], dim=0)
+            window = self.transform(window)
+            true_window, wrong_window = window.split(self.window_size, dim=0)
+            # true_window, wrong_window = self.transform([true_window, wrong_window])
             true_window = true_window.permute(1, 0, 2, 3)
             wrong_window = wrong_window.permute(1, 0, 2, 3)
 
@@ -333,3 +336,5 @@ class FrameMelDataset(Dataset):
             except AssertionError:
                 raise AssertionError(f"{start_frame_num} {i} {start_frame_num + self.window_size}")
         return np.asarray(mels)
+
+

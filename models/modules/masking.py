@@ -12,7 +12,7 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, pad=0.025, half_precision=True):
+    def __init__(self, size=256, pad=0.02, half_precision=True):
         """
         Masking toolkit for half-face masking
         Args:
@@ -65,8 +65,10 @@ class Masking(nn.Module):
         # nose_bound = masks_to_boxes(nose_mask)[:-1].mean().int().item()
 
         # face_mask[:, :nose_bound, ...] = 1
-        h = random.randint(1, int(face_masks.size(1) * self.pad))
-        w = random.randint(1, int(face_masks.size(2) * self.pad))
+        # h = random.randint(1, int(face_masks.size(1) * self.pad))
+        # w = random.randint(1, int(face_masks.size(2) * self.pad))
+        h = int(face_masks.size(1) * self.pad)
+        w = int(face_masks.size(2) * self.pad)
         for idx, bbox in enumerate(nose_bbox):
             if bbox is None:
                 face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
