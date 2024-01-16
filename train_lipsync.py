@@ -89,7 +89,7 @@ def main(args):
                            writer=writer)
 
     if args.weight:
-        trainer.evaluating_epoch(epoch=0)
+        trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train

@@ -8,16 +8,18 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import wandb
 
 import config
+import common
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
 from utils.train_utils import (create_dataloader, create_criterions, create_optim_scheduler,
-                               ckpt_loader)
-from utils.logger_utils import attr_extractor
+                               ckpt_saver, state_dict_saver, ckpt_loader)
+from utils.logger_utils import tb_writer, loss_printer, attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_model import SyncNetModel
-from arch.syncnet import SyncNet, SyncNet_Color
+from arch.wav2lip import Wav2Lip
+from arch.discriminator import UNetDiscriminatorSN
+from models.lipsync_model import LipSyncModel
 
 
 def main(args):
@@ -33,11 +35,11 @@ def main(args):
 
     # Load dataset
     logger.info(f"Load Dataset")
-    train_data_loader, train_sampler, eval_data_loaders, eval_sampler = create_dataloader(args)
+    train_data_loader, train_sampler, eval_data_loaders, eval_samplers = create_dataloader(args)
 
     # Create generator
     logger.info(f"Create Model")
-    model = SyncNet()
+    model = Wav2Lip()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
@@ -75,9 +77,8 @@ def main(args):
         logger.info(f"Load weight from {args.weight}")
 
     logger.info(attr_extractor(args))
-    best_loss = 1000
 
-    trainer = SyncNetModel(model=model,
+    trainer = LipSyncModel(model=model,
                            optimizer=optimizer,
                            scheduler=scheduler,
                            criterion=criterion,
@@ -95,13 +96,13 @@ def main(args):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
         trainer.training_epoch(epoch=epoch)
-        loss = trainer.evaluating_epoch(epoch=epoch)
+        # Eval model
+        sync_loss = trainer.evaluating_epoch(epoch=epoch)
+
         # save model weight
         trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
-        if best_loss > loss:
-            trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}_best.pt'))
-            best_loss = loss
-        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"), epoch=epoch)
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
+                          epoch=epoch)
 
     logger.info(f"Finish Training")
 

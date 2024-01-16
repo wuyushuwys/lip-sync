@@ -108,7 +108,8 @@ class FrameMelDataset(Dataset):
             transforms = []
             if exists('rotate', aug_spec):
                 transforms.append(RandomRotation(**aug_spec['rotate'],
-                                                 interpolation=InterpolationMode.BILINEAR))
+                                                 interpolation=InterpolationMode.BILINEAR,
+                                                 fill=1))
             if exists('flip', aug_spec):
                 transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
             if exists('contrast', aug_spec):
