@@ -19,6 +19,7 @@ from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset, EMA
 from arch.wav2lip import Wav2Lip
+from models.modules.masking import Masking
 from utils import audio
 
 EXT = 'jpg'
@@ -35,10 +36,14 @@ parser.add_argument('--ckpt', type=str, required=True, help='model ckpt path')
 parser.add_argument('--output', type=str, default='output.mp4', help='output video path')
 parser.add_argument('--verbose', action='store_true', help='whether save results during generation for debug')
 parser.add_argument('--clean', action='store_true', help='whether clean intermedia results afterwards')
+parser.add_argument('--smooth', action='store_true', help='smooth face detection')
+parser.add_argument('--dynamic-mask', '-mask', action='store_true', help='dynamic masking face')
 
 args = parser.parse_args()
 
 TMP_FOLDER = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(args.input)[0].split('/')))
+if args.smooth:
+    TMP_FOLDER += '_smooth'
 
 
 def extract_frames(file_path):
@@ -57,7 +62,8 @@ def face_crop():
                                          device='cuda' if torch.cuda.is_available() else 'cpu')
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
-    bbox_ema = EMA()
+    if args.smooth:
+        bbox_ema = EMA()
     with open(os.path.join(TMP_FOLDER, 'meta.txt'), 'w') as f:
         for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True):
             names, imgs = data['name'], data['img']
@@ -81,9 +87,12 @@ def face_crop():
             for name, bbox, img in zip(names, batched_det_faces, imgs):
                 output_path = os.path.join(TMP_FOLDER, 'crop_face', f'{name}.{EXT}')
                 if bbox:
-                    bbox_ema.update(np.array(bbox))
-                    x1, y1, x2, y2 = bbox_ema.avg_value.astype(int).tolist()
-                    bbox = x1, y1, x2, y2
+                    if args.smooth:
+                        bbox_ema.update(np.array(bbox))
+                        x1, y1, x2, y2 = bbox_ema.avg_value.astype(int).tolist()
+                        bbox = x1, y1, x2, y2
+                    else:
+                        x1, y1, x2, y2 = bbox
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
                     f.write(meta_line(name, *bbox))
@@ -104,7 +113,9 @@ if __name__ == '__main__':
     # h, w = 1080, 1920
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
 
-    dataset = GenerateDataset(TMP_FOLDER, mel)
+    dataset = GenerateDataset(TMP_FOLDER, mel, dynamic_mask=args.dynamic_mask)
+    if args.dynamic_mask:
+        mask = Masking(half_precision=True).cuda()
     coords = dataset.coords
     # win_size = dataset.window_size
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -146,6 +157,8 @@ if __name__ == '__main__':
         x = x.to(device, non_blocking=True)
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
+        if args.dynamic_mask:
+            x = mask(x)
         with torch.no_grad():
             g = model(indiv_mels.half(), x.half()).clamp(0, 1)
 

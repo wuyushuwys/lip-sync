@@ -11,9 +11,17 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, half_precision=True):
+    def __init__(self, size=256, pad=0.1, half_precision=True):
+        """
+        Masking toolkit for half-face masking
+        Args:
+            size: mask image size
+            half_precision: whether using half-precision inference
+        """
         super().__init__()
         self.detector = BiSeNet(n_classes=19)
+        assert 0 <= pad < 0.5, f"mask pad should between [0, 0.5], but got {pad}"
+        self.pad = pad  # pad mask for better boundary effect.
         self.half_precision = half_precision
         ckpt_path = Path(__file__).parent / f"weights/face_parsing_{size}.pth"
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -56,12 +64,17 @@ class Masking(nn.Module):
         # nose_bound = masks_to_boxes(nose_mask)[:-1].mean().int().item()
 
         # face_mask[:, :nose_bound, ...] = 1
+        h = int(face_masks.size(1) * self.pad * 2)
+        w = int(face_masks.size(2) * self.pad * 2)
         for idx, bbox in enumerate(nose_bbox):
             if bbox is None:
                 face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
             else:
                 x1, y1, x2, y2 = bbox
-                face_masks[idx][:y2, ...] = 1
+                face_masks[idx, :y2, ...] = 1
+                face_masks[idx, -h:, ...] = 1
+                face_masks[idx, ..., :w] = 1
+                face_masks[idx, ..., -w:] = 1
 
         return face_masks.unsqueeze(1)
 
@@ -76,5 +89,7 @@ class Masking(nn.Module):
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         else:
-            assert x.size(1) == 3
-            return x * self.mask(x.half() if self.half_precision else x)
+            assert x.size(1) == 6
+            face, ref = x.split(3, dim=1)
+            face = face * self.mask(face.half() if self.half_precision else face)
+            return torch.cat([face, ref], dim=1)

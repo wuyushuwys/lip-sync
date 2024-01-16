@@ -83,11 +83,11 @@ def test(dataloader: DataLoader,
         sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
         loss_dict['sync_loss'].update(sync_loss.item(), bsz)
 
-        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, eval=True))
+        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, val=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
         if 'perceptual_loss' in criterions.keys():
-            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, eval=True))
+            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
         loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))

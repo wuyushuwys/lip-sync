@@ -56,12 +56,14 @@ class GenerateDataset(Dataset):
     def __init__(self, folder, mel_spec,
                  window_size=5,
                  fps=25, mel_step_size=16,
-                 ext='jpg', face_size=(256, 256)) -> None:
+                 ext='jpg', face_size=(256, 256),
+                 dynamic_mask=False) -> None:
         super().__init__()
 
         self.face_lists = sorted(glob(f"{folder}/crop_face/*.{ext}"))
         self.frame_lists = sorted(glob(f"{folder}/frames/*.{ext}"))
         self.num_video_frames = len(self.frame_lists)
+        self.dynamic_mask = dynamic_mask
         self.coords = dict()
         with open(os.path.join(folder, 'meta.txt'), 'r') as f:
             lines = f.readlines()
@@ -103,8 +105,9 @@ class GenerateDataset(Dataset):
 
         ref = img / 255
         mask = ref.clone()
-        y1, y2, x1, x2 = [16, -16, 48, -48]
-        mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
+        if not self.dynamic_mask:
+            y1, y2, x1, x2 = [16, -16, 48, -48]
+            mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
         # mask[:, mask.size(1) // 2:, :] = 0
 
         x = torch.cat([mask, ref], dim=0)
