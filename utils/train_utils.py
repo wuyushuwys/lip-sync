@@ -103,7 +103,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     logger = get_logger(args.job_dir)
     # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'optim'), "Missing optim in model config"
-    assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
+    # assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
 
     optim_module = getattr(torch.optim, args.optim.get('type'))
     optim_dict = subdict(args.optim, 'type')
@@ -127,7 +127,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
         total_iters -= warmup_iters
 
     assert hasattr(args, 'scheduler'), "Missing scheduler in model config"
-    assert isinstance(args.scheduler, dict), "scheduler in config should be a dictionary"
+    # assert isinstance(args.scheduler, dict), "scheduler in config should be a dictionary"
 
     scheduler_module = getattr(lr_scheduler, args.scheduler.get('type'))
     if issubclass(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
