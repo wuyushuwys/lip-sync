@@ -97,7 +97,7 @@ def main(args):
             train_sampler.set_epoch(epoch)
         trainer.training_epoch(epoch=epoch)
         # Eval model
-        sync_loss = trainer.evaluating_epoch(epoch=epoch)
+        trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
         trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
@@ -116,7 +116,7 @@ if __name__ == '__main__':
     init_process(args)
 
     # read from config file
-    config.update_params(args)
+    args = config.update_params(args)
 
     # create logger
     logger = get_logger(file_path=args.job_dir)

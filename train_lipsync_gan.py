@@ -19,7 +19,7 @@ from utils.logging_tool import get_logger
 
 from arch.wav2lip import Wav2Lip
 from arch.discriminator import UNetDiscriminatorSN
-from models.lipsync_model import LipSyncModel
+from models.lipsync_gan_model import LipSyncGAN
 
 
 def main(args):
@@ -40,9 +40,12 @@ def main(args):
     # Create generator
     logger.info(f"Create Model")
     model = Wav2Lip()
+    d_model = UNetDiscriminatorSN()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
+    logger.info(f"G-Model {model} :[Trainable Parameters: {trainable_params}]")
+    trainable_params = sum(p.numel() for p in d_model.parameters() if p.requires_grad)
+    logger.info(f"D-Model {d_model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
     logger.info(f"Load loss function")
@@ -52,16 +55,22 @@ def main(args):
     if args.distributed:
         logger.info("Distributed Training")
         model = DDP(model.to(device), device_ids=[device], output_device=device)
+        d_model = DDP(d_model.to(device), device_ids=[device], output_device=device)
     else:
         model.to(device)
+        d_model.to(device)
 
     # create optimizers and schedulers
-    [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
+    [optimizer, d_optimizer], [scheduler, d_scheduler] = create_optim_scheduler([model, d_model],
+                                                                                args=args,
+                                                                                num_batches=len(train_data_loader))
 
     # Load ckpt
     if args.ckpt:
         ckpt = torch.load(args.ckpt, map_location='cpu')
-        ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
+        ckpt_loader(ckpt,
+                    model=model, optimizer=optimizer, scheduler=scheduler,
+                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
         start_epoch = ckpt['epoch'] - 1
         logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
     else:
@@ -78,15 +87,18 @@ def main(args):
 
     logger.info(attr_extractor(args))
 
-    trainer = LipSyncModel(model=model,
-                           optimizer=optimizer,
-                           scheduler=scheduler,
-                           criterion=criterion,
-                           train_data_loader=train_data_loader,
-                           eval_data_loaders=eval_data_loaders,
-                           logger=logger,
-                           args=args,
-                           writer=writer)
+    trainer = LipSyncGAN(model=model,
+                         optimizer=optimizer,
+                         scheduler=scheduler,
+                         d_model=d_model,
+                         d_optimizer=d_optimizer,
+                         d_scheduler=d_scheduler,
+                         criterion=criterion,
+                         train_data_loader=train_data_loader,
+                         eval_data_loaders=eval_data_loaders,
+                         logger=logger,
+                         args=args,
+                         writer=writer)
 
     if args.weight:
         trainer.evaluating_epoch(epoch=start_epoch)
@@ -97,7 +109,7 @@ def main(args):
             train_sampler.set_epoch(epoch)
         trainer.training_epoch(epoch=epoch)
         # Eval model
-        sync_loss = trainer.evaluating_epoch(epoch=epoch)
+        trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
         trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
@@ -116,7 +128,7 @@ if __name__ == '__main__':
     init_process(args)
 
     # read from config file
-    config.update_params(args)
+    args = config.update_params(args)
 
     # create logger
     logger = get_logger(file_path=args.job_dir)

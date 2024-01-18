@@ -13,3 +13,4 @@ numpy
 facexlib
 pytorch-msssim
 einops
+omegaconf

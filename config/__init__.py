@@ -1,10 +1,9 @@
 import argparse
-import importlib
 import yaml
 import os
-from pathlib import Path
 
-PATH = os.path.dirname(os.path.realpath(__file__))
+from omegaconf import OmegaConf
+from pathlib import Path
 
 
 def update_params(args: argparse.Namespace):
@@ -13,15 +12,15 @@ def update_params(args: argparse.Namespace):
     else:
         file_path = Path(__file__).parent / args.config_file
 
+    args = {k: v for k, v in vars(args).items() if not k.startswith('__')}
     with open(file_path, 'r') as f:
-        config = yaml.safe_load(f.read())
-        for n, v in config.items():
-            args.__setattr__(n, v)
+        args.update(yaml.safe_load(f.read()))
+        args = OmegaConf.create(args)
 
     # save current config in yml
     os.makedirs(args.job_dir, exist_ok=True)
-    with open(os.path.join(args.job_dir, 'config.yml'), 'w') as f:
-        yaml.safe_dump(vars(args), f)
+    OmegaConf.save(args, os.path.join(args.job_dir, 'config.yml'))
+    return args
 
 
 if __name__ == "__main__":

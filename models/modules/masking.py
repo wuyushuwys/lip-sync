@@ -92,7 +92,10 @@ class Masking(nn.Module):
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         else:
-            assert x.size(1) == 6
-            face, ref = x.split(3, dim=1)
-            face = face * self.mask(face.half() if self.half_precision else face)
-            return torch.cat([face, ref], dim=1)
+            if x.size(1) == 6:
+                face, ref = x.split(3, dim=1)
+                face = face * self.mask(face.half() if self.half_precision else face)
+                return torch.cat([face, ref], dim=1)
+            elif x.size(1) == 3:
+                x = x * self.mask(x.half() if self.half_precision else x)
+                return x

@@ -115,7 +115,7 @@ if __name__ == '__main__':
     init_process(args)
 
     # read from config file
-    config.update_params(args)
+    args = config.update_params(args)
 
     # create logger
     logger = get_logger(file_path=args.job_dir)
