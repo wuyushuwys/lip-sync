@@ -119,6 +119,5 @@ if __name__ == '__main__':
 
     # create logger
     logger = get_logger(file_path=args.job_dir)
-    args.logger = logger
 
     main(args)
