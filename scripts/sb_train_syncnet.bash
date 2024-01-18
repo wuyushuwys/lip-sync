@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=64
 #SBATCH --partition=ce-mri
 #SBATCH --gres=gpu:a100:2
-#SBATCH --mem=256000
+#SBATCH --mem=250G
 #SBATCH --output=%j.log
 
 export NCCL_P2P_DISABLE=1  # IN AMD+A100 cluster
