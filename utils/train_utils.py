@@ -85,7 +85,7 @@ def subdict(dict: dict, *exceptions) -> dict:
 
 
 def create_criterions(args: argparse.Namespace):
-    assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
+    # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'losses'), "Missing losses in model config"
     # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
@@ -101,7 +101,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     # if not isinstance(model_list, list):
     #     model_list = [model_list]
     logger = get_logger(args.job_dir)
-    assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
+    # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'optim'), "Missing optim in model config"
     assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
 

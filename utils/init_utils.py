@@ -100,11 +100,11 @@ def when_attr_is_true(attr):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             for content in args:
-                if isinstance(content, argparse.Namespace):
-                    if getattr(content, attr): return func(*args, **kwargs)
+                # if isinstance(content, argparse.Namespace):
+                if getattr(content, attr): return func(*args, **kwargs)
             for _, content in kwargs.items():
-                if isinstance(content, argparse.Namespace):
-                    if getattr(content, attr): return func(*args, **kwargs)
+                # if isinstance(content, argparse.Namespace):
+                if getattr(content, attr): return func(*args, **kwargs)
 
         return wrapper
 

@@ -28,7 +28,7 @@ def main(args):
     # init wandb
     if args.rank == 0:
         # wandb.tensorboard.patch(root_logdir=args.job_dir)
-        wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1], config=vars(args))
+        wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1], config=args)
 
     # Create job and tb_writer
     writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
