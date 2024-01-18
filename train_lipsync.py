@@ -6,9 +6,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 import wandb
+from omegaconf import OmegaConf
 
 import config
-import common
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
@@ -28,7 +28,8 @@ def main(args):
     # init wandb
     if args.rank == 0:
         # wandb.tensorboard.patch(root_logdir=args.job_dir)
-        wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1], config=args)
+        wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1],
+                   config=OmegaConf.to_container(args))
 
     # Create job and tb_writer
     writer = SummaryWriter(args.job_dir) if args.rank == 0 else None
