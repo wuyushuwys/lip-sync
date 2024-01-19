@@ -9,13 +9,11 @@ import wandb
 from omegaconf import OmegaConf
 
 import config
-import common
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import (create_dataloader, create_criterions, create_optim_scheduler,
-                               ckpt_saver, state_dict_saver, ckpt_loader)
-from utils.logger_utils import tb_writer, loss_printer, attr_extractor
+from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler, ckpt_loader
+from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
 from arch.wav2lip import Wav2Lip
@@ -40,11 +38,11 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = Wav2Lip()
+    g_model = Wav2Lip()
     d_model = UNetDiscriminatorSN()
 
-    trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"G-Model {model} :[Trainable Parameters: {trainable_params}]")
+    trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
+    logger.info(f"G-Model {g_model} :[Trainable Parameters: {trainable_params}]")
     trainable_params = sum(p.numel() for p in d_model.parameters() if p.requires_grad)
     logger.info(f"D-Model {d_model} :[Trainable Parameters: {trainable_params}]")
 
@@ -55,22 +53,22 @@ def main(args):
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
-        model = DDP(model.to(device), device_ids=[device], output_device=device)
+        g_model = DDP(g_model.to(device), device_ids=[device], output_device=device)
         d_model = DDP(d_model.to(device), device_ids=[device], output_device=device)
     else:
-        model.to(device)
+        g_model.to(device)
         d_model.to(device)
 
     # create optimizers and schedulers
-    [optimizer, d_optimizer], [scheduler, d_scheduler] = create_optim_scheduler([model, d_model],
-                                                                                args=args,
-                                                                                num_batches=len(train_data_loader))
+    [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
+                                                                                    args=args,
+                                                                                    num_batches=len(train_data_loader))
 
     # Load ckpt
     if args.ckpt:
         ckpt = torch.load(args.ckpt, map_location='cpu')
         ckpt_loader(ckpt,
-                    model=model, optimizer=optimizer, scheduler=scheduler,
+                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
                     d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
         start_epoch = ckpt['epoch'] - 1
         logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
@@ -81,16 +79,16 @@ def main(args):
     if args.weight:
         ckpt = torch.load(args.weight, map_location='cpu')
         if args.distributed:
-            model.module.load_state_dict(ckpt)
+            g_model.module.load_state_dict(ckpt)
         else:
-            model.load_state_dict(ckpt)
+            g_model.load_state_dict(ckpt)
         logger.info(f"Load weight from {args.weight}")
 
     logger.info(attr_extractor(args))
 
-    trainer = LipSyncGAN(model=model,
-                         optimizer=optimizer,
-                         scheduler=scheduler,
+    trainer = LipSyncGAN(g_model=g_model,
+                         g_optimizer=g_optimizer,
+                         g_scheduler=g_scheduler,
                          d_model=d_model,
                          d_optimizer=d_optimizer,
                          d_scheduler=d_scheduler,
@@ -113,9 +111,8 @@ def main(args):
         trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
-        trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
-        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
-                          epoch=epoch)
+        trainer.save_model(os.path.join(args.job_dir, 'weights'))
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt"), epoch=epoch)
 
     logger.info(f"Finish Training")
 

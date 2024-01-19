@@ -89,7 +89,7 @@ class SyncNet(nn.Module):
                 nn.init.constant_(m.weight, 0)
 
     def __str__(self):
-        return "SyncNet"
+        return "syncnet"
 
     @staticmethod
     def evaluate(*args, **kwargs):

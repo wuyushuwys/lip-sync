@@ -14,3 +14,8 @@ class BasicModel(ABC):
 
     def evaluating_epoch(self, epoch):
         pass
+
+    def save_model(self, path, best=False):
+        pass
+
+

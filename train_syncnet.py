@@ -12,8 +12,7 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import (create_dataloader, create_criterions, create_optim_scheduler,
-                               ckpt_loader)
+from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler, ckpt_loader
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
@@ -99,11 +98,11 @@ def main(args):
         trainer.training_epoch(epoch=epoch)
         loss = trainer.evaluating_epoch(epoch=epoch)
         # save model weight
-        trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
+        trainer.save_model(os.path.join(args.job_dir, 'weights'))
         if best_loss > loss:
-            trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}_best.pt'))
+            trainer.save_model(os.path.join(args.job_dir, 'weights'), best=best_loss > loss)
             best_loss = loss
-        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"), epoch=epoch)
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt"), epoch=epoch)
 
     logger.info(f"Finish Training")
 

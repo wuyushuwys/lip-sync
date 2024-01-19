@@ -27,7 +27,7 @@ class Masking(nn.Module):
         ckpt_path = Path(__file__).parent / f"weights/face_parsing_{size}.pth"
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.detector.eval()
-
+        self.inverse_mask = None
         if half_precision:
             self.detector.half()
 
@@ -78,8 +78,9 @@ class Masking(nn.Module):
                 face_masks[idx, -h:, ...] = 1
                 face_masks[idx, ..., :w] = 1
                 face_masks[idx, ..., -w:] = 1
-
-        return face_masks.unsqueeze(1)
+        mask = face_masks.unsqueeze(1)
+        self.inverse_mask = (1 - mask)
+        return mask
 
     def forward(self, x: torch.Tensor):
         bsz = x.size(0)

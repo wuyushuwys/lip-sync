@@ -12,9 +12,8 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import (create_dataloader, create_criterions, create_optim_scheduler,
-                               ckpt_saver, state_dict_saver, ckpt_loader)
-from utils.logger_utils import tb_writer, loss_printer, attr_extractor
+from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler, ckpt_loader
+from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
 from arch.wav2lip import Wav2Lip
@@ -101,9 +100,8 @@ def main(args):
         trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
-        trainer.save_model(os.path.join(args.job_dir, 'weights', f'{args.model}.pt'))
-        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt", f"{args.model}_latest.pth"),
-                          epoch=epoch)
+        trainer.save_model(os.path.join(args.job_dir, 'weights'))
+        trainer.save_ckpt(os.path.join(args.job_dir, "ckpt"), epoch=epoch)
 
     logger.info(f"Finish Training")
 

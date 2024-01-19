@@ -6,6 +6,8 @@ from logging import Logger
 from torch.utils import tensorboard
 from thop import profile, clever_format
 
+from omegaconf.dictconfig import DictConfig
+
 import arch
 
 from utils.init_utils import master_only, when_attr_is_true
@@ -24,17 +26,17 @@ def attr_extractor(obj):
 
     def attrs2dict(attr):
         for k, v in attr.items():
-            if isinstance(v, dict) and 'type' in v:
+            if isinstance(v, DictConfig) and 'type' in v:
                 k = f"{k}[{v.pop('type')}]"
             attr_dict[k] = v
 
     for name in attrs:
         attr = getattr(obj, name)
         if name == "losses":
-            # if isinstance(attr, dict):
-            attrs2dict(attr)
+            if isinstance(attr, DictConfig):
+                attrs2dict(attr)
         else:
-            if isinstance(attr, dict) and 'type' in attr:
+            if isinstance(attr, DictConfig) and 'type' in attr:
                 name = f"{name}[{attr.pop('type')}]"
             attr_dict[name] = attr
 

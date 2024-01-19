@@ -1,3 +1,4 @@
+import os
 from argparse import Namespace
 
 import common
@@ -86,11 +87,18 @@ class SyncNetModel(BasicModel):
                                         args=self.args,
                                         logger=self.logger)
 
-    def save_model(self, name):
-        state_dict_saver(name, self.model)
+    def save_model(self, path, best=False):
+        if best:
+            state_dict_saver(
+                os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}_best.pt"),
+                self.model)
+        else:
+            state_dict_saver(
+                os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
+                self.model)
 
-    def save_ckpt(self, name, epoch):
-        ckpt_saver(name,
+    def save_ckpt(self, path, epoch):
+        ckpt_saver(os.path.join(path, "latest.pt"),
                    model=self.model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,

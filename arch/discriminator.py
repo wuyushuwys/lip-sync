@@ -1,7 +1,4 @@
-import argparse
-
 import torch.nn as nn
-import math
 
 from torch.nn import functional as F
 from torch.nn.utils import spectral_norm
@@ -18,21 +15,19 @@ class UNetDiscriminatorSN(nn.Module):
         skip_connection (bool): Whether to use skip connections between U-Net. Default: True.
     """
 
-    def __init__(self, params: argparse.Namespace):
+    def __init__(self, num_in_ch=3, num_feat=64, num_output=3, skip_connection=True):
         super(UNetDiscriminatorSN, self).__init__()
-        num_in_ch = params.num_channels
-        num_feat = params.disc_feature
-        num_output = 1 if not hasattr(params, 'disc_output_channels') else int(params.disc_output_channels)
-        self.skip_connection = params.disc_skip_connection
+
+        self.skip_connection = skip_connection
         norm = spectral_norm
         # the first convolution
         self.conv0 = nn.Conv2d(num_in_ch, num_feat, kernel_size=3, stride=1, padding=1)
 
-        # downsample
+        # down-sample
         self.conv1 = norm(nn.Conv2d(num_feat, num_feat * 2, 4, 2, 1, bias=False))
         self.conv2 = norm(nn.Conv2d(num_feat * 2, num_feat * 4, 4, 2, 1, bias=False))
         self.conv3 = norm(nn.Conv2d(num_feat * 4, num_feat * 8, 4, 2, 1, bias=False))
-        # upsample
+        # up-sample
         self.conv4 = norm(nn.Conv2d(num_feat * 8, num_feat * 4, 3, 1, 1, bias=False))
         self.conv5 = norm(nn.Conv2d(num_feat * 4, num_feat * 2, 3, 1, 1, bias=False))
         self.conv6 = norm(nn.Conv2d(num_feat * 2, num_feat, 3, 1, 1, bias=False))
@@ -42,13 +37,13 @@ class UNetDiscriminatorSN(nn.Module):
         self.conv9 = nn.Conv2d(num_feat, num_output, 3, 1, 1)
 
     def forward(self, x):
-        # downsample
+        # down-sample
         x0 = F.leaky_relu(self.conv0(x), negative_slope=0.2, inplace=True)
         x1 = F.leaky_relu(self.conv1(x0), negative_slope=0.2, inplace=True)
         x2 = F.leaky_relu(self.conv2(x1), negative_slope=0.2, inplace=True)
         x3 = F.leaky_relu(self.conv3(x2), negative_slope=0.2, inplace=True)
 
-        # upsample
+        # up-sample
         x3 = F.interpolate(x3, scale_factor=2, mode='bilinear', align_corners=False)
         x4 = F.leaky_relu(self.conv4(x3), negative_slope=0.2, inplace=True)
 
@@ -71,3 +66,6 @@ class UNetDiscriminatorSN(nn.Module):
         out = self.conv9(out)
 
         return out
+    
+    def __str__(self):
+        return "unet_discriminator"

@@ -1,3 +1,4 @@
+import os
 from argparse import Namespace
 
 import common
@@ -109,11 +110,12 @@ class LipSyncModel(BasicModel):
         if sync_loss < 0.75:
             self.criterion['sync_loss'].loss_weight = 0.03
 
-    def save_model(self, name):
-        state_dict_saver(name, self.model)
+    def save_model(self, path, *args):
+        state_dict_saver(os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
+                         self.model)
 
-    def save_ckpt(self, name, epoch):
-        ckpt_saver(name,
+    def save_ckpt(self, path, epoch):
+        ckpt_saver(os.path.join(path, "latest.pt"),
                    model=self.model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
