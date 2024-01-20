@@ -114,11 +114,11 @@ if __name__ == '__main__':
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
 
     dataset = GenerateDataset(TMP_FOLDER, mel, dynamic_mask=args.dynamic_mask)
-    if args.dynamic_mask:
-        mask = Masking(half_precision=True).cuda()
     coords = dataset.coords
     # win_size = dataset.window_size
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if args.dynamic_mask:
+        mask = Masking(half_precision=True).to(device)
     model = Wav2Lip()
     model.load_state_dict(torch.load(args.ckpt))
     model.to(device)
@@ -159,6 +159,7 @@ if __name__ == '__main__':
         bsz = x.size(0)
         if args.dynamic_mask:
             x = mask(x)
+            masked_flag = mask.inverse_mask.cpu()
         with torch.no_grad():
             g = model(indiv_mels.half(), x.half()).clamp(0, 1)
 
@@ -167,6 +168,11 @@ if __name__ == '__main__':
             x1, y1, x2, y2 = coords[name]
             frame = frame.flip(-1).numpy()
             face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
+            if args.dynamic_mask:
+                ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256))
+                face_mask = masked_flag[batch_id, ...].permute(1, 2, 0).numpy()
+                face = (face * face_mask + ori_face * (1-face_mask)).astype(np.uint8)
+                # face = (face * face_mask).astype(np.uint8)
             if args.verbose:
                 g = face.copy()
                 ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))
