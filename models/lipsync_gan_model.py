@@ -103,7 +103,7 @@ class LipSyncGAN(BasicModel):
 
             adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
 
-            g_loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight) + adversarial_loss
+            g_loss = sync_loss * sync_weight + (recon_loss + perceptual_loss + adversarial_loss) * (1 - sync_weight)
 
             g_loss.backward()
             self.g_optimizer.step()
