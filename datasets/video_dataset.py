@@ -119,6 +119,8 @@ class FrameMelDataset(Dataset):
                 transforms.append(RandomGrayscale(**aug_spec['grayscale']))
             if exists('sharpness', aug_spec):
                 transforms.append(RandomAdjustSharpness(**aug_spec['sharpness']))
+            if exists('color_jitter', aug_spec):
+                transforms.append(ColorJitter(**aug_spec['color_jitter']))
             self.transform = Compose(transforms)
 
     def __len__(self):
