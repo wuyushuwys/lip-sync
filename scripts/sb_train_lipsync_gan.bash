@@ -1,23 +1,23 @@
 #!/bin/bash
 
 
-#SBATCH --nodes=2
-#SBATCH --time=48:00:00
-#SBATCH --job-name=sycnnet
-#SBATCH --cpus-per-task=64
+#SBATCH --nodes=1
+#SBATCH --time=24:00:00
+#SBATCH --job-name=lipsync
+#SBATCH --cpus-per-task=48
 #SBATCH --partition=ce-mri
-#SBATCH --gres=gpu:a100:2
-#SBATCH --mem=250G
+#SBATCH --gres=gpu:v100:4
+#SBATCH --mem=368G
 #SBATCH --output=%j.log
 
-export NCCL_P2P_DISABLE=1  # IN AMD+A100 cluster
+#export NCCL_P2P_DISABLE=1  # IN AMD+A100 cluster
 export MASTER_PORT=$(((RANDOM % 1000 + 5000)))
 num_gpus=$(nvidia-smi --list-gpus | wc -l)
 
 # Experiments
 
 dataset=hdtf
-model=syncnet
+model=lipsync
 
 now=$(date +'%b%d-%H')
 
@@ -31,12 +31,11 @@ fi
 
 printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 
-srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_syncnet.py \
+srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_lipsync_gan.py \
   --config ${model}.yml \
   --dataset hdtf finetune lrs2 \
   --model ${model} \
   --job_dir "${job_dir}" \
-  --batch_size 64 \
+  --batch_size 8 \
   --scale_lr \
-  --warmup_lr \
-  --epochs 100
+  --epochs 50
