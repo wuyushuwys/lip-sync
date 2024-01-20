@@ -12,6 +12,7 @@ import numpy as np
 
 import torch
 import torchvision
+
 torchvision.disable_beta_transforms_warning()
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
@@ -201,7 +202,7 @@ class FrameMelDataset(Dataset):
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
         data = self._load_lipsync_data(idx, true_window=true_window, wrong_window=wrong_window,
-                                           audio_file=audio_file)
+                                       audio_file=audio_file)
 
         return data
 
@@ -318,8 +319,12 @@ class FrameMelDataset(Dataset):
 
     def _load_audio_melspec(self, file_name):
         if not self.audio_cache:
-            wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
-            mel = melspectrogram(wav).T
+            npy_name = os.path.splitext(file_name)[0] + '.npy'
+            if not os.path.isfile(npy_name):
+                wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
+                mel = melspectrogram(wav).T
+            else:
+                mel = np.load(npy_name)
         else:
             mel = np.asarray(self.audio_cache.get(str(file_name)))
 
@@ -346,5 +351,3 @@ class FrameMelDataset(Dataset):
             except AssertionError:
                 raise AssertionError(f"{start_frame_num} {i} {start_frame_num + self.window_size}")
         return np.asarray(mels)
-
-
