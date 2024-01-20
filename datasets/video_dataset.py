@@ -63,23 +63,23 @@ class FrameMelDataset(Dataset):
         elif self.mode == utils.mode.EVAL:
             self.num_samples = args.eval_samples  # number of samples from each video
 
-        if self.model == 'syncnet':
-            # Indexing eval list
-            if self.mode == utils.mode.EVAL:
-                eval_filelist = []
-                eval_length = {}
-                for folder, v in folder_tree.items():
-                    if self.data_mode == 'image':
-                        eval_frames = sorted(map(lambda k: os.path.join(folder, k), v))
-                    elif self.data_mode == 'h5':
-                        eval_frames = sorted(map(lambda k: os.path.join(folder, k), v.keys))
-                    else:
-                        raise NotImplementedError(f"{self.data_mode} not supported")
-                    eval_filelist.extend(eval_frames[:len(eval_frames) // self.window_size * self.window_size])
-                    eval_length[folder] = len(eval_frames)
-
-                self.eval_filelist = eval_filelist
-                self.eval_length = eval_length
+        # if self.model == 'syncnet':
+        #     # Indexing eval list
+        #     if self.mode == utils.mode.EVAL:
+        #         eval_filelist = []
+        #         eval_length = {}
+        #         for folder, v in folder_tree.items():
+        #             if self.data_mode == 'image':
+        #                 eval_frames = sorted(map(lambda k: os.path.join(folder, k), v))
+        #             elif self.data_mode == 'h5':
+        #                 eval_frames = sorted(map(lambda k: os.path.join(folder, k), v.keys))
+        #             else:
+        #                 raise NotImplementedError(f"{self.data_mode} not supported")
+        #             eval_filelist.extend(eval_frames[:len(eval_frames) // self.window_size * self.window_size])
+        #             eval_length[folder] = len(eval_frames)
+        #
+        #         self.eval_filelist = eval_filelist
+        #         self.eval_length = eval_length
 
         if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
             rank, _ = get_dist_info()
@@ -123,28 +123,26 @@ class FrameMelDataset(Dataset):
             self.transform = Compose(transforms)
 
     def __len__(self):
-        if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
-            return len(self.eval_filelist) // self.window_size - 1
-        else:
-            return len(self.folder_tree) * self.num_samples
+        # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
+        #     return len(self.eval_filelist) // self.window_size - 1
+        # else:
+        return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
         if self.model == 'syncnet':
-            if self.mode == utils.mode.TRAIN:
-                frame_list, audio_file = self._load_index(index)
-                img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-                return img_window, mel, label
-            else:
-                frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-                assert len(frame_window) == self.window_size
-                audio_file = Path(frame_window[0]).parent / 'audio.wav'
-                img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-                return img_window, mel, label
+            # if self.mode == utils.mode.TRAIN:
+            frame_list, audio_file = self._load_index(index)
+            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+            return img_window, mel, label
+            # else:
+            #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
+            #     assert len(frame_window) == self.window_size
+            #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
+            #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
+            #     return img_window, mel, label
         elif self.model == 'lipsync':
             frame_list, audio_file = self._load_index(index)
-
             x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
-
             return x, indiv_mels, mel, y
         else:
             raise NotImplementedError()
