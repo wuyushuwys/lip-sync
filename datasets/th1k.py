@@ -21,7 +21,7 @@ class TH1K(FrameMelDataset):
     def __init__(self, mode: AnyStr, args: Namespace):
         folder_tree: Dict = dict()
 
-        folder_list = os.listdir(os.path.join(DATA_ROOT, mode))
+        folder_list = glob(os.path.join(DATA_ROOT, mode, '*'))
 
         for folder in folder_list:
             load_from_folder(folder_tree=folder_tree, folder=folder, mode=args.data_spec['mode'], ext=self.EXT)
