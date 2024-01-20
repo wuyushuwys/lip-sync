@@ -45,6 +45,6 @@ if __name__ == '__main__':
             dataset.add(audio_file, audio_data)
     else:
         with Pool(processes=32) as p:
-            _ = list(tqdm(p.imap_unordered(process_audio, audio_list), total=len(audio_list)))
+            _ = list(tqdm(p.imap_unordered(process_audio, audio_list), total=len(audio_list), dynamic_ncols=True))
 
     logging.info("Cache complete")
