@@ -16,7 +16,6 @@ import torchvision
 torchvision.disable_beta_transforms_warning()
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
-from torchvision.transforms.v2 import Transform
 from torchvision.transforms.v2 import (Compose, ColorJitter,
                                        RandomAutocontrast,
                                        RandomGrayscale, RandomAdjustSharpness,
@@ -131,18 +130,18 @@ class FrameMelDataset(Dataset):
 
     def __getitem__(self, index):
         if self.model == 'syncnet':
-            # if self.mode == utils.mode.TRAIN:
-            frame_list, audio_file = self._load_index(index)
+            if self.mode == utils.mode.TRAIN:
+                frame_list, audio_file = self._load_index(index)
 
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+                img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
 
-            return img_window, mel, label
-            # else:
-            #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-            #     assert len(frame_window) == self.window_size
-            #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
-            #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-            #     return img_window, mel, label
+                return img_window, mel, label
+            else:
+                frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
+                assert len(frame_window) == self.window_size
+                audio_file = Path(frame_window[0]).parent / 'audio.wav'
+                img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
+                return img_window, mel, label
         elif self.model == 'lipsync':
             frame_list, audio_file = self._load_index(index)
 
