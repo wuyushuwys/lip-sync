@@ -131,13 +131,9 @@ class FrameMelDataset(Dataset):
         if self.model == 'syncnet':
             # if self.mode == utils.mode.TRAIN:
             frame_list, audio_file = self._load_index(index)
-            while True:
-                try:
-                    img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-                except RuntimeError as e:
-                    pass
-                else:
-                    break
+
+            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+
             return img_window, mel, label
             # else:
             #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
@@ -147,13 +143,9 @@ class FrameMelDataset(Dataset):
             #     return img_window, mel, label
         elif self.model == 'lipsync':
             frame_list, audio_file = self._load_index(index)
-            while True:
-                try:
-                    x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
-                except RuntimeError as e:
-                    pass
-                else:
-                    break
+
+            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
+
             return x, indiv_mels, mel, y
         else:
             raise NotImplementedError()
