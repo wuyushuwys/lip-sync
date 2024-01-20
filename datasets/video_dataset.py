@@ -132,9 +132,7 @@ class FrameMelDataset(Dataset):
         if self.model == 'syncnet':
             if self.mode == utils.mode.TRAIN:
                 frame_list, audio_file = self._load_index(index)
-
                 img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-
                 return img_window, mel, label
             else:
                 frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
