@@ -7,6 +7,7 @@ from utils.logger_utils import tb_writer, loss_printer
 from utils.evaluation import evaluate_sync
 from utils.train_utils import state_dict_saver, ckpt_saver
 
+from .modules.masking import Masking
 from .basic_model import BasicModel
 
 

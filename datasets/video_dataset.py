@@ -19,7 +19,7 @@ from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms.v2 import (Compose, ColorJitter,
                                        RandomAutocontrast,
                                        RandomGrayscale, RandomAdjustSharpness,
-                                       RandomRotation, RandomHorizontalFlip)
+                                       RandomRotation, RandomHorizontalFlip, CenterCrop, RandomZoomOut)
 from torchvision.io import read_image
 
 import common
@@ -32,6 +32,9 @@ from .utils import exists
 
 
 class FrameMelDataset(Dataset):
+
+    def __str__(self):
+        return 'base'
 
     def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace,
                  data_mode: AnyStr = 'image', audio_cache_path: AnyStr = None) -> None:
@@ -92,16 +95,16 @@ class FrameMelDataset(Dataset):
                 raise NotImplementedError(f"{self.data_mode} not supported")
 
             logger.info(
-                f"Load {len(folder_tree)} video clips in {mode} "
+                f"{self}: Load {len(folder_tree)} video clips in {mode} "
                 f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
         else:
-            logger.info(f"Load {len(folder_tree)} video clips in {mode}")
+            logger.info(f"{self}: Load {len(folder_tree)} video clips in {mode}")
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
-            logger.info(f"Loading audio cache: {audio_cache_path}")
+            logger.info(f"{self}: Loading audio cache: {audio_cache_path}")
         else:
             self.audio_cache = None
-            logger.info(f"Loading audio from file")
+            logger.info(f"{self}: Loading audio from file")
 
         if 'aug' in self.data_spec.keys():
             aug_spec = self.data_spec['aug']
@@ -275,15 +278,15 @@ class FrameMelDataset(Dataset):
             if self.mode == utils.mode.TRAIN:
                 img_window = torch.stack(img_window, dim=0) / 255
                 img_window = self.transform(img_window)
-                img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+                # img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
                 t, c, h, w = img_window.size()
                 img_window = img_window.reshape(t * c, h, w)
             else:
                 img_window = torch.cat(img_window, dim=0) / 255
-                img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+                # img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
         else:
             img_window = torch.cat(img_window, dim=0) / 255
-            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+            # img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 

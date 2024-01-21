@@ -16,8 +16,8 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_model import SyncNetModel
-from arch.syncnet import SyncNet, SyncNet_Color
+from models.syncnet_whole_model import SyncNetModel
+from arch.syncnet import SyncNet, SyncNetWhole
 
 
 def main(args):
@@ -38,7 +38,7 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = SyncNet()
+    model = SyncNetWhole()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")

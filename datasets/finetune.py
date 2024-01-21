@@ -33,3 +33,6 @@ class Finetune(FrameMelDataset):
             audio_cache_path = None
         super(Finetune, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
                                        audio_cache_path=audio_cache_path)
+
+    def __str__(self):
+        return 'Finetune'
