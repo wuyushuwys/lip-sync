@@ -201,13 +201,13 @@ class FrameMelDataset(Dataset):
     def _load_lipsync_train_data(self, frame_list, audio_file):
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
-            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 2
+            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 3
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 2
-                skip_end = len(frame_list) - self.window_size - 2
+                skip_end = len(frame_list) - self.window_size - 3
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
         else:
-            idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
+            idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 3), 2)
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
@@ -263,13 +263,13 @@ class FrameMelDataset(Dataset):
     def _load_sync_train_data(self, frame_list, audio_file):
         if self.skip_offset:
             skip_start = int(self.skip_offset * len(frame_list))
-            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size)
+            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size - 1)
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 0
-                skip_end = len(frame_list) - self.window_size
+                skip_end = len(frame_list) - self.window_size - 1
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
         else:
-            idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+            idx, false_idx = random.sample(range(len(frame_list) - self.window_size - 1), 2)
         img_window = self._load_frame_window(frame_list, idx)
 
         return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
