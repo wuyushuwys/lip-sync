@@ -31,7 +31,9 @@ class TH1K(FrameMelDataset):
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
         super(TH1K, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
-                                   audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
+                                   audio_cache_path=audio_cache_path, video_cache_path=video_cache_path,
+                                   skip_offset=0.05,  # only use middle 90% data to training
+                                   )
 
     def __str__(self):
         return 'TH1K'

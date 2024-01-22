@@ -36,7 +36,8 @@ class FrameMelDataset(Dataset):
     def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace,
                  data_mode: AnyStr = 'image',
                  audio_cache_path: AnyStr = None,
-                 video_cache_path: AnyStr = None) -> None:
+                 video_cache_path: AnyStr = None,
+                 skip_offset: float = None) -> None:
         super().__init__()
 
         logger = get_logger(args.job_dir)
@@ -60,6 +61,7 @@ class FrameMelDataset(Dataset):
         self.model = args.model
         self.mode = mode
         self.data_mode = data_mode
+        self.skip_offset = skip_offset
         if self.mode == utils.mode.TRAIN:
             self.num_samples = args.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
@@ -197,7 +199,16 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
+        if self.skip_offset:
+            skip_start = 2 + int(self.skip_offset * len(frame_list))
+            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 2
+            if skip_end - skip_start < self.window_size + 1:
+                skip_start = 2
+                skip_end = len(frame_list) - self.window_size - 2
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+        else:
+            idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 2), 2)
+
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
         data = self._load_lipsync_data(idx, true_window=true_window, wrong_window=wrong_window,
@@ -250,7 +261,15 @@ class FrameMelDataset(Dataset):
         return x, indiv_mels, mel, y
 
     def _load_sync_train_data(self, frame_list, audio_file):
-        idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
+        if self.skip_offset:
+            skip_start = int(self.skip_offset * len(frame_list))
+            skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size)
+            if skip_end - skip_start < self.window_size + 1:
+                skip_start = 0
+                skip_end = len(frame_list) - self.window_size
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+        else:
+            idx, false_idx = random.sample(range(len(frame_list) - self.window_size), 2)
         img_window = self._load_frame_window(frame_list, idx)
 
         return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
@@ -285,15 +304,15 @@ class FrameMelDataset(Dataset):
             if self.mode == utils.mode.TRAIN:
                 img_window = torch.stack(img_window, dim=0) / 255
                 img_window = self.transform(img_window)
-                img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+                # img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
                 t, c, h, w = img_window.size()
                 img_window = img_window.reshape(t * c, h, w)
             else:
                 img_window = torch.cat(img_window, dim=0) / 255
-                img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+                # img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
         else:
             img_window = torch.cat(img_window, dim=0) / 255
-            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+            # img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
