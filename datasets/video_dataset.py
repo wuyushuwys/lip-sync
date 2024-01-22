@@ -84,6 +84,7 @@ class FrameMelDataset(Dataset):
         #         self.eval_length = eval_length
         if video_cache_path:
             self.video_cache = common.io.Hdf5(video_cache_path)
+            logger.info(f"{self}: Loading video cache: {video_cache_path}")
         else:
             self.video_cache = None
             if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
@@ -97,14 +98,14 @@ class FrameMelDataset(Dataset):
                     raise NotImplementedError(f"{self.data_mode} not supported")
 
                 logger.info(f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
-        logger.info(f"Load {len(folder_tree)} video clips in {mode}")
+        logger.info(f"{self}: Load {len(folder_tree)} video clips in {mode}")
 
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
-            logger.info(f"Loading audio cache: {audio_cache_path}")
+            logger.info(f"{self}: Loading audio cache: {audio_cache_path}")
         else:
             self.audio_cache = None
-            logger.info(f"Loading audio from file")
+            logger.info(f"{self}: Loading audio from file")
 
         if 'aug' in self.data_spec.keys():
             aug_spec = self.data_spec['aug']
