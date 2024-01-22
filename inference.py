@@ -169,10 +169,10 @@ if __name__ == '__main__':
             frame = frame.flip(-1).numpy()
             face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
             if args.dynamic_mask:
-                ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256))
+                ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
                 face_mask = masked_flag[batch_id, ...].permute(1, 2, 0).numpy()
-                face = (face * face_mask + ori_face * (1-face_mask)).astype(np.uint8)
-                # face = (face * face_mask).astype(np.uint8)
+                face = (face * face_mask + ori_face * (1 - face_mask)).astype(np.uint8)
+                face = (face * face_mask).astype(np.uint8)
             if args.verbose:
                 g = face.copy()
                 ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))
@@ -182,10 +182,10 @@ if __name__ == '__main__':
                 cv2.imwrite(f'{TMP_FOLDER}/diff/{frame_idx:06d}.jpg', np.abs(diff).astype(np.uint8))
                 cv2.imwrite(f'{TMP_FOLDER}/compare/{frame_idx:06d}.jpg', concat.astype(np.uint8))
             # w_offset = int(48 / 256 * (x2 - x1))
-            # h_offset = int(16 / 256 * (y2 - y1))
-            resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1))
+            h_offset = int(64 / 256 * (y2 - y1))
+            resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
             # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
-            frame[y1:y2, x1:x2] = resize_face
+            frame[y1 + h_offset:y2, x1:x2] = resize_face[h_offset:, ...]
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))

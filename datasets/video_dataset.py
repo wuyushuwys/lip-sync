@@ -34,7 +34,9 @@ from .utils import exists
 class FrameMelDataset(Dataset):
 
     def __init__(self, folder_tree: Dict, mode: AnyStr, args: Namespace,
-                 data_mode: AnyStr = 'image', audio_cache_path: AnyStr = None) -> None:
+                 data_mode: AnyStr = 'image',
+                 audio_cache_path: AnyStr = None,
+                 video_cache_path: AnyStr = None) -> None:
         super().__init__()
 
         logger = get_logger(args.job_dir)
@@ -80,28 +82,30 @@ class FrameMelDataset(Dataset):
         #
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
-
-        if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
-            rank, _ = get_dist_info()
-            iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
-            if self.data_mode == 'image':
-                load_frames = sum(len(v) for v in iterator)
-            elif self.data_mode == 'h5':
-                load_frames = sum(len(v.keys) for v in iterator)
-            else:
-                raise NotImplementedError(f"{self.data_mode} not supported")
-
-            logger.info(
-                f"Load {len(folder_tree)} video clips in {mode} "
-                f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
+        if video_cache_path:
+            self.video_cache = common.io.Hdf5(video_cache_path)
+            logger.info(f"{self}: Loading video cache: {video_cache_path}")
         else:
-            logger.info(f"Load {len(folder_tree)} video clips in {mode}")
+            self.video_cache = None
+            if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
+                rank, _ = get_dist_info()
+                iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
+                if self.data_mode == 'image':
+                    load_frames = sum(len(v) for v in iterator)
+                elif self.data_mode == 'h5':
+                    load_frames = sum(len(v.keys) for v in iterator)
+                else:
+                    raise NotImplementedError(f"{self.data_mode} not supported")
+
+                logger.info(f"total video length approx. {timedelta(seconds=load_frames // self.video_spec['fps'])}")
+        logger.info(f"{self}: Load {len(folder_tree)} video clips in {mode}")
+
         if audio_cache_path:
             self.audio_cache = common.io.Hdf5(audio_cache_path)
-            logger.info(f"Loading audio cache: {audio_cache_path}")
+            logger.info(f"{self}: Loading audio cache: {audio_cache_path}")
         else:
             self.audio_cache = None
-            logger.info(f"Loading audio from file")
+            logger.info(f"{self}: Loading audio from file")
 
         if 'aug' in self.data_spec.keys():
             aug_spec = self.data_spec['aug']
@@ -153,7 +157,10 @@ class FrameMelDataset(Dataset):
         if self.data_mode == 'image':
             frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
         elif self.data_mode == 'h5':
-            frame_list = [os.path.join(index_folder, fname) for fname in frame_list.keys]
+            if self.video_cache:
+                frame_list = [os.path.join(index_folder, fname) for fname in self.video_cache.iter_keys(index_folder)]
+            else:
+                frame_list = [os.path.join(index_folder, fname) for fname in frame_list.keys]
         else:
             raise NotImplementedError(f"{self.data_mode}")
         audio_file = Path(index_folder) / 'audio.wav'
@@ -163,8 +170,11 @@ class FrameMelDataset(Dataset):
         if self.data_mode == 'image':
             return read_image(fname)
         elif self.data_mode == 'h5':
-            root, key = os.path.split(fname)
-            return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+            if self.video_cache:
+                return torch.from_numpy(np.ascontiguousarray(self.video_cache.get(fname)))
+            else:
+                root, key = os.path.split(fname)
+                return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
         else:
             raise NotImplementedError()
 

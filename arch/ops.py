@@ -1,3 +1,5 @@
+import numpy as np
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -99,6 +101,30 @@ class Conv2d(nn.Module):
         return self.act(out)
 
 
+class Conv2dNew(nn.Module):
+    def __init__(self, cin, cout, kernel_size, stride, padding, batch_norm=True, residual=False, act='relu',
+                 bias=False):
+        super().__init__()
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(cin, cout, kernel_size, stride, padding, bias=bias),
+            nn.BatchNorm2d(cout) if batch_norm else nn.Identity()
+        )
+        self.residual = residual
+        self.act = nn.ReLU(True)
+        if act == 'relu':
+            self.act = nn.ReLU(True)
+        elif act == 'leaky':
+            self.act = nn.LeakyReLU(0.2, inplace=True)
+        else:
+            raise NotImplementedError()
+
+    def forward(self, x: torch.Tensor):
+        out = self.conv_block(x)
+        if self.residual:
+            out += x
+        return self.act(out)
+
+
 class nonorm_Conv2d(nn.Module):
     def __init__(self, cin, cout, kernel_size, stride, padding, residual=False, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -124,3 +150,53 @@ class Conv2dTranspose(nn.Module):
     def forward(self, x):
         out = self.conv_block(x)
         return self.act(out)
+
+
+def get_2d_sincos_pos_embed(embed_dim, grid_size, cls_token=False):
+    """
+    grid_size: int of the grid height and width
+    return:
+    pos_embed: [grid_size*grid_size, embed_dim] or [1+grid_size*grid_size, embed_dim] (w/ or w/o cls_token)
+    """
+    grid_h = np.arange(grid_size, dtype=float)
+    grid_w = np.arange(grid_size, dtype=float)
+    grid = np.meshgrid(grid_w, grid_h)  # here w goes first
+    grid = np.stack(grid, axis=0)
+
+    grid = grid.reshape([2, 1, grid_size, grid_size])
+    pos_embed = get_2d_sincos_pos_embed_from_grid(embed_dim, grid)
+    if cls_token:
+        pos_embed = np.concatenate([np.zeros([1, embed_dim]), pos_embed], axis=0)
+    return pos_embed
+
+
+def get_2d_sincos_pos_embed_from_grid(embed_dim, grid):
+    assert embed_dim % 2 == 0
+
+    # use half of dimensions to encode grid_h
+    emb_h = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[0])  # (H*W, D/2)
+    emb_w = get_1d_sincos_pos_embed_from_grid(embed_dim // 2, grid[1])  # (H*W, D/2)
+
+    emb = np.concatenate([emb_h, emb_w], axis=1)  # (H*W, D)
+    return emb
+
+
+def get_1d_sincos_pos_embed_from_grid(embed_dim, pos):
+    """
+    embed_dim: output dimension for each position
+    pos: a list of positions to be encoded: size (M,)
+    out: (M, D)
+    """
+    assert embed_dim % 2 == 0
+    omega = np.arange(embed_dim // 2, dtype=float)
+    omega /= embed_dim / 2.
+    omega = 1. / 10000 ** omega  # (D/2,)
+
+    pos = pos.reshape(-1)  # (M,)
+    out = np.einsum('m,d->md', pos, omega)  # (M, D/2), outer product
+
+    emb_sin = np.sin(out)  # (M, D/2)
+    emb_cos = np.cos(out)  # (M, D/2)
+
+    emb = np.concatenate([emb_sin, emb_cos], axis=1)  # (M, D)
+    return emb

@@ -16,8 +16,8 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_model import SyncNetModel
-from arch.syncnet import SyncNet, SyncNet_Color
+from models.syncnet_whole_model import SyncNetModel
+from arch.syncnet import SyncNet, SyncNetWhole
 
 
 def main(args):

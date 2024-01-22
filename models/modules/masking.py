@@ -32,8 +32,15 @@ class Masking(nn.Module):
             self.detector.half()
 
     @torch.no_grad()
-    def mask(self, x):
+    def mask(self, x, mask_face=True):
+        """
+        Args:
+            x: input image
+            mask_face: whether mask face region (True mask out bottom face, False preserve bottom face only)
 
+        Returns:
+            masks
+        """
         mask = self.detector(x).argmax(1)
 
         flag = (mask == 1) | (mask == 2) | (mask == 3) | (mask == 4) | (mask == 5) | (mask == 6) | (mask == 10) | (
@@ -64,24 +71,43 @@ class Masking(nn.Module):
                 face_masks[idx, ..., :w] = 1
                 face_masks[idx, ..., -w:] = 1
         mask = face_masks.unsqueeze(1)
-        self.inverse_mask = (1 - mask)
-        return mask
+        if mask_face:
+            self.inverse_mask = (1 - mask)
+            return mask
+        else:
+            self.inverse_mask = mask
+            return 1 - mask
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, mask_face=True) -> torch.Tensor:
+        """
+
+        Args:
+            x: input image
+            mask_face: whether mask face region (True mask out bottom face, False preserve bottom face only)
+
+        Returns:
+            masked image
+        """
         bsz = x.size(0)
         if x.dim() == 5:
             assert x.size(1) == 6
             # face [bsz, 6, t, h, w]
             face, ref = x.split(3, dim=1)
             face = rearrange(face, 'b c t h w -> (b t) c h w')
-            face = face * self.mask(face.half() if self.half_precision else face)
+            face = face * self.mask(face.half() if self.half_precision else face, mask_face)
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         else:
             if x.size(1) == 6:
                 face, ref = x.split(3, dim=1)
-                face = face * self.mask(face.half() if self.half_precision else face)
+                face = face * self.mask(face.half() if self.half_precision else face, mask_face)
                 return torch.cat([face, ref], dim=1)
             elif x.size(1) == 3:
-                x = x * self.mask(x.half() if self.half_precision else x)
+                x = x * self.mask(x.half() if self.half_precision else x, mask_face)
                 return x
+            elif x.size(1) == 15:
+                face = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
+                face = face * self.mask(face.half() if self.half_precision else face, mask_face)
+                return rearrange(face, '(b t) c h w -> b (c t) h w', b=bsz)
+            else:
+                raise NotImplementedError(f'{x.shape}')

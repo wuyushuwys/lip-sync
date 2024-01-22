@@ -26,6 +26,10 @@ class Hdf5:
                     # track_order=False,
                 )
 
+    def add_subset(self, key, link):
+        with h5py.File(self.fname, 'a', libver='latest') as f:
+            f[key] = h5py.ExternalLink(link, '/')
+
     def get(self, key):
         # if self.file is None:
         with h5py.File(self.fname, 'r', libver='latest') as file:
@@ -38,8 +42,24 @@ class Hdf5:
                 value = file[key]
             return value
 
+    def load(self):
+        if self.file is None:
+            self.file = h5py.File(self.fname, 'r', libver='latest')
+        return self.file
+
     @property
     def keys(self):
-        with h5py.File(self.fname, 'r', libver='latest') as file:
-            # self.file = h5py.File(self.fname, 'r', libver='latest')
-            return sorted(list(file.keys()))
+        if self.file is None:
+            self.file = h5py.File(self.fname, 'r', libver='latest')
+        return sorted(list(self.file.keys()))
+
+    def iter_keys(self, key):
+        if self.file is None:
+            self.file = h5py.File(self.fname, 'r', libver='latest')
+
+        value = self.file
+        if '/' in key:
+            for k in key.split('/'):
+                value = value[k]
+
+        return sorted(list(value.keys()))
