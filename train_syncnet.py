@@ -38,7 +38,7 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = SyncNetWhole()
+    model = SyncNet()
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
