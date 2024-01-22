@@ -37,7 +37,8 @@ class FrameMelDataset(Dataset):
                  data_mode: AnyStr = 'image',
                  audio_cache_path: AnyStr = None,
                  video_cache_path: AnyStr = None,
-                 skip_offset: float = None) -> None:
+                 skip_offset: float = None,
+                 bottom_half: bool = True) -> None:
         super().__init__()
 
         logger = get_logger(args.job_dir)
@@ -62,6 +63,7 @@ class FrameMelDataset(Dataset):
         self.mode = mode
         self.data_mode = data_mode
         self.skip_offset = skip_offset
+        self.bottom_half = bottom_half
         if self.mode == utils.mode.TRAIN:
             self.num_samples = args.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
@@ -304,15 +306,18 @@ class FrameMelDataset(Dataset):
             if self.mode == utils.mode.TRAIN:
                 img_window = torch.stack(img_window, dim=0) / 255
                 img_window = self.transform(img_window)
-                img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
+                if self.bottom_half:
+                    img_window = img_window[..., img_window.size(2) // 2:, :].contiguous()
                 t, c, h, w = img_window.size()
                 img_window = img_window.reshape(t * c, h, w)
             else:
                 img_window = torch.cat(img_window, dim=0) / 255
-                img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+                if self.bottom_half:
+                    img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
         else:
             img_window = torch.cat(img_window, dim=0) / 255
-            img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+            if self.bottom_half:
+                img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
         mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
