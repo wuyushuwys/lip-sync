@@ -353,6 +353,10 @@ class FrameMelDataset(Dataset):
         start_idx = int(80. * (start_frame_num / self.video_spec['fps']))  # 80 = 16000 / 200
 
         end_idx = start_idx + self.audio_spec['mel_step_size']
+        if end_idx > spec.shape[0]:
+            # adjust window avoid error (may introduce some not perfect matched data. but won't raise error)
+            start_idx = end_idx - self.audio_spec['mel_step_size']
+            end_idx = spec.shape[0]
         mel = spec[start_idx: end_idx, :]
         # if self.mode == utils.mode.TRAIN and random.random() < 0.3:
         #     mel = self._aug_mask_mel(mel)
