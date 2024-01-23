@@ -36,8 +36,8 @@ class Masking(nn.Module):
         """
         Args:
             x: input image
-            mask_face: whether mask face region (True mask out bottom face, False preserve bottom face only)
-
+            mask_face: whether mask face region (True mask out face, False preserve face only)
+            bottom: bottom face only mask
         Returns:
             masks
         """
@@ -84,8 +84,8 @@ class Masking(nn.Module):
 
         Args:
             x: input image
-            mask_face: whether mask face region (True mask out bottom face, False preserve bottom face only)
-
+            mask_face: whether mask face region (True mask out face, False preserve face only)
+            bottom: bottom face only mask
         Returns:
             masked image
         """
@@ -98,7 +98,7 @@ class Masking(nn.Module):
             face = face * self.mask(face.half() if self.half_precision else face, mask_face, bottom)
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
-        else:
+        elif x.dim() == 4:
             if x.size(1) == 6:
                 face, ref = x.split(3, dim=1)
                 face = face * self.mask(face.half() if self.half_precision else face, mask_face, bottom)
@@ -112,3 +112,5 @@ class Masking(nn.Module):
                 return rearrange(face, '(b t) c h w -> b (c t) h w', b=bsz)
             else:
                 raise NotImplementedError(f'{x.shape}')
+        else:
+                raise NotImplementedError(f'{x.dim()}')

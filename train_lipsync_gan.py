@@ -76,13 +76,21 @@ def main(args):
         start_epoch = 0
 
     # Load state_dict
-    if args.weight:
-        ckpt = torch.load(args.weight, map_location='cpu')
+    if args.g_weight:
+        ckpt = torch.load(args.g_weight, map_location='cpu')
         if args.distributed:
             g_model.module.load_state_dict(ckpt)
         else:
             g_model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
+        logger.info(f"{g_model} Load g_weight from {args.g_weight}")
+
+    if args.d_weight:
+        ckpt = torch.load(args.d_weight, map_location='cpu')
+        if args.distributed:
+            d_model.module.load_state_dict(ckpt)
+        else:
+            d_model.load_state_dict(ckpt)
+        logger.info(f"{d_model} Load g_weight from {args.d_weight}")
 
     logger.info(attr_extractor(args))
 
