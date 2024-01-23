@@ -41,7 +41,7 @@ class FrameMelDataset(Dataset):
                  bottom_half: bool = True) -> None:
         super().__init__()
 
-        logger = get_logger(args.job_dir)
+        logger = get_logger()
 
         # dataset tree
         # {"folder_path_per_video": [img1, img2, ...]}

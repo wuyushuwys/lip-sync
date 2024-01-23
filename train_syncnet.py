@@ -17,11 +17,11 @@ from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
 from models.syncnet_whole_model import SyncNetModel
-from arch.syncnet import SyncNet, SyncNetWhole
+from arch.syncnet_arch import SyncNet, SyncNetWhole
 
 
 def main(args):
-    logger = get_logger(args.job_dir)
+    logger = get_logger()
     device = args.local_rank
 
     # init wandb
@@ -88,7 +88,7 @@ def main(args):
                            args=args,
                            writer=writer)
 
-    if args.weight:
+    if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):

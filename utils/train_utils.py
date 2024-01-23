@@ -100,7 +100,7 @@ def create_criterions(args: argparse.Namespace):
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
     # if not isinstance(model_list, list):
     #     model_list = [model_list]
-    logger = get_logger(args.job_dir)
+    logger = get_logger()
     # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'optim'), "Missing optim in model config"
     # assert isinstance(args.optim, dict), "optim in model config should be a dictionary"

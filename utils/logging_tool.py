@@ -25,9 +25,9 @@ def _release_lock() -> None:
         _lock.release()
 
 
-def get_logger(file_path):
+def get_logger(name='logger', file_path=None):
     rank, _ = get_dist_info()
-    name = f"{file_path}:{rank}"
+    name = f"{name}:{rank}"
     logger = logging.getLogger(name)
     if name in logger_initialized:
         return logger

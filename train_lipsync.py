@@ -16,12 +16,12 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.wav2lip import Wav2Lip
+from arch.wav2lip_arch import Wav2Lip
 from models.lipsync_model import LipSyncModel
 
 
 def main(args):
-    logger = get_logger(args.job_dir)
+    logger = get_logger()
     device = args.local_rank
 
     # init wandb
@@ -88,7 +88,7 @@ def main(args):
                            args=args,
                            writer=writer)
 
-    if args.weight:
+    if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
