@@ -145,7 +145,8 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     elif issubclass(scheduler_module, torch.optim.lr_scheduler.CosineAnnealingLR):
         args.scheduler["T_max"] = total_iters
     else:
-        NotImplementedError(f"Method {scheduler_module.__class__} is not implemented")
+        args.scheduler['total_iters'] = total_iters
+
     optimizer_list = []
     scheduler_list = []
     for model in model_list:
