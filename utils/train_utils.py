@@ -2,6 +2,8 @@ import argparse
 import importlib
 import os
 
+from typing import Optional, Dict, Union
+
 import torch
 import math
 
@@ -13,6 +15,7 @@ from pathlib import Path
 from torch.utils.data import DataLoader
 
 from omegaconf.listconfig import ListConfig
+from omegaconf.dictconfig import DictConfig
 
 import utils
 from utils import lr_scheduler, gradual_warmup_scheduler
@@ -82,7 +85,7 @@ def create_dataloader(args):
     return train_data_loader, train_sampler, eval_data_loaders, eval_samplers
 
 
-def subdict(dict: dict, *exceptions) -> dict:
+def subdict(dict: Union[Dict, DictConfig], *exceptions) -> Dict:
     return {k: v for k, v in dict.items() if k not in exceptions}
 
 
@@ -113,7 +116,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
                 scalar = args.world_size
                 optim_arg['lr'] *= scalar
                 logger.info(f"Scale learning rate from {original_lr} --> {optim_arg.get('lr')}")
-    else:
+    elif isinstance(args.optim, DictConfig):
         optim_module = getattr(torch.optim, args.optim.get('type'))
         optim_dict = subdict(args.optim, 'type')
         if args.distributed and args.scale_lr:
@@ -121,6 +124,8 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
             scalar = args.world_size
             optim_dict['lr'] *= scalar
             logger.info(f"Scale learning rate from {original_lr} --> {optim_dict.get('lr')}")
+    else:
+        raise NotImplementedError(type(args.optim))
 
     total_iters = args.epochs * num_batches
 

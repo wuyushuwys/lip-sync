@@ -1,12 +1,12 @@
 import os
 from argparse import Namespace
+import wandb
 
 import torch
 
 import common
 
-from utils.logger_utils import tb_writer, loss_printer
-from utils.train_utils import state_dict_saver, ckpt_saver
+from utils import master_only, state_dict_saver, ckpt_saver, tb_writer, loss_printer
 from utils.evaluation import evaluate_vq
 
 from .basic_model import BasicModel
@@ -168,6 +168,7 @@ class VQGANModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
+        self.log_codebook()
         evaluate_vq.evaluation(model=self.ema_g_model,
                                eval_data_loaders=self.eval_data_loaders,
                                epoch=epoch,
@@ -175,6 +176,12 @@ class VQGANModel(BasicModel):
                                writer=self.writer,
                                args=self.args,
                                logger=self.logger)
+
+    @master_only
+    def log_codebook(self, up_factor=2):
+        codebook, num_code = self.model_no_ddp(self.g_model).vis_codebook(up_factor=up_factor)
+        image = wandb.Image(codebook, caption=f"num_code-{num_code}")
+        wandb.log({"Codebook": image})
 
     def save_model(self, path, *args):
 

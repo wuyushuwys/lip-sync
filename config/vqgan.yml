@@ -1,8 +1,8 @@
 manual_seed: 1234
 g_weight: null
 d_weight: null
-#ckpt: runs/train_vqgan_ffhq_first_stage/ckpt/latest.pt
-gan_starts: 0
+#ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
+gan_starts: 0.05
 data_spec:
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
@@ -64,18 +64,18 @@ optim:
     lr: 4.0e-4
     betas: [ 0.9, 0.999 ]
 
-#scheduler:
-#  type: MultiStepLR
-#  milestones: [0.8]
-#  gamma: 0.5
+scheduler:
+  type: MultiStepLR
+  milestones: [0.2, 0.4, 0.6, 0.8]
+  gamma: 0.5
 
 #scheduler:
 #  type: PolynomialLR
 #  power: 0.9
 
-scheduler:
-  type: CosineAnnealingLR
-  eta_min: 1.0e-7
+#scheduler:
+#  type: CosineAnnealingLR
+#  eta_min: 1.0e-7
 
 
 losses:

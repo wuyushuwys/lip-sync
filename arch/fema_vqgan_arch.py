@@ -5,6 +5,7 @@ import torch
 from torch.nn import functional as F
 from torch import nn as nn
 
+from torchvision.utils import make_grid
 
 class NormLayer(nn.Module):
     """Normalization Layers.
@@ -277,7 +278,7 @@ class FeMaSRNet(nn.Module):
         codebook_params = np.array(codebook_params)
 
         self.codebook_scale = codebook_params[:, 0]
-
+        self.num_code = int(codebook_params[0, 1])
         codebook_emb_num = codebook_params[:, 1].astype(int)
         codebook_emb_dim = codebook_params[:, 2].astype(int)
 
@@ -516,6 +517,14 @@ class FeMaSRNet(nn.Module):
             dec, codebook_loss, indices = self.encode_and_decode(input)
 
         return dec, codebook_loss, indices
+
+    @torch.no_grad()
+    def vis_codebook(self, up_factor=2):
+        code_idx = torch.arange(self.num_code).reshape(self.num_code, 1, 1, 1)
+        code_idx = code_idx.repeat(1, 1, up_factor, up_factor)
+        output_img = self.decode_indices(code_idx)
+        output_img = make_grid(output_img, nrow=int(np.sqrt(self.num_code)))
+        return output_img[None, ...], self.num_code
 
     def __str__(self):
         return self.__class__.__name__.lower()

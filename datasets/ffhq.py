@@ -17,7 +17,8 @@ from torchvision.transforms.v2 import (Compose, ColorJitter, Resize,
                                        RandomGrayscale, RandomAdjustSharpness,
                                        RandomRotation, RandomHorizontalFlip)
 
-import utils.mode
+import utils
+from utils.logging_tool import get_logger
 
 from .utils import exists
 
@@ -32,13 +33,16 @@ class FFHQ(Dataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         super(FFHQ, self).__init__()
+        logger = get_logger()
+
         self.mode = mode
         self.num_eval = int(args.data_spec.num_eval)
 
         samples = list(filter(lambda fname: is_image_file(fname), glob(f"{data_root}/**/*", recursive=True)))
-
-        self.samples = samples[:-self.num_eval]
-
+        if mode == utils.mode.TRAIN:
+            self.samples = samples[:-self.num_eval]
+        elif mode == utils.mode.EVAL:
+            self.samples = samples[-self.num_eval:]
         transforms = []
         if self.mode == utils.mode.TRAIN:
             if 'aug' in args.data_spec.keys():
@@ -69,6 +73,9 @@ class FFHQ(Dataset):
             transforms.append(Normalize(**args.data_spec.aug.normalize))
 
         self.transform = Compose(transforms)
+
+        logger.info(f"Create {self.__str__()} {mode} dataset with {self.__len__()} images")
+
 
     def __len__(self):
         return len(self.samples)
