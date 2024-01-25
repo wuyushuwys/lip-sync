@@ -2,21 +2,17 @@ import os
 from argparse import Namespace
 
 import torch
-from einops import rearrange
 
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_lip
 from utils.train_utils import state_dict_saver, ckpt_saver
+from utils.evaluation import evaluate_vq
 
-from .modules.masking import Masking
 from .basic_model import BasicModel
 
-face_rearrange = lambda x: rearrange(x, 'b c t h w -> (b t) c h w')
 
-
-class LipSyncGAN(BasicModel):
+class VQGANModel(BasicModel):
 
     def __init__(self,
                  g_model,
@@ -52,10 +48,21 @@ class LipSyncGAN(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.mask = Masking(half_precision=True).to(self.local_rank)
-
         self.ema_g_model = self.create_ema(self.g_model)
         self.ema_d_model = self.create_ema(self.d_model)
+
+        self.curr_iterations = 0
+        self.gan_starts = int(args.total_iterations * args.gan_starts)
+        self.codebook_weight = args.losses.codebook_loss.loss_weight
+        logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
+
+    def calculate_adaptive_weight(self, recon_loss, g_loss, last_layer, disc_weight_max):
+        recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]
+        g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
+
+        d_weight = torch.norm(recon_grads) / (torch.norm(g_grads) + 1e-4)
+        d_weight = torch.clamp(d_weight, 0.0, disc_weight_max).detach()
+        return d_weight
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -63,19 +70,16 @@ class LipSyncGAN(BasicModel):
         self.g_model.train()
         self.d_model.train()
         nb = len(self.train_data_loader)
-        log_vars = {"@g_loss": None, "@d_loss": None, '@lr': None}
+        log_vars = {"@g_loss": None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
-            total_batches = (epoch - 1) * nb + batch_idx
 
-            x, indiv_mels, mel, y = batch
+            total_batches = (epoch - 1) * nb + batch_idx
+            self.curr_iterations = total_batches
+
+            x, y = batch
 
             x = x.to(self.local_rank, non_blocking=True)
-            indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
-            mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
-
-            # mask face
-            x = self.mask(x)
 
             ############################################
             # optimize generator
@@ -85,12 +89,8 @@ class LipSyncGAN(BasicModel):
                 p.requires_grad = False
 
             self.g_optimizer.zero_grad()
-            self.d_optimizer.zero_grad()
 
-            pred_y = self.g_model(indiv_mels, x)
-
-            sync_weight = self.criterion['sync_loss'].loss_weight
-            sync_loss = self.criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+            pred_y, codebook_loss, quant_stats = self.g_model(x)
 
             if 'recon_loss' in self.criterion.keys():
                 recon_loss = self.criterion['recon_loss'](pred_y, y)
@@ -98,53 +98,62 @@ class LipSyncGAN(BasicModel):
                 recon_loss = 0
 
             if 'perceptual_loss' in self.criterion.keys():
-                perceptual_loss = self.criterion['perceptual_loss'](pred_y, y)
+                perceptual_loss = self.criterion['perceptual_loss'](pred_y, y, normalize=False)
             else:
                 perceptual_loss = 0
 
-            fake_g_pred = self.d_model(face_rearrange(pred_y))
+            g_loss = recon_loss + perceptual_loss + codebook_loss * self.codebook_weight
 
-            adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
+            if self.curr_iterations > self.gan_starts:
+                fake_g_pred = self.d_model(pred_y)
 
-            g_loss = sync_loss * sync_weight + (recon_loss + perceptual_loss + adversarial_loss) * (1 - sync_weight)
+                adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
+                # adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
+                #                                             adversarial_loss,
+                #                                             last_layer=self.g_model.module.generator.blocks[-1].weight,
+                #                                             disc_weight_max=1.0)
+                # g_loss += adversarial_loss * adv_weight
+                g_loss += adversarial_loss
 
             g_loss.backward()
             self.g_optimizer.step()
             self.g_scheduler.step()
 
-            ############################################
-            # optimize discriminator
-            ############################################
+            if self.curr_iterations > self.gan_starts:
+                ############################################
+                # optimize discriminator
+                ############################################
 
-            for p in self.d_model.parameters():
-                p.requires_grad = True
+                for p in self.d_model.parameters():
+                    p.requires_grad = True
 
-            self.g_optimizer.zero_grad()
-            self.d_optimizer.zero_grad()
+                self.d_optimizer.zero_grad()
 
-            real_d_pred = self.d_model(face_rearrange(y))
-            l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True) * 0.5
-            l_d_real.backward()
+                real_d_pred = self.d_model(y)
+                l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
+                l_d_real.backward()
 
-            fake_d_pred = self.d_model(face_rearrange(pred_y.detach().clone()))
-            l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True) * 0.5
-            l_d_fake.backward()
+                fake_d_pred = self.d_model(pred_y.detach().clone())
+                l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
+                l_d_fake.backward()
 
-            self.d_optimizer.step()
-            self.d_scheduler.step()
+                self.d_optimizer.step()
+                self.d_scheduler.step()
 
-            self.ema_g_model.update()
-            self.ema_d_model.update()
-
-            log_vars['sync_loss'] = sync_loss
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
-            log_vars['adversarial_loss'] = adversarial_loss
             log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
+            log_vars['codebook_loss'] = codebook_loss
             log_vars['@g_loss'] = g_loss
-            log_vars['d_real'] = l_d_real
-            log_vars['d_fake'] = l_d_fake
-            log_vars['@d_loss'] = l_d_real + l_d_real
+
+            if self.curr_iterations > self.gan_starts:
+                log_vars['adversarial_loss'] = adversarial_loss
+                log_vars['d_real'] = l_d_real
+                log_vars['d_fake'] = l_d_fake
+                log_vars['@d_loss'] = l_d_real + l_d_real
+                self.ema_d_model.update()
+
+            self.ema_g_model.update()
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
@@ -159,16 +168,13 @@ class LipSyncGAN(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        sync_loss = evaluate_lip.evaluation(model=self.ema_g_model,
-                                            eval_data_loaders=self.eval_data_loaders,
-                                            epoch=epoch,
-                                            criterions=self.criterion,
-                                            writer=self.writer,
-                                            args=self.args,
-                                            logger=self.logger,
-                                            mask=self.mask)
-        if sync_loss < 0.75:
-            self.criterion['sync_loss'].loss_weight = 0.03
+        evaluate_vq.evaluation(model=self.ema_g_model,
+                               eval_data_loaders=self.eval_data_loaders,
+                               epoch=epoch,
+                               criterions=self.criterion,
+                               writer=self.writer,
+                               args=self.args,
+                               logger=self.logger)
 
     def save_model(self, path, *args):
 

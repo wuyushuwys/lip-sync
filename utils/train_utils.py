@@ -1,6 +1,6 @@
 import argparse
 import importlib
-import os.path
+import os
 
 import torch
 import math
@@ -11,6 +11,8 @@ from collections import OrderedDict
 from pathlib import Path
 
 from torch.utils.data import DataLoader
+
+from omegaconf.listconfig import ListConfig
 
 import utils
 from utils import lr_scheduler, gradual_warmup_scheduler
@@ -91,29 +93,34 @@ def create_criterions(args: argparse.Namespace):
     losses_module = importlib.import_module("losses")
     criterions = OrderedDict()
     for name, kwargs in args.losses.items():
-        loss = getattr(losses_module, kwargs.get('type'))
-        criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
+        if 'type' in kwargs:
+            loss = getattr(losses_module, kwargs.get('type'))
+            criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
     return criterions
 
 
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
-    # if not isinstance(model_list, list):
-    #     model_list = [model_list]
     logger = get_logger()
-    # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
+
     assert hasattr(args, 'optim'), "Missing optim in model config"
-    # assert isinstance(args.optim, dict), "optim in model config should be a dictionary"
-
-    optim_module = getattr(torch.optim, args.optim.get('type'))
-    optim_dict = subdict(args.optim, 'type')
-
-    if args.distributed and args.scale_lr:
-        original_lr = optim_dict.get('lr')
-        scalar = args.world_size
-        optim_dict['lr'] *= scalar
-
-        logger.info(f"Scale learning rate from {original_lr}x{int(scalar):d} --> {optim_dict.get('lr')}")
+    if isinstance(args.optim, ListConfig):
+        optim_module = [getattr(torch.optim, optim_args.get('type')) for optim_args in args.optim]
+        optim_dict = [subdict(optim_args, 'type') for optim_args in args.optim]
+        if args.distributed and args.scale_lr:
+            for optim_arg in optim_dict:
+                original_lr = optim_arg.get('lr')
+                scalar = args.world_size
+                optim_arg['lr'] *= scalar
+                logger.info(f"Scale learning rate from {original_lr} --> {optim_arg.get('lr')}")
+    else:
+        optim_module = getattr(torch.optim, args.optim.get('type'))
+        optim_dict = subdict(args.optim, 'type')
+        if args.distributed and args.scale_lr:
+            original_lr = optim_dict.get('lr')
+            scalar = args.world_size
+            optim_dict['lr'] *= scalar
+            logger.info(f"Scale learning rate from {original_lr} --> {optim_dict.get('lr')}")
 
     total_iters = args.epochs * num_batches
 
@@ -127,7 +134,6 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
         total_iters -= warmup_iters
 
     assert hasattr(args, 'scheduler'), "Missing scheduler in model config"
-    # assert isinstance(args.scheduler, dict), "scheduler in config should be a dictionary"
 
     scheduler_module = getattr(lr_scheduler, args.scheduler.get('type'))
     if issubclass(scheduler_module, torch.optim.lr_scheduler.MultiStepLR):
@@ -149,21 +155,54 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
 
     optimizer_list = []
     scheduler_list = []
-    for model in model_list:
-        # todo: modify if needed
-        optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
-                                 **optim_dict)
-        scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
+    if isinstance(args.optim, ListConfig):
+        for model, optim, optim_args in zip(model_list, optim_module, optim_dict):
+            # todo: modify if needed
+            optimizer = optim(filter(lambda p: p.requires_grad, model.parameters()),
+                              **optim_args)
+            scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
-        if args.warmup_lr:
-            scheduler = gradual_warmup_scheduler.GradualWarmupScheduler(optimizer=optimizer,
-                                                                        multiplier=1,
-                                                                        total_epoch=warmup_iters,
-                                                                        after_scheduler=scheduler)
-        optimizer_list.append(optimizer)
-        scheduler_list.append(scheduler)
+            if args.warmup_lr:
+                scheduler = gradual_warmup_scheduler.GradualWarmupScheduler(optimizer=optimizer,
+                                                                            multiplier=1,
+                                                                            total_epoch=warmup_iters,
+                                                                            after_scheduler=scheduler)
+            optimizer_list.append(optimizer)
+            scheduler_list.append(scheduler)
+    else:
+        for model in model_list:
+            # todo: modify if needed
+            optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
+                                     **optim_dict)
+            scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
+
+            if args.warmup_lr:
+                scheduler = gradual_warmup_scheduler.GradualWarmupScheduler(optimizer=optimizer,
+                                                                            multiplier=1,
+                                                                            total_epoch=warmup_iters,
+                                                                            after_scheduler=scheduler)
+            optimizer_list.append(optimizer)
+            scheduler_list.append(scheduler)
 
     return optimizer_list, scheduler_list
+
+
+def _create_optim_scheduler(model: torch.nn.Module,
+                            optim_module: torch.optim,
+                            optim_args: dict,
+                            scheduler_module,
+                            args: argparse.Namespace,
+                            warmup_iters: int = 0):
+    optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
+                             **optim_args)
+    scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
+
+    if args.warmup_lr:
+        scheduler = gradual_warmup_scheduler.GradualWarmupScheduler(optimizer=optimizer,
+                                                                    multiplier=1,
+                                                                    total_epoch=warmup_iters,
+                                                                    after_scheduler=scheduler)
+    return optimizer, scheduler
 
 
 def load_ckpt(ckpt, **kwargs):

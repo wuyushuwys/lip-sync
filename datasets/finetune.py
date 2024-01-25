@@ -36,4 +36,4 @@ class Finetune(FrameMelDataset):
                                        audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
 
     def __str__(self):
-        return 'finetune'
+        return self.__class__.__name__.lower()

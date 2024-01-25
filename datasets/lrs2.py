@@ -37,4 +37,4 @@ class LRS2(FrameMelDataset):
                                    audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
 
     def __str__(self):
-        return 'LRS2'
+        return self.__class__.__name__.lower()

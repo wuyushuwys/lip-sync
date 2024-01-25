@@ -92,7 +92,7 @@ class SyncNet(nn.Module):
                 nn.init.constant_(m.weight, 0)
 
     def __str__(self):
-        return "syncnet"
+        return self.__class__.__name__.lower()
 
 
 class SyncNetWhole(nn.Module):
@@ -180,7 +180,7 @@ class SyncNetWhole(nn.Module):
                 nn.init.constant_(m.weight, 0)
 
     def __str__(self):
-        return "syncnet_CNN"
+        return self.__class__.__name__.lower()
 
 
 # class SyncNetWhole(nn.Module):

@@ -48,7 +48,7 @@ class LipSyncModel(BasicModel):
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
-        log_vars = {'@loss': None, 'lr': None}
+        log_vars = {'@loss': None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
@@ -80,7 +80,7 @@ class LipSyncModel(BasicModel):
             log_vars['sync_loss'] = sync_loss
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
-            log_vars['lr'] = self.scheduler.get_last_lr()[0]
+            log_vars['@lr'] = self.scheduler.get_last_lr()[0]
             log_vars['@loss'] = loss
 
             self.optimizer.step()
@@ -113,8 +113,7 @@ class LipSyncModel(BasicModel):
             self.criterion['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
-                         self.ema_model.ema_model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.ema_model.ema_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),

@@ -36,4 +36,4 @@ class TH1K(FrameMelDataset):
                                    )
 
     def __str__(self):
-        return 'TH1K'
+        return self.__class__.__name__.lower()

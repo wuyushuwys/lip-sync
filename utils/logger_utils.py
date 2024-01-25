@@ -53,7 +53,7 @@ def attr_extractor(obj):
 @master_only
 def loss_printer(loss_dict: dict, fmt='.4f'):
     s = ''
-    for k, v in loss_dict.items():
+    for k, v in sorted(loss_dict.items()):
         if k != 'loss':
             s += f"{k}:{v.item():{fmt}}  " if hasattr(v, 'item') else f"{k}:{v:{fmt}}  "
 
