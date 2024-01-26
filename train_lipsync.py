@@ -58,26 +58,6 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    # Load ckpt
-    if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location='cpu')
-        ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
-        start_epoch = ckpt['epoch'] - 1
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-    if args.weight:
-        ckpt = torch.load(args.weight, map_location='cpu')
-        if args.distributed:
-            model.module.load_state_dict(ckpt)
-        else:
-            model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
-
-    logger.info(attr_extractor(args))
-
     trainer = LipSyncModel(model=model,
                            optimizer=optimizer,
                            scheduler=scheduler,
@@ -87,6 +67,14 @@ def main(args):
                            logger=logger,
                            args=args,
                            writer=writer)
+
+    # Load ckpt
+    start_epoch = trainer.load_ckpt(args.ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
+
+    # Load state_dict
+    trainer.load_model(model=model, ckpt_path=args.weight)
+
+    logger.info(attr_extractor(args))
 
     if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)

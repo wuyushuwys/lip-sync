@@ -54,7 +54,7 @@ class VQGANModel(BasicModel):
         self.curr_iterations = 0
         self.gan_starts = int(args.total_iterations * args.gan_starts)
         self.codebook_weight = args.losses.codebook_loss.loss_weight
-        logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
+        self.logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
 
     def calculate_adaptive_weight(self, recon_loss, g_loss, last_layer, disc_weight_max):
         recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]

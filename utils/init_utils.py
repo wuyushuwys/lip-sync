@@ -63,7 +63,7 @@ def init_process(args):
         args.world_size = 1
         device = 0
         torch.cuda.set_device(device)
-    debug_mode(args)
+    # debug_mode(args)
 
     if args.manual_seed:
         torch.manual_seed(args.manual_seed)
@@ -111,10 +111,10 @@ def when_attr_is_true(attr):
     return decorator
 
 
-@when_attr_is_true('debug')
-@master_only
-def debug_mode(args: argparse.Namespace):
-    args.logger.info('Enable anomaly detect')
-    args.logger.warning('Debug mode is super slow, set epochs to 1')
-    args.epochs = 1
-    torch.autograd.set_detect_anomaly(args.debug)
+# @when_attr_is_true('debug')
+# @master_only
+# def debug_mode(args: argparse.Namespace):
+#     args.logger.info('Enable anomaly detect')
+#     args.logger.warning('Debug mode is super slow, set epochs to 1')
+#     args.epochs = 1
+#     torch.autograd.set_detect_anomaly(args.debug)

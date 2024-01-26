@@ -66,37 +66,6 @@ def main(args):
     [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
                                                                                     args=args,
                                                                                     num_batches=len(train_data_loader))
-
-    # Load ckpt
-    if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location='cpu')
-        ckpt_loader(ckpt,
-                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
-                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
-        start_epoch = ckpt['epoch'] - 1
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-    if args.g_weight:
-        ckpt = torch.load(args.g_weight, map_location='cpu')
-        if args.distributed:
-            g_model.module.load_state_dict(ckpt)
-        else:
-            g_model.load_state_dict(ckpt)
-        logger.info(f"{g_model} Load g_weight from {args.g_weight}")
-
-    if args.d_weight:
-        ckpt = torch.load(args.d_weight, map_location='cpu')
-        if args.distributed:
-            d_model.module.load_state_dict(ckpt)
-        else:
-            d_model.load_state_dict(ckpt)
-        logger.info(f"{d_model} Load g_weight from {args.d_weight}")
-
-    logger.info(attr_extractor(args))
-
     trainer = VQGANModel(g_model=g_model,
                          g_optimizer=g_optimizer,
                          g_scheduler=g_scheduler,
@@ -109,6 +78,17 @@ def main(args):
                          logger=logger,
                          args=args,
                          writer=writer)
+
+    # Load ckpt
+    start_epoch = trainer.load_ckpt(args.ckpt,
+                                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
+                                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
+
+    # Load state_dict
+    trainer.load_model(model=g_model, ckpt_path=args.g_weight)
+    trainer.load_model(model=d_model, ckpt_path=args.d_weight)
+
+    logger.info(attr_extractor(args))
 
     if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)

@@ -11,7 +11,8 @@ torchvision.disable_beta_transforms_warning()
 from torch.utils.data import Dataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.transforms.functional import InterpolationMode
-from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop, Lambda,
+from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop,
+                                       RandomResizedCrop, RandomAffine,
                                        ToImageTensor, ConvertImageDtype,
                                        ScaleJitter, RandomCrop, Normalize,
                                        RandomGrayscale, RandomAdjustSharpness,
@@ -57,11 +58,16 @@ class ImageDataset(Dataset):
                     transforms.append(ColorJitter(**aug_spec['color_jitter']))
                 if exists('scale_jitter', aug_spec):
                     transforms.append(ScaleJitter(**aug_spec['scale_jitter'], antialias=True))
+                if exists('random_affine', aug_spec):
+                    transforms.append(RandomAffine(**aug_spec['random_affine']))
                 if exists('random_crop', aug_spec):
                     transforms.append(RandomCrop(**aug_spec['random_crop']))
                 else:
                     transforms.append(Resize(**aug_spec.resize, antialias=True))
-                    transforms.append(RandomCrop(**aug_spec.resize))
+                    transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
+                    # transforms.append(CenterCrop(**aug_spec.resize))
+                    # transforms.append(RandomResizedCrop(**aug_spec.resize, antialias=True))
+                    # transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
         else:
             transforms.append(Resize(**args.data_spec.aug.resize, antialias=True))
             transforms.append(CenterCrop(**args.data_spec.aug.resize))
