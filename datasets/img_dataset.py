@@ -73,7 +73,7 @@ class ImageDataset(Dataset):
             transforms.append(CenterCrop(**args.data_spec.aug.resize))
 
         transforms.extend([ToImageTensor(), ConvertImageDtype()])
-        # transforms.append(Lambda(lambda x: x.repeat(3, 1, 1) if x.size(0) == 1 else x))  # convert to grayscale to RGB
+
         if exists('normalize', args.data_spec.aug):
             transforms.append(Normalize(**args.data_spec.aug.normalize))
 
@@ -86,7 +86,6 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         img = self.transform(Image.open(self.samples[index]).convert("RGB"))
-        # img = super().__getitem__(index)[0]
         return img, img  # return identical image-pair
 
     def __str__(self):

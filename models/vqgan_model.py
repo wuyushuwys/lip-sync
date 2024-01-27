@@ -108,12 +108,12 @@ class VQGANModel(BasicModel):
                 fake_g_pred = self.d_model(pred_y)
 
                 adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
-                # adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
-                #                                             adversarial_loss,
-                #                                             last_layer=self.g_model.module.generator.blocks[-1].weight,
-                #                                             disc_weight_max=1.0)
-                # g_loss += adversarial_loss * adv_weight
-                g_loss += adversarial_loss
+                adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
+                                                            adversarial_loss,
+                                                            last_layer=self.g_model.module.generator.blocks[-1].weight,
+                                                            disc_weight_max=1.0)
+                g_loss += adversarial_loss * adv_weight
+                # g_loss += adversarial_loss
 
             g_loss.backward()
             self.g_optimizer.step()

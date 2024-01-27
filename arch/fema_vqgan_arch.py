@@ -7,6 +7,7 @@ from torch import nn as nn
 
 from torchvision.utils import make_grid
 
+
 class NormLayer(nn.Module):
     """Normalization Layers.
     ------------
@@ -349,8 +350,8 @@ class FeMaSRNet(nn.Module):
         #         nn.Conv2d(512, 512, 1, 1, 0),
         #         nn.ReLU(),
         #     )
-            # self.vgg_feat_layer = 'relu4_4'
-            # self.vgg_feat_extractor = VGGFeatureExtractor([self.vgg_feat_layer])
+        # self.vgg_feat_layer = 'relu4_4'
+        # self.vgg_feat_extractor = VGGFeatureExtractor([self.vgg_feat_layer])
 
     def encode_and_decode(self, input, gt_indices=None):
         enc_feats = self.multiscale_encoder(input.detach())
@@ -525,6 +526,126 @@ class FeMaSRNet(nn.Module):
         output_img = self.decode_indices(code_idx)
         output_img = make_grid(output_img, nrow=int(np.sqrt(self.num_code)))
         return output_img[None, ...], self.num_code
+
+    def __str__(self):
+        return self.__class__.__name__.lower()
+
+
+class FaceCoderNet(nn.Module):
+    def __init__(self,
+                 *,
+                 in_channel=3,
+                 codebook_scale=32, codebook_size=1024, emb_dim=512, beta=0.25,
+                 gt_resolution=256,
+                 norm_type='gn',
+                 act_type='silu',
+                 use_quantize=True,
+                 use_residual=True,
+                 **ignore_kwargs):
+        super(FaceCoderNet, self).__init__()
+
+        self.codebook_scale = codebook_scale
+        self.codebook_size = codebook_size
+        self.embed_dim = emb_dim
+        self.beta = beta
+
+        self.use_quantize = use_quantize
+        self.in_channel = in_channel
+        self.gt_res = gt_resolution
+        self.use_residual = use_residual
+
+        channel_query_dict = {
+            8: 256,
+            16: 256,
+            32: 256,
+            64: 256,
+            128: 128,
+            256: 64,
+            512: 32,
+        }
+
+        # build encoder
+        self.max_depth = int(np.log2(gt_resolution // self.codebook_scale))
+        encode_depth = int(np.log2(gt_resolution // self.codebook_scale))
+        self.multiscale_encoder = MultiScaleEncoder(
+            in_channel,
+            encode_depth,
+            self.gt_res,
+            channel_query_dict,
+            norm_type, act_type
+        )
+
+        # build decoder
+        self.decoder_group = nn.ModuleList()
+        for i in range(self.max_depth):
+            res = gt_resolution // 2 ** self.max_depth * 2 ** i
+            in_ch, out_ch = channel_query_dict[res], channel_query_dict[res * 2]
+            self.decoder_group.append(DecoderBlock(in_ch, out_ch, norm_type, act_type))
+
+        self.out_conv = nn.Conv2d(out_ch, 3, 3, 1, 1)
+
+        # build vector quantizer
+        self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+
+        scale_in_ch = channel_query_dict[self.codebook_scale]
+
+        self.before_quant = nn.Conv2d(scale_in_ch, self.embed_dim, 1)
+        self.after_quant = nn.Conv2d(self.embed_dim, scale_in_ch, 3, 1, 1)
+
+    def encode_and_decode(self, input, gt_indices=None):
+        enc_feats = self.multiscale_encoder(input.detach())
+
+        enc_feats = enc_feats[::-1]
+
+        x = enc_feats[0]
+
+        feat_to_quant = self.before_quant(x)
+        if gt_indices is not None:
+            z_quant, codebook_loss, indices = self.quantizer(feat_to_quant, gt_indices)
+        else:
+            z_quant, codebook_loss, indices = self.quantizer(feat_to_quant)
+
+        if not self.use_quantize:
+            z_quant = feat_to_quant
+
+        x = self.after_quant(z_quant)
+
+        for i in range(self.max_depth):
+            x = self.decoder_group[i](x)
+
+        out_img = self.out_conv(x)
+
+        return out_img, codebook_loss, indices
+
+    def decode_indices(self, indices):
+        assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
+
+        z_quant = self.quantizer.get_codebook_entry(indices)
+        x = self.after_quant(z_quant)
+
+        for m in self.decoder_group:
+            x = m(x)
+        out_img = self.out_conv(x)
+        return out_img
+
+    def forward(self, input, gt_indices=None):
+
+        if gt_indices is not None:
+            # in LQ training stage, need to pass GT indices for supervise.
+            dec, codebook_loss, indices = self.encode_and_decode(input, gt_indices)
+        else:
+            # in HQ stage, or LQ test stage, no GT indices needed.
+            dec, codebook_loss, indices = self.encode_and_decode(input)
+
+        return dec, codebook_loss, indices
+
+    @torch.no_grad()
+    def vis_codebook(self, up_factor=2):
+        code_idx = torch.arange(self.codebook_size).reshape(self.codebook_size, 1, 1, 1)
+        code_idx = code_idx.repeat(1, 1, up_factor, up_factor)
+        output_img = self.decode_indices(code_idx)
+        output_img = make_grid(output_img, nrow=int(np.sqrt(self.codebook_size)))
+        return output_img[None, ...], self.codebook_size
 
     def __str__(self):
         return self.__class__.__name__.lower()

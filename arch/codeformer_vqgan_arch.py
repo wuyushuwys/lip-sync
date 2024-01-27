@@ -7,6 +7,9 @@ https://github.com/samb-t/unleashing-transformers/blob/master/models/vqgan.py
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torchvision.utils import make_grid
+
+import numpy as np
 
 from utils.logging_tool import get_logger
 
@@ -72,6 +75,8 @@ class VectorQuantizer(nn.Module):
     def get_codebook_feat(self, indices, shape):
         # input indices: batch*token_num -> (batch*token_num)*1
         # shape: batch, height, width, channel
+        b, _, h, w = indices.shape
+
         indices = indices.view(-1, 1)
         min_encodings = torch.zeros(indices.shape[0], self.codebook_size).to(indices)
         min_encodings.scatter_(1, indices, 1)
@@ -80,6 +85,8 @@ class VectorQuantizer(nn.Module):
 
         if shape is not None:  # reshape back to match original input shape
             z_q = z_q.view(shape).permute(0, 3, 1, 2).contiguous()
+        else:
+            z_q = z_q.view(b, h, w, -1).permute(0, 3, 1, 2).contiguous()
 
         return z_q
 
@@ -401,6 +408,21 @@ class VQAutoEncoder(nn.Module):
         quant, codebook_loss, quant_stats = self.quantize(x)
         x = self.generator(quant)
         return x, codebook_loss, quant_stats
+
+    def decode_indices(self, indices):
+        assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
+
+        z_quant = self.quantize.get_codebook_feat(indices, None)
+        out_img = self.generator(z_quant)
+        return out_img
+
+    @torch.no_grad()
+    def vis_codebook(self, up_factor=2):
+        code_idx = torch.arange(self.codebook_size).reshape(self.codebook_size, 1, 1, 1)
+        code_idx = code_idx.repeat(1, 1, up_factor, up_factor)
+        output_img = self.decode_indices(code_idx)
+        output_img = make_grid(output_img, nrow=int(np.sqrt(self.codebook_size)))
+        return output_img[None, ...], self.codebook_size
 
     def __str__(self):
         return self.__class__.__name__.lower()
