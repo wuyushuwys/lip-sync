@@ -77,7 +77,7 @@ class VectorQuantizer(nn.Module):
         # shape: batch, height, width, channel
         b, _, h, w = indices.shape
 
-        indices = indices.view(-1, 1)
+        indices = indices.view(-1, 1).to(self.embedding.weight.device)
         min_encodings = torch.zeros(indices.shape[0], self.codebook_size).to(indices)
         min_encodings.scatter_(1, indices, 1)
         # get quantized latent vectors
