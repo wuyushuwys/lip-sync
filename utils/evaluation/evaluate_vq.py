@@ -86,6 +86,6 @@ def test(dataloader: DataLoader,
 @master_only
 def save_sample_images(g, gt, batch_num, epoch, folder_path):
     outputs = torch.cat([g, gt], dim=-1)
-    folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
-    if not os.path.exists(folder): os.makedirs(folder, exist_ok=True)
-    save_image(outputs, fp=f"{folder}/{batch_num}.jpg", nrow=4, padding=10)
+    # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
+    if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
+    save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg", nrow=4, padding=10)

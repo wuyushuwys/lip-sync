@@ -26,13 +26,14 @@ from .utils import exists
 
 class ImageDataset(Dataset):
 
-    def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
+    def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr, sample_rate: int = 1):
         super(ImageDataset, self).__init__()
         logger = get_logger()
 
         self.mode = mode
 
-        samples = list(filter(lambda fname: is_image_file(fname), glob(f"{data_root}/**/*", recursive=True)))
+        samples = list(filter(lambda fname: is_image_file(fname),
+                              glob(f"{data_root}/**/*", recursive=True)))[::sample_rate]
 
         self.num_eval = min(int(args.data_spec.num_eval), int(len(samples) * 0.025))
 
