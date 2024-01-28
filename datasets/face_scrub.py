@@ -13,3 +13,4 @@ class FaceScrub(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         super(FaceScrub, self).__init__(mode=mode, args=args, data_root=data_root)
+        self.__verbose__()

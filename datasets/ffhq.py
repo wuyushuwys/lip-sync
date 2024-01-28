@@ -1,10 +1,6 @@
 from typing import AnyStr
 from argparse import Namespace
 
-import torchvision
-
-torchvision.disable_beta_transforms_warning()
-
 
 from .img_dataset import ImageDataset
 
@@ -19,3 +15,4 @@ class FFHQ(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         super(FFHQ, self).__init__(mode=mode, args=args, data_root=data_root)
+        self.__verbose__()

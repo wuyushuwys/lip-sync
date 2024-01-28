@@ -9,7 +9,7 @@ from pathlib import Path
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 from pytorch_msssim import SSIM, MS_SSIM
 
 from common.meters import AverageMeter
@@ -91,7 +91,8 @@ def save_sample_images(g, gt, batch_num, epoch, folder_path):
     outputs = torch.cat([g, gt], dim=-1)
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
-    save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg", nrow=4, padding=10)
+    outputs = make_grid(outputs, nrow=4, padding=10)
+    save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1:
         image = wandb.Image(outputs)
         wandb.log({f"{Path(folder_path).stem}": image})

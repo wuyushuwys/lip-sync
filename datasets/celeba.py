@@ -13,3 +13,4 @@ class CelebA_HQ(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         super(CelebA_HQ, self).__init__(mode=mode, args=args, data_root=data_root)
+        self.__verbose__()

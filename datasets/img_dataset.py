@@ -28,7 +28,6 @@ class ImageDataset(Dataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr, sample_rate: int = 1):
         super(ImageDataset, self).__init__()
-        logger = get_logger()
 
         self.mode = mode
 
@@ -79,8 +78,6 @@ class ImageDataset(Dataset):
 
         self.transform = Compose(transforms)
 
-        logger.info(f"Create {self.__str__()} {mode} dataset with {self.__len__()} images")
-
     def __len__(self):
         return len(self.samples)
 
@@ -90,3 +87,7 @@ class ImageDataset(Dataset):
 
     def __str__(self):
         return self.__class__.__name__.lower()
+
+    def __verbose__(self):
+        logger = get_logger()
+        logger.info(f"Create {self.__str__()} {self.mode} dataset with {self.__len__()} images")

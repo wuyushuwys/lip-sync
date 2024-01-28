@@ -1,10 +1,9 @@
+import random
+import os
+from pathlib import Path
+from glob import glob
 from typing import AnyStr
 from argparse import Namespace
-
-import torchvision
-
-torchvision.disable_beta_transforms_warning()
-
 
 from .img_dataset import ImageDataset
 
@@ -18,5 +17,5 @@ def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
 class HDTF_Image(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
-        super(HDTF_Image, self).__init__(mode=mode, args=args, data_root=data_root, sample_rate=25 * 5)
-
+        super(HDTF_Image, self).__init__(mode=mode, args=args, data_root=data_root, sample_rate=25 * 180)
+        self.__verbose__()

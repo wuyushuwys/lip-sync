@@ -68,6 +68,7 @@ class BasicModel(ABC):
         return EMA(model=model, **kwargs)
 
     @staticmethod
+    @torch.no_grad()
     def reduce_loss_dict(loss_dict):
         """reduce loss dict.
 
@@ -77,19 +78,18 @@ class BasicModel(ABC):
             loss_dict (OrderedDict): Loss dict.
         """
         rank, world_size = get_dist_info()
-        with torch.no_grad():
-            if world_size > 1:
-                keys = []
-                losses = []
-                for name, value in loss_dict.items():
-                    if torch.is_tensor(value):
-                        keys.append(name)
-                        losses.append(value)
-                losses = torch.stack(losses, 0)
-                dist.reduce(losses, dst=0)
-                if rank == 0:
-                    losses /= world_size
-                for key, loss in zip(keys, losses):
-                    loss_dict[key] = loss
-                    
+        if world_size > 1:
+            keys = []
+            losses = []
+            for name, value in loss_dict.items():
+                if torch.is_tensor(value):
+                    keys.append(name)
+                    losses.append(value)
+            losses = torch.stack(losses, 0)
+            dist.reduce(losses, dst=0)
+            if rank == 0:
+                losses /= world_size
+            for key, loss in zip(keys, losses):
+                loss_dict[key] = loss
+
         return loss_dict

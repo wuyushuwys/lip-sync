@@ -130,11 +130,11 @@ class VQGANModel(BasicModel):
 
                 self.d_optimizer.zero_grad()
 
-                real_d_pred = self.d_model(y)
+                real_d_pred = self.d_model(y.contiguous().detach())
                 l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
                 l_d_real.backward()
 
-                fake_d_pred = self.d_model(pred_y.detach())
+                fake_d_pred = self.d_model(pred_y.contiguous().detach())
                 l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
                 l_d_fake.backward()
 
@@ -150,9 +150,9 @@ class VQGANModel(BasicModel):
             if self.curr_iterations > self.gan_starts:
                 log_vars['adversarial_loss'] = adversarial_loss
                 log_vars['d_real'] = l_d_real
-                log_vars['real_d_pred'] = real_d_pred.mean()
+                log_vars['real_d_pred'] = real_d_pred.detach().mean()
                 log_vars['d_fake'] = l_d_fake
-                log_vars['fake_d_pred'] = fake_d_pred.mean()
+                log_vars['fake_d_pred'] = fake_d_pred.detach().mean()
                 log_vars['@d_loss'] = l_d_real + l_d_real
                 self.ema_d_model.update()
 
