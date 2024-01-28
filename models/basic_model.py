@@ -86,9 +86,8 @@ class BasicModel(ABC):
                     keys.append(name)
                     losses.append(value)
             losses = torch.stack(losses, 0)
-            dist.reduce(losses, dst=0)
-            if rank == 0:
-                losses /= world_size
+            dist.all_reduce(losses)
+            losses /= world_size
             for key, loss in zip(keys, losses):
                 loss_dict[key] = loss
 
