@@ -7,7 +7,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 from ema_pytorch import EMA
 
 from utils.logging_tool import get_logger
-from utils import ckpt_loader
+from utils import ckpt_loader, get_dist_info
 
 
 class BasicModel(ABC):
@@ -66,3 +66,30 @@ class BasicModel(ABC):
     @staticmethod
     def create_ema(model, **kwargs):
         return EMA(model=model, **kwargs)
+
+    @staticmethod
+    def reduce_loss_dict(loss_dict):
+        """reduce loss dict.
+
+        In distributed training, it averages the losses among different GPUs .
+
+        Args:
+            loss_dict (OrderedDict): Loss dict.
+        """
+        rank, world_size = get_dist_info()
+        with torch.no_grad():
+            if world_size > 1:
+                keys = []
+                losses = []
+                for name, value in loss_dict.items():
+                    if torch.is_tensor(value):
+                        keys.append(name)
+                        losses.append(value)
+                losses = torch.stack(losses, 0)
+                dist.reduce(losses, dst=0)
+                if rank == 0:
+                    losses /= world_size
+                for key, loss in zip(keys, losses):
+                    loss_dict[key] = loss
+                    
+        return loss_dict

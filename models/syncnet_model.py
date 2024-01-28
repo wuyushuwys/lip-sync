@@ -62,12 +62,14 @@ class SyncNetModel(BasicModel):
             loss = self.criterion['sync_loss'](a, v, y)
             loss.backward()
 
+            self.optimizer.step()
+            self.scheduler.step()
+
             log_vars['sync_loss'] = loss
             log_vars['@lr'] = self.scheduler.get_last_lr()[0]
             log_vars['@loss'] = loss
 
-            self.optimizer.step()
-            self.scheduler.step()
+            log_vars = self.reduce_loss_dict(log_vars)
 
             # EMA model update for stable results
             self.ema_model.update()

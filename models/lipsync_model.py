@@ -77,14 +77,17 @@ class LipSyncModel(BasicModel):
             loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
             loss.backward()
+
+            self.optimizer.step()
+            self.scheduler.step()
+
             log_vars['sync_loss'] = sync_loss
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
             log_vars['@lr'] = self.scheduler.get_last_lr()[0]
             log_vars['@loss'] = loss
 
-            self.optimizer.step()
-            self.scheduler.step()
+            log_vars = self.reduce_loss_dict(log_vars)
 
             self.ema_model.update()
 

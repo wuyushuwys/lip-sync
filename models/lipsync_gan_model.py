@@ -146,6 +146,8 @@ class LipSyncGAN(BasicModel):
             log_vars['d_fake'] = l_d_fake
             log_vars['@d_loss'] = l_d_real + l_d_real
 
+            log_vars = self.reduce_loss_dict(log_vars)
+
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
 

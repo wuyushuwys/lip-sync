@@ -56,7 +56,8 @@ class VQGANModel(BasicModel):
         self.codebook_weight = args.losses.codebook_loss.loss_weight
         self.logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
 
-    def calculate_adaptive_weight(self, recon_loss, g_loss, last_layer, disc_weight_max):
+    @staticmethod
+    def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight_max):
         recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]
         g_grads = torch.autograd.grad(g_loss, last_layer, retain_graph=True)[0]
 
@@ -133,7 +134,7 @@ class VQGANModel(BasicModel):
                 l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
                 l_d_real.backward()
 
-                fake_d_pred = self.d_model(pred_y.detach().clone())
+                fake_d_pred = self.d_model(pred_y.detach())
                 l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
                 l_d_fake.backward()
 
@@ -149,11 +150,15 @@ class VQGANModel(BasicModel):
             if self.curr_iterations > self.gan_starts:
                 log_vars['adversarial_loss'] = adversarial_loss
                 log_vars['d_real'] = l_d_real
+                log_vars['real_d_pred'] = real_d_pred.mean()
                 log_vars['d_fake'] = l_d_fake
+                log_vars['fake_d_pred'] = fake_d_pred.mean()
                 log_vars['@d_loss'] = l_d_real + l_d_real
                 self.ema_d_model.update()
 
             self.ema_g_model.update()
+
+            log_vars = self.reduce_loss_dict(log_vars)
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))

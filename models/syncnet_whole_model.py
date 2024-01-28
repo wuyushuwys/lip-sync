@@ -38,7 +38,7 @@ class SyncNetModel(BasicModel):
         self.criterion = criterion
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
-        
+
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
     def training_epoch(self, epoch):
@@ -65,12 +65,14 @@ class SyncNetModel(BasicModel):
             loss = self.criterion['sync_loss'](a, v, y)
             loss.backward()
 
+            self.optimizer.step()
+            self.scheduler.step()
+
             log_vars['sync_loss'] = loss
             log_vars['@lr'] = self.scheduler.get_last_lr()[0]
             log_vars['@loss'] = loss
 
-            self.optimizer.step()
-            self.scheduler.step()
+            log_vars = self.reduce_loss_dict(log_vars)
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
