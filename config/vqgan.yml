@@ -63,10 +63,10 @@ d_model:
 
 optim:
   - type: Adam
-    lr: !!float 6e-6
+    lr: !!float 1e-5
     betas: [ 0.9, 0.999 ]
   - type: Adam
-    lr: !!float 6e-6
+    lr: !!float 1e-5
     betas: [ 0.9, 0.999 ]
 
 scheduler:
