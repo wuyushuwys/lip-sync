@@ -70,7 +70,7 @@ class ImageDataset(Dataset):
                     # transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
         else:
             transforms.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
-            transforms.append(CenterCrop(**args.data_spec.aug.resize))
+            transforms.append(CenterCrop(**args.data_spec.aug.eval_resize))
 
         transforms.extend([ToImageTensor(), ConvertImageDtype()])
 

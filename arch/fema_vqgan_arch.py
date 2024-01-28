@@ -279,7 +279,8 @@ class FeMaSRNet(nn.Module):
         codebook_params = np.array(codebook_params)
 
         self.codebook_scale = codebook_params[:, 0]
-        self.num_code = int(codebook_params[0, 1])
+
+        self.codebook_size = int(codebook_params[0, 1])
         codebook_emb_num = codebook_params[:, 1].astype(int)
         codebook_emb_dim = codebook_params[:, 2].astype(int)
 
