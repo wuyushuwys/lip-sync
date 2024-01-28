@@ -112,5 +112,5 @@ def save_sample_images(x, g, gt, batch_num, epoch, folder_path):
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
     save_image(outputs[:1, ...], fp=f"{folder_path}/{batch_num}.jpg", nrow=1, padding=10)
     if batch_num == 1:
-        image = wandb.Image(outputs[:1, ...], caption=f"{Path(folder_path).stem}")
-        wandb.log({"Samples": image})
+        image = wandb.Image(outputs[:1, ...])
+        wandb.log({f"{Path(folder_path).stem}": image})
