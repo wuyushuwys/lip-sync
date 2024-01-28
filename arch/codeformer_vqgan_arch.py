@@ -417,11 +417,13 @@ class VQAutoEncoder(nn.Module):
         return out_img
 
     @torch.no_grad()
-    def vis_codebook(self, up_factor=2):
+    def vis_codebook(self, up_factor=2, norm=True):
         code_idx = torch.arange(self.codebook_size).reshape(self.codebook_size, 1, 1, 1)
         code_idx = code_idx.repeat(1, 1, up_factor, up_factor)
         output_img = self.decode_indices(code_idx)
         output_img = make_grid(output_img, nrow=int(np.sqrt(self.codebook_size)))
+        if norm:
+            output_img = (output_img - output_img.min()) / (output_img.max() - output_img.min())
         return output_img[None, ...], self.codebook_size
 
     def __str__(self):
