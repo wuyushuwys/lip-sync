@@ -39,10 +39,10 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    g_model = VQAutoEncoder(**args.g_model)
-    d_model = VQGANDiscriminator(**args.d_model)
-    # g_model = FeMaSRNet(**args.g_model)
-    # d_model = UNetDiscriminatorSN(**args.d_model)
+    # g_model = VQAutoEncoder(**args.g_model)
+    # d_model = VQGANDiscriminator(**args.d_model)
+    g_model = FeMaSRNet(**args.g_model)
+    d_model = UNetDiscriminatorSN(**args.d_model)
 
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
     logger.info(f"G-Model {g_model} :[Trainable Parameters: {trainable_params}]")
