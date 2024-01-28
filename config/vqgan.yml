@@ -2,6 +2,8 @@ manual_seed: 1234
 g_weight: null
 d_weight: null
 #ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
+warmup_lr: true
+warmup_iters: 100
 gan_starts: 0
 data_spec:
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
