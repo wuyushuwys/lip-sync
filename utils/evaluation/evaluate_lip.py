@@ -1,9 +1,12 @@
 import argparse
 import os
 import torch
+import wandb
 
 from typing import Dict
 from functools import partial, reduce
+from pathlib import Path
+
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from torchvision.utils import save_image
@@ -108,3 +111,6 @@ def save_sample_images(x, g, gt, batch_num, epoch, folder_path):
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
     save_image(outputs[:1, ...], fp=f"{folder_path}/{batch_num}.jpg", nrow=1, padding=10)
+    if batch_num == 1:
+        image = wandb.Image(outputs[:1, ...], caption=f"{Path(folder_path).stem}")
+        wandb.log({"Samples": image})
