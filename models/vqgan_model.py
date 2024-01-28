@@ -48,8 +48,8 @@ class VQGANModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.ema_g_model = self.create_ema(self.g_model)
-        self.ema_d_model = self.create_ema(self.d_model)
+        self.ema_g_model = self.create_ema(self.g_model, power=0.75)
+        self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
         self.curr_iterations = 0
         self.gan_starts = int(args.total_iterations * args.gan_starts)

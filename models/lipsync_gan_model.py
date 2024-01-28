@@ -54,8 +54,8 @@ class LipSyncGAN(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
-        self.ema_g_model = self.create_ema(self.g_model)
-        self.ema_d_model = self.create_ema(self.d_model)
+        self.ema_g_model = self.create_ema(self.g_model, power=0.75)
+        self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()

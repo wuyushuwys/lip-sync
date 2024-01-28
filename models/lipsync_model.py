@@ -41,7 +41,7 @@ class LipSyncModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
-        self.ema_model = self.create_ema(model)
+        self.ema_model = self.create_ema(model, power=0.75)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()

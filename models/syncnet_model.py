@@ -39,7 +39,7 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.ema_model = self.create_ema(model)
+        self.ema_model = self.create_ema(model, power=0.75)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
