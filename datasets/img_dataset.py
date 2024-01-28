@@ -45,6 +45,8 @@ class ImageDataset(Dataset):
         if self.mode == utils.mode.TRAIN:
             if 'aug' in args.data_spec.keys():
                 aug_spec = args.data_spec.aug
+                if exists('train_resize', aug_spec):
+                    transforms.append(Resize(**aug_spec['train_resize']))
                 if exists('rotate', aug_spec):
                     transforms.append(RandomRotation(**aug_spec['rotate'],
                                                      interpolation=InterpolationMode.BILINEAR,
@@ -63,14 +65,11 @@ class ImageDataset(Dataset):
                     transforms.append(RandomAffine(**aug_spec['random_affine']))
                 if exists('random_crop', aug_spec):
                     transforms.append(RandomCrop(**aug_spec['random_crop']))
-                else:
-                    transforms.append(Resize(**aug_spec.resize, antialias=True))
-                    transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
                     # transforms.append(CenterCrop(**aug_spec.resize))
                     # transforms.append(RandomResizedCrop(**aug_spec.resize, antialias=True))
                     # transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
         else:
-            transforms.append(Resize(**args.data_spec.aug.resize, antialias=True))
+            transforms.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
             transforms.append(CenterCrop(**args.data_spec.aug.resize))
 
         transforms.extend([ToImageTensor(), ConvertImageDtype()])

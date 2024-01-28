@@ -2,31 +2,38 @@ manual_seed: 1234
 g_weight: null
 d_weight: null
 #ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
-gan_starts: 0.05
+gan_starts: 0
 data_spec:
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
   aug:
+    train_resize:
+      size: 512
     flip:
       p: 0.5
-#    color_jitter:
-#      brightness: 0.5
-#      contrast: 0.5
-#      saturation: 0.5
-#      hue: 0.5
-#    scale_jitter:
-#      target_size: [ 256, 256 ]
-#      scale_range: [ 0.5, 1 ]
-#    random_crop:
-#      size: 256
-#      pad_if_needed: true
-#      fill: 255
+    color_jitter:
+      brightness: 0.1
+      contrast: 0.1
+      saturation: 0.1
+      hue: 0.1
+    random_crop:
+      size: 256
+      pad_if_needed: true
+      padding_mode: reflect
+    #    scale_jitter:
+    #      target_size: [ 256, 256 ]
+    #      scale_range: [ 0.75, 1.25 ]
+    #    random_affine:
+    #      degrees: [ -45, 45 ]
+    #      translate: [ 0.1, 0.3 ]
+    #      scale: [ 0.75, 1.25 ]
+    #      fill: 255
     normalize:
-      std: [0.5, 0.5, 0.5]
-      mean: [0.5, 0.5, 0.5]
+      std: [ 0.5, 0.5, 0.5 ]
+      mean: [ 0.5, 0.5, 0.5 ]
 
     # only used in eval set
-    resize:
+    eval_resize:
       size: 256
 
 #g_model:
@@ -34,13 +41,9 @@ data_spec:
 #  nf: 64
 #  ch_mult: [ 1, 2, 2, 4, 4, 8 ]
 #  quantizer: nearest
-#  res_blocks: 2
-#  attn_resolutions: [ 16 ]
 #  codebook_size: 1024
-#  emb_dim: 256
 #  image_norm: false
-#  beta: 0.25
-#
+
 #d_model:
 #  nc: 3
 #  ndf: 64
@@ -66,7 +69,7 @@ optim:
 
 scheduler:
   type: MultiStepLR
-  milestones: [0.2, 0.4, 0.6, 0.8]
+  milestones: [ 0.4, 0.8]
   gamma: 0.5
 
 #scheduler:
@@ -102,4 +105,4 @@ losses:
   adversarial:
     type: GANLoss
     gan_type: hinge
-    loss_weight: 0.1
+    loss_weight: 0.1  # using adaptive loss_weight
