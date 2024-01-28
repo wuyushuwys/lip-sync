@@ -18,5 +18,5 @@ def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
 class HDTF_Image(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
-        super(HDTF_Image, self).__init__(mode=mode, args=args, data_root=data_root, sample_rate=25 * 30)
+        super(HDTF_Image, self).__init__(mode=mode, args=args, data_root=data_root, sample_rate=25 * 5)
 
