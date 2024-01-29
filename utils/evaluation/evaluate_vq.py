@@ -94,5 +94,5 @@ def save_sample_images(g, gt, batch_num, epoch, folder_path):
     outputs = make_grid(outputs, nrow=4, padding=10)
     save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1:
-        image = wandb.Image(outputs)
+        image = wandb.Image(outputs, file_type='jpg')
         wandb.log({f"{Path(folder_path).stem}": image})
