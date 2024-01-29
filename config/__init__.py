@@ -19,7 +19,8 @@ def update_params(args: argparse.Namespace):
 
     # save current config in yml
     os.makedirs(args.job_dir, exist_ok=True)
-    OmegaConf.save(args, os.path.join(args.job_dir, 'config.yml'))
+    if args.rank == 0:
+        OmegaConf.save(args, os.path.join(args.job_dir, 'config.yml'))
     return args
 
 
