@@ -50,7 +50,7 @@ class BasicModel(ABC):
         if ckpt_path:
             logger = get_logger()
             ckpt = torch.load(ckpt_path, map_location='cpu')
-            ckpt_loader(ckpt_path, **kwargs)
+            ckpt_loader(ckpt, **kwargs)
             start_epoch = ckpt['epoch'] - 1
             logger.info(f'Load checkpoint from {ckpt_path}. Resume from epoch {start_epoch}')
         else:
