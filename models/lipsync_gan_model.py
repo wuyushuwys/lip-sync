@@ -161,7 +161,7 @@ class LipSyncGAN(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        sync_loss = evaluate_lip.evaluation(model=self.ema_g_model,
+        sync_loss = evaluate_lip.evaluation(model=self.g_model,
                                             eval_data_loaders=self.eval_data_loaders,
                                             epoch=epoch,
                                             criterions=self.criterion,

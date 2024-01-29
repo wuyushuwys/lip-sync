@@ -87,7 +87,7 @@ class SyncNetModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        return evaluate_sync.evaluation(model=self.ema_model,
+        return evaluate_sync.evaluation(model=self.model,
                                         eval_data_loaders=self.eval_data_loaders,
                                         epoch=epoch,
                                         criterions=self.criterion,
