@@ -7,6 +7,8 @@ from torch import nn as nn
 
 from torchvision.utils import make_grid
 
+from arch.vgg_arch import PerceptualVGG
+
 
 class NormLayer(nn.Module):
     """Normalization Layers.
@@ -273,6 +275,7 @@ class FeMaSRNet(nn.Module):
                  act_type='silu',
                  use_quantize=True,
                  use_residual=True,
+                 use_semantic_loss=True,
                  **ignore_kwargs):
         super().__init__()
 
@@ -345,23 +348,23 @@ class FeMaSRNet(nn.Module):
             self.after_quant_group.append(CombineQuantBlock(comb_quant_in_ch1, comb_quant_in_ch2, scale_in_ch))
 
         # semantic loss for HQ pretrain stage
-        # self.use_semantic_loss = use_semantic_loss
-        # if use_semantic_loss:
-        #     self.conv_semantic = nn.Sequential(
-        #         nn.Conv2d(512, 512, 1, 1, 0),
-        #         nn.ReLU(),
-        #     )
-        # self.vgg_feat_layer = 'relu4_4'
-        # self.vgg_feat_extractor = VGGFeatureExtractor([self.vgg_feat_layer])
+        self.use_semantic_loss = use_semantic_loss
+        if use_semantic_loss:
+            self.conv_semantic = nn.Sequential(
+                nn.Conv2d(codebook_emb_dim[-1], 512, 1, 1, 0),
+                nn.ReLU(),
+            )
+            self.vgg_feat_layer = '26'  # relu4_4
+            self.vgg_feat_extractor = PerceptualVGG([self.vgg_feat_layer])
 
     def encode_and_decode(self, input, gt_indices=None):
         enc_feats = self.multiscale_encoder(input.detach())
 
         enc_feats = enc_feats[::-1]
 
-        # if self.use_semantic_loss:
-        #     with torch.no_grad():
-        #         vgg_feat = self.vgg_feat_extractor(input)[self.vgg_feat_layer]
+        if self.use_semantic_loss and self.training:
+            with torch.no_grad():
+                vgg_feat = self.vgg_feat_extractor(input)[self.vgg_feat_layer]
 
         codebook_loss_list = []
         indices_list = []
@@ -388,10 +391,10 @@ class FeMaSRNet(nn.Module):
                 else:
                     z_quant, codebook_loss, indices = self.quantize_group[quant_idx](feat_to_quant)
 
-                # if self.use_semantic_loss:
-                #     semantic_z_quant = self.conv_semantic(z_quant)
-                #     semantic_loss = F.mse_loss(semantic_z_quant, vgg_feat)
-                #     semantic_loss_list.append(semantic_loss)
+                if self.use_semantic_loss and self.training:
+                    semantic_z_quant = self.conv_semantic(z_quant)
+                    semantic_loss = F.mse_loss(semantic_z_quant, vgg_feat)
+                    # semantic_loss_list.append(semantic_loss)
 
                 if not self.use_quantize:
                     z_quant = feat_to_quant
@@ -412,8 +415,10 @@ class FeMaSRNet(nn.Module):
 
         codebook_loss = sum(codebook_loss_list)
         # semantic_loss = sum(semantic_loss_list) if len(semantic_loss_list) else codebook_loss * 0
-
-        return out_img, codebook_loss, indices_list
+        if self.use_semantic_loss and self.training:
+            return out_img, codebook_loss, semantic_loss, indices_list
+        else:
+            return out_img, codebook_loss, indices_list
 
     def decode_indices(self, indices):
         assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
@@ -510,15 +515,22 @@ class FeMaSRNet(nn.Module):
         return output
 
     def forward(self, input, gt_indices=None):
-
-        if gt_indices is not None:
-            # in LQ training stage, need to pass GT indices for supervise.
-            dec, codebook_loss, indices = self.encode_and_decode(input, gt_indices)
+        if self.training and self.use_semantic_loss:
+            if gt_indices is not None:
+                # in LQ training stage, need to pass GT indices for supervise.
+                dec, codebook_loss, semantic_loss, indices = self.encode_and_decode(input, gt_indices)
+            else:
+                # in HQ stage, or LQ test stage, no GT indices needed.
+                dec, codebook_loss, semantic_loss, indices = self.encode_and_decode(input)
+            return dec, codebook_loss, semantic_loss, indices
         else:
-            # in HQ stage, or LQ test stage, no GT indices needed.
-            dec, codebook_loss, indices = self.encode_and_decode(input)
-
-        return dec, codebook_loss, indices
+            if gt_indices is not None:
+                # in LQ training stage, need to pass GT indices for supervise.
+                dec, codebook_loss, indices = self.encode_and_decode(input, gt_indices)
+            else:
+                # in HQ stage, or LQ test stage, no GT indices needed.
+                dec, codebook_loss, indices = self.encode_and_decode(input)
+            return dec, codebook_loss, indices
 
     @torch.no_grad()
     def vis_codebook(self, up_factor=2, norm=True):

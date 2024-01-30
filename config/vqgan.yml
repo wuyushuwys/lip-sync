@@ -26,9 +26,9 @@ data_spec:
       size: 256
       pad_if_needed: true
       padding_mode: edge
-#    normalize:
-#      std: [ 0.5, 0.5, 0.5 ]
-#      mean: [ 0.5, 0.5, 0.5 ]
+    #    normalize:
+    #      std: [ 0.5, 0.5, 0.5 ]
+    #      mean: [ 0.5, 0.5, 0.5 ]
 
     # only used in eval set
     eval_resize:
@@ -96,8 +96,10 @@ losses:
   #    criterion: 'l1'
   #    perceptual_weight: 1
 
-
   codebook_loss:
+    loss_weight: 1
+
+  semantic_loss:
     loss_weight: 1
 
   adversarial:

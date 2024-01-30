@@ -5,7 +5,7 @@ warnings.simplefilter('ignore')
 import torch
 import torch.nn as nn
 from lpips import LPIPS
-from .vgg_arch import PerceptualVGG
+from arch.vgg_arch import PerceptualVGG
 
 __all__ = [
     "LPIPSLoss",

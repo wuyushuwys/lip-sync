@@ -54,6 +54,7 @@ class VQGANModel(BasicModel):
         self.curr_iterations = 0
         self.gan_starts = int(args.total_iterations * args.gan_starts)
         self.codebook_weight = args.losses.codebook_loss.loss_weight
+        self.semantic_weight = args.losses.semantic_loss.loss_weight if 'semantic_loss' in args.losses.keys() else None
         self.logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
 
     @staticmethod
@@ -91,7 +92,10 @@ class VQGANModel(BasicModel):
 
             self.g_optimizer.zero_grad()
 
-            pred_y, codebook_loss, quant_stats = self.g_model(x)
+            if self.model_no_ddp(self.g_model).use_semantic_loss:
+                pred_y, codebook_loss, semantic_loss, quant_stats = self.g_model(x)
+            else:
+                pred_y, codebook_loss, quant_stats = self.g_model(x)
 
             if 'recon_loss' in self.criterion.keys():
                 recon_loss = self.criterion['recon_loss'](pred_y, y)
@@ -104,6 +108,9 @@ class VQGANModel(BasicModel):
                 perceptual_loss = 0
 
             g_loss = recon_loss + perceptual_loss + codebook_loss * self.codebook_weight
+
+            if self.model_no_ddp(self.g_model).use_semantic_loss:
+                g_loss += semantic_loss * self.semantic_weight
 
             if self.curr_iterations > self.gan_starts:
                 fake_g_pred = self.d_model(pred_y)
