@@ -39,7 +39,7 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.ema_model = self.create_ema(model, power=0.75)
+        # self.ema_model = self.create_ema(model, power=0.75)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -72,7 +72,7 @@ class SyncNetModel(BasicModel):
             log_vars = self.reduce_loss_dict(log_vars)
 
             # EMA model update for stable results
-            self.ema_model.update()
+            # self.ema_model.update()
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
@@ -103,11 +103,11 @@ class SyncNetModel(BasicModel):
         else:
             state_dict_saver(
                 os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
-                self.ema_model.ema_model)
+                self.model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.ema_model.ema_model,
+                   model=self.model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

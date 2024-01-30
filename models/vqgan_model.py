@@ -48,8 +48,8 @@ class VQGANModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.ema_g_model = self.create_ema(self.g_model, power=0.75)
-        self.ema_d_model = self.create_ema(self.d_model, power=0.75)
+        # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
+        # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
         self.curr_iterations = 0
         self.gan_starts = int(args.total_iterations * args.gan_starts)
@@ -160,9 +160,9 @@ class VQGANModel(BasicModel):
                 log_vars['d_fake'] = l_d_fake
                 log_vars['fake_d_pred'] = fake_d_pred.detach().mean()
                 log_vars['@d_loss'] = l_d_real + l_d_real
-                self.ema_d_model.update()
+                # self.ema_d_model.update()
 
-            self.ema_g_model.update()
+            # self.ema_g_model.update()
 
             log_vars = self.reduce_loss_dict(log_vars)
 
@@ -196,15 +196,15 @@ class VQGANModel(BasicModel):
 
     def save_model(self, path, *args):
 
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.g_model)}.pt"), self.ema_g_model.ema_model)
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.d_model)}.pt"), self.ema_d_model.ema_model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.g_model)}.pt"), self.g_model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.d_model)}.pt"), self.d_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   g_model=self.ema_g_model.ema_model,
+                   g_model=self.g_model,
                    g_optimizer=self.g_optimizer,
                    g_scheduler=self.g_scheduler,
-                   d_model=self.ema_d_model.ema_model,
+                   d_model=self.d_model,
                    d_optimizer=self.d_optimizer,
                    d_scheduler=self.d_scheduler,
                    epoch=epoch)

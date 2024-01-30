@@ -41,7 +41,7 @@ class LipSyncModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
-        self.ema_model = self.create_ema(model, power=0.75)
+        # self.ema_model = self.create_ema(model, power=0.75)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -89,7 +89,7 @@ class LipSyncModel(BasicModel):
 
             log_vars = self.reduce_loss_dict(log_vars)
 
-            self.ema_model.update()
+            # self.ema_model.update()
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
@@ -116,11 +116,11 @@ class LipSyncModel(BasicModel):
             self.criterion['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.ema_model.ema_model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.ema_model.ema_model,
+                   model=self.model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)
