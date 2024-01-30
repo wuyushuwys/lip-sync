@@ -68,8 +68,8 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
 
         pred_y, codebook_loss, latent = model(x)
-        pred_y = (pred_y + 1) / 2
-        y = (y + 1) / 2
+        # pred_y = (pred_y + 1) / 2
+        # y = (y + 1) / 2
         recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, val=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 

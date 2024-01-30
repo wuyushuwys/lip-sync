@@ -2,37 +2,33 @@ manual_seed: 1234
 g_weight: null
 d_weight: null
 #ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
-warmup_lr: true
-warmup_iters: 100
+#warmup_lr: true
+#warmup_iters: 100
 gan_starts: 0
 data_spec:
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
   aug:
     train_resize:
-      size: 256
-#    flip:
-#      p: 0.5
-#    color_jitter:
-#      brightness: 0.1
-#      contrast: 0.1
-#      saturation: 0.1
-#      hue: 0.1
+      size: 512
+    flip:
+      p: 0.5
+    use_rot: true
+    #    color_jitter:
+    #      brightness: 0.1
+    #      contrast: 0.1
+    #      saturation: 0.1
+    #      hue: 0.1
+    scale_jitter:
+      target_size: [ 512, 512 ]
+      scale_range: [ 0.25, 1 ]
     random_crop:
       size: 256
       pad_if_needed: true
-      padding_mode: reflect
-    #    scale_jitter:
-    #      target_size: [ 256, 256 ]
-    #      scale_range: [ 0.75, 1.25 ]
-    #    random_affine:
-    #      degrees: [ -45, 45 ]
-    #      translate: [ 0.1, 0.3 ]
-    #      scale: [ 0.75, 1.25 ]
-    #      fill: 255
-    normalize:
-      std: [ 0.5, 0.5, 0.5 ]
-      mean: [ 0.5, 0.5, 0.5 ]
+      padding_mode: edge
+#    normalize:
+#      std: [ 0.5, 0.5, 0.5 ]
+#      mean: [ 0.5, 0.5, 0.5 ]
 
     # only used in eval set
     eval_resize:
@@ -56,17 +52,17 @@ g_model:
   norm_type: 'gn'
   act_type: 'silu'
   codebook_params: # has to order from low to high
-    - [ 32, 1024, 512 ]
+    - [ 32, 512, 256 ]
 
 d_model:
   num_in_ch: 3
 
 optim:
   - type: Adam
-    lr: !!float 1e-5
+    lr: !!float 1e-4
     betas: [ 0.9, 0.999 ]
   - type: Adam
-    lr: !!float 1e-5
+    lr: !!float 4e-4
     betas: [ 0.9, 0.999 ]
 
 scheduler:

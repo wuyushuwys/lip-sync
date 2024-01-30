@@ -2,8 +2,9 @@ from typing import AnyStr
 from argparse import Namespace
 from glob import glob
 
+import torch
 from PIL import Image
-
+import random
 import torchvision
 
 torchvision.disable_beta_transforms_warning()
@@ -11,8 +12,7 @@ torchvision.disable_beta_transforms_warning()
 from torch.utils.data import Dataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.transforms.functional import InterpolationMode
-from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop,
-                                       RandomResizedCrop, RandomAffine,
+from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop, RandomAffine,
                                        ToImageTensor, ConvertImageDtype,
                                        ScaleJitter, RandomCrop, Normalize,
                                        RandomGrayscale, RandomAdjustSharpness,
@@ -52,10 +52,6 @@ class ImageDataset(Dataset):
                                                      fill=1))
                 if exists('flip', aug_spec):
                     transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
-                if exists('grayscale', aug_spec):
-                    transforms.append(RandomGrayscale(**aug_spec['grayscale']))
-                if exists('sharpness', aug_spec):
-                    transforms.append(RandomAdjustSharpness(**aug_spec['sharpness']))
                 if exists('color_jitter', aug_spec):
                     transforms.append(ColorJitter(**aug_spec['color_jitter']))
                 if exists('scale_jitter', aug_spec):
@@ -64,10 +60,11 @@ class ImageDataset(Dataset):
                     transforms.append(RandomAffine(**aug_spec['random_affine']))
                 if exists('random_crop', aug_spec):
                     transforms.append(RandomCrop(**aug_spec['random_crop']))
-                    # transforms.append(CenterCrop(**aug_spec.resize))
-                    # transforms.append(RandomResizedCrop(**aug_spec.resize, antialias=True))
-                    # transforms.append(RandomCrop(**aug_spec.resize, pad_if_needed=True, padding_mode='reflect'))
+                else:
+                    transforms.append(CenterCrop(**args.data_spec.aug.eval_resize))
+                self.use_rot = aug_spec.use_rot
         else:
+            self.use_rot = False
             transforms.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
             transforms.append(CenterCrop(**args.data_spec.aug.eval_resize))
 
@@ -83,6 +80,11 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, index):
         img = self.transform(Image.open(self.samples[index]).convert("RGB"))
+        if self.mode == utils.mode.TRAIN and self.use_rot:
+            if random.random() < 0.5:
+                degree = random.choice([90, 270])
+                img = torchvision.transforms.functional.rotate(img, degree)
+
         return img, img  # return identical image-pair
 
     def __str__(self):
