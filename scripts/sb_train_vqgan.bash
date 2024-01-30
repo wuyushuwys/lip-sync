@@ -35,6 +35,6 @@ srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_vqgan.
   --dataset ffhq celeba \
   --model vqgan \
   --job_dir "${job_dir}" \
-  --batch_size 16 \
-  --num_workers 4 \
-  --epochs 50
+  --batch_size 8 \
+  --num_workers 8 \
+  --epochs 100
