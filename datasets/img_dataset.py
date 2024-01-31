@@ -38,6 +38,7 @@ def make_dataset(dir, max_dataset_size=float("inf"), followlinks=True, method='g
     else:
         raise NotImplementedError(f"{method} not implemented")
 
+
 def random_resize(x, target_size=256):
     if torch.is_tensor(x):
         h, w = x.shape[1:]
@@ -92,7 +93,7 @@ class ImageDataset(Dataset):
             cropper.append(RandomCrop(size=self.gt_size, pad_if_needed=True, fill=1))
 
         else:
-            cropper.append(Resize(**args.data_spec.aug.eval_size, antialias=True))
+            cropper.append(Resize(**args.data_spec.eval_size, antialias=True))
             cropper.append(CenterCrop(**args.data_spec.eval_size))
 
         to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
