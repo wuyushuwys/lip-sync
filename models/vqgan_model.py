@@ -159,6 +159,8 @@ class VQGANModel(BasicModel):
             log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
             log_vars['codebook_loss'] = codebook_loss
             log_vars['@g_loss'] = g_loss
+            if self.model_no_ddp(self.g_model).use_semantic_loss:
+                log_vars['semantic_loss'] = semantic_loss
 
             if self.curr_iterations > self.gan_starts:
                 log_vars['adversarial_loss'] = adversarial_loss

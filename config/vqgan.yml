@@ -21,7 +21,7 @@ data_spec:
     #      hue: 0.1
     scale_jitter:
       target_size: [ 512, 512 ]
-      scale_range: [ 0.25, 1 ]
+      scale_range: [ 0.5, 1 ]
     random_crop:
       size: 256
       pad_if_needed: true
@@ -100,7 +100,7 @@ losses:
     loss_weight: 1
 
   semantic_loss:
-    loss_weight: 1
+    loss_weight: 0.1
 
   adversarial:
     type: GANLoss
