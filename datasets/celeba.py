@@ -1,6 +1,9 @@
 from typing import AnyStr
 from argparse import Namespace
-from .img_dataset import ImageDataset
+
+import utils.mode
+
+from .img_dataset import ImageDataset, make_dataset
 
 DATA_ROOT = "data/CelebA-HQ"
 
@@ -12,5 +15,12 @@ def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
 class CelebA_HQ(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
-        super(CelebA_HQ, self).__init__(mode=mode, args=args, data_root=data_root)
+
+        dataset = make_dataset(dir=data_root)
+        num_eval = min(int(args.data_spec.num_eval), int(len(dataset) * 0.025))
+        if mode == utils.mode.TRAIN:
+            dataset = dataset[:-num_eval]
+        else:
+            dataset = dataset[-num_eval:]
+        super(CelebA_HQ, self).__init__(mode=mode, args=args, dataset=dataset)
         self.__verbose__()

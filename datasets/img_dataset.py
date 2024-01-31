@@ -1,4 +1,5 @@
-from typing import AnyStr
+import os
+from typing import AnyStr, List
 from argparse import Namespace
 from glob import glob
 
@@ -12,78 +13,109 @@ torchvision.disable_beta_transforms_warning()
 from torch.utils.data import Dataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.transforms.functional import InterpolationMode
-from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop, RandomAffine,
-                                       ToImageTensor, ConvertImageDtype,
-                                       ScaleJitter, RandomCrop, Normalize,
-                                       RandomRotation, RandomHorizontalFlip)
-
+from torchvision.transforms.v2 import (Compose, Resize, CenterCrop,
+                                       ToImageTensor, ConvertImageDtype, RandomCrop)
+from torchvision.transforms.v2 import functional as tvf
 import utils
 from utils.logging_tool import get_logger
 
 from .utils import exists
 
 
+def make_dataset(dir, max_dataset_size=float("inf"), followlinks=True):
+    images = []
+    assert os.path.isdir(dir), '%s is not a valid directory' % dir
+
+    for root, _, fnames in sorted(os.walk(dir, followlinks=followlinks)):
+        for fname in fnames:
+            if is_image_file(fname):
+                path = os.path.join(root, fname)
+                images.append(path)
+    return images[:min(max_dataset_size, len(images))]
+
+
+def random_resize(x, target_size=256):
+    if torch.is_tensor(x):
+        h, w = x.shape[1:]
+    else:
+        h, w = x.size
+    if target_size <= h:
+        scale_factor = random.randint(target_size, h) / h
+        return tvf.resize(x, size=[int(h * scale_factor), int(w * scale_factor)],
+                          interpolation=InterpolationMode.BICUBIC, antialias=True)
+    else:
+        return x
+
+
+def random_flip(x, p=0.5):
+    return tvf.horizontal_flip(x) if random.random() < p else x
+
+
+def random_rotate(x, p=0.5):
+    if random.random() < p:
+        degree = random.choice([90, 270])
+        return tvf.rotate(x, degree)
+    return x
+
+
+def normalize(x, mean, std):
+    return tvf.normalize(x, mean=mean, std=std)
+
+
 class ImageDataset(Dataset):
 
-    def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr, sample_rate: int = 1, trace_data=True):
+    def __init__(self, mode: AnyStr, args: Namespace, dataset: List[AnyStr]):
         super(ImageDataset, self).__init__()
 
         self.mode = mode
-        if trace_data:
-            samples = list(filter(lambda fname: is_image_file(fname),
-                                  glob(f"{data_root}/**/*", recursive=True)))[::sample_rate]
 
-            self.num_eval = min(int(args.data_spec.num_eval), int(len(samples) * 0.025))
+        self.samples = dataset
 
-            if mode == utils.mode.TRAIN:
-                self.samples = samples[:-self.num_eval]
-            elif mode == utils.mode.EVAL:
-                self.samples = samples[-self.num_eval:]
-        transforms = []
+        self.use_rot = False
+        self.use_flip = False
+        self.use_random_size = False
+        cropper = []
+        to_tensor = []
         if self.mode == utils.mode.TRAIN:
-            if 'aug' in args.data_spec.keys():
-                aug_spec = args.data_spec.aug
-                if exists('train_resize', aug_spec):
-                    transforms.append(Resize(**aug_spec['train_resize']))
-                    transforms.append(RandomCrop(size=aug_spec['train_resize']['size']))
-                # if exists('rotate', aug_spec):
-                #     transforms.append(RandomRotation(**aug_spec['rotate'],
-                #                                      interpolation=InterpolationMode.BILINEAR,
-                #                                      fill=1))
-                if exists('flip', aug_spec):
-                    transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
-                # if exists('color_jitter', aug_spec):
-                #     transforms.append(ColorJitter(**aug_spec['color_jitter']))
-                if exists('scale_jitter', aug_spec):
-                    transforms.append(ScaleJitter(**aug_spec['scale_jitter'], antialias=True))
-                # if exists('random_affine', aug_spec):
-                #     transforms.append(RandomAffine(**aug_spec['random_affine']))
-                if exists('random_crop', aug_spec):
-                    transforms.append(RandomCrop(**aug_spec['random_crop']))
-                else:
-                    transforms.append(CenterCrop(**args.data_spec.aug.eval_resize))
-                self.use_rot = aug_spec.use_rot
+            to_tensor.append(Resize(args.data_spec.train_size * 2, antialias=True))
+            if args.data_spec.get('aug', False):
+                if args.data_spec.aug.get("use_orig", False):
+                    to_tensor[0] = RandomCrop(args.data_spec.train_size * 2, pad_if_needed=True, fill=1)
+                self.use_rot = args.data_spec.aug.get("use_rot", False)
+                self.use_flip = args.data_spec.aug.get("use_flip", False)
+                self.use_random_size = args.data_spec.aug.get("use_random_size", False)
+                self.gt_size = args.data_spec.train_size
+            cropper.append(RandomCrop(size=self.gt_size, pad_if_needed=True, fill=1))
+
         else:
-            self.use_rot = False
-            transforms.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
-            transforms.append(CenterCrop(**args.data_spec.aug.eval_resize))
+            cropper.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
+            cropper.append(CenterCrop(**args.data_spec.eval_resize))
 
-        transforms.extend([ToImageTensor(), ConvertImageDtype()])
+        to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
+        self.to_tensor = Compose(to_tensor)
 
-        if exists('normalize', args.data_spec.aug):
-            transforms.append(Normalize(**args.data_spec.aug.normalize))
+        self.normalize = args.data_spec.get("normalize", False)
 
-        self.transform = Compose(transforms)
+        self.cropper = Compose(cropper)
 
     def __len__(self):
         return len(self.samples)
 
     def __getitem__(self, index):
-        img = self.transform(Image.open(self.samples[index]).convert("RGB"))
-        if self.mode == utils.mode.TRAIN and self.use_rot:
-            if random.random() < 0.5:
-                degree = random.choice([90, 270])
-                img = torchvision.transforms.functional.rotate(img, degree)
+        img = self.to_tensor(Image.open(self.samples[index]).convert("RGB"))
+
+        if self.mode == utils.mode.TRAIN:
+            if self.use_random_size:
+                img = random_resize(img, target_size=self.gt_size)
+            if self.use_rot:
+                img = random_rotate(img)
+            if self.use_flip:
+                img = random_flip(img)
+
+        img = self.cropper(img)
+
+        if self.normalize:
+            img = normalize(img, [0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
 
         return img, img  # return identical image-pair
 

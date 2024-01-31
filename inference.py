@@ -11,8 +11,6 @@ from tqdm import tqdm
 
 import torch
 from torch.utils.data import DataLoader
-# from torchvision.transforms.functional import resize
-from torchvision.utils import save_image
 
 import ffmpeg
 from facexlib.detection import init_detection_model
