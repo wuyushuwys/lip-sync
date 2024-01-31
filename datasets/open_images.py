@@ -19,7 +19,7 @@ class OpenImages(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
 
-        super(OpenImages, self).__init__(mode=mode, args=args, data_root=data_root)
+        super(OpenImages, self).__init__(mode=mode, args=args, data_root=data_root, trace_data=False)
         self.mode = mode
         data_root = f"{DATA_ROOT}/{'train' if mode == 'train' else 'test'}/**/*"
         self.samples = list(filter(lambda fname: is_image_file(fname), glob(data_root, recursive=True)))
