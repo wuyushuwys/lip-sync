@@ -125,7 +125,7 @@ class VQGANModel(BasicModel):
 
             g_loss.backward()
 
-            torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.g_model).parameters(), 5)
+            # torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.g_model).parameters(), 5)
 
             self.g_optimizer.step()
             self.g_scheduler.step()
@@ -149,7 +149,7 @@ class VQGANModel(BasicModel):
                 l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
                 l_d_fake.backward()
 
-                torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.d_model).parameters(), 5)
+                # torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.d_model).parameters(), 5)
 
                 self.d_optimizer.step()
                 self.d_scheduler.step()
