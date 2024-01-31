@@ -88,8 +88,8 @@ class ImageDataset(Dataset):
             cropper.append(RandomCrop(size=self.gt_size, pad_if_needed=True, fill=1))
 
         else:
-            cropper.append(Resize(**args.data_spec.aug.eval_resize, antialias=True))
-            cropper.append(CenterCrop(**args.data_spec.eval_resize))
+            cropper.append(Resize(**args.data_spec.aug.eval_size, antialias=True))
+            cropper.append(CenterCrop(**args.data_spec.eval_size))
 
         to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
         self.to_tensor = Compose(to_tensor)
