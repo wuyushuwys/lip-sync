@@ -16,23 +16,27 @@ from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import (Compose, Resize, CenterCrop,
                                        ToImageTensor, ConvertImageDtype, RandomCrop)
 from torchvision.transforms.v2 import functional as tvf
+
 import utils
 from utils.logging_tool import get_logger
 
-from .utils import exists
 
+def make_dataset(dir, max_dataset_size=float("inf"), followlinks=True, method='glob'):
+    if method == 'os':
+        images = []
+        assert os.path.isdir(dir), '%s is not a valid directory' % dir
 
-def make_dataset(dir, max_dataset_size=float("inf"), followlinks=True):
-    images = []
-    assert os.path.isdir(dir), '%s is not a valid directory' % dir
-
-    for root, _, fnames in sorted(os.walk(dir, followlinks=followlinks)):
-        for fname in fnames:
-            if is_image_file(fname):
-                path = os.path.join(root, fname)
-                images.append(path)
-    return images[:min(max_dataset_size, len(images))]
-
+        for root, _, fnames in sorted(os.walk(dir, followlinks=followlinks)):
+            for fname in fnames:
+                if is_image_file(fname):
+                    path = os.path.join(root, fname)
+                    images.append(path)
+        return images[:min(max_dataset_size, len(images))]
+    elif method == 'glob':
+        images = list(filter(lambda x: is_image_file(x), glob(os.path.join(dir, '**', '*'), recursive=True)))
+        return images[:min(max_dataset_size, len(images))]
+    else:
+        raise NotImplementedError(f"{method} not implemented")
 
 def random_resize(x, target_size=256):
     if torch.is_tensor(x):
