@@ -275,7 +275,7 @@ class FeMaSRNet(nn.Module):
                  act_type='silu',
                  use_quantize=True,
                  use_residual=True,
-                 use_semantic_loss=True,
+                 use_semantic_loss=False,
                  **ignore_kwargs):
         super().__init__()
 
