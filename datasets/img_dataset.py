@@ -82,10 +82,10 @@ class ImageDataset(Dataset):
         cropper = []
         to_tensor = []
         if self.mode == utils.mode.TRAIN:
-            to_tensor.append(Resize(args.data_spec.train_size * 2, antialias=True))
+            to_tensor.append(Resize(size=int(args.data_spec.train_size * 2), antialias=True))
             if args.data_spec.get('aug', False):
                 if args.data_spec.aug.get("use_orig", False):
-                    to_tensor[0] = RandomCrop(args.data_spec.train_size * 2, pad_if_needed=True, fill=1)
+                    to_tensor[0] = RandomCrop(size=int(args.data_spec.train_size * 2), pad_if_needed=True, fill=1)
                 self.use_rot = args.data_spec.aug.get("use_rot", False)
                 self.use_flip = args.data_spec.aug.get("use_flip", False)
                 self.use_random_size = args.data_spec.aug.get("use_random_size", False)
@@ -93,8 +93,8 @@ class ImageDataset(Dataset):
             cropper.append(RandomCrop(size=self.gt_size, pad_if_needed=True, fill=1))
 
         else:
-            cropper.append(Resize(**args.data_spec.eval_size, antialias=True))
-            cropper.append(CenterCrop(**args.data_spec.eval_size))
+            cropper.append(Resize(size=args.data_spec.eval_size, antialias=True))
+            cropper.append(CenterCrop(size=args.data_spec.eval_size))
 
         to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
         self.to_tensor = Compose(to_tensor)
