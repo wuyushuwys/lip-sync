@@ -45,18 +45,19 @@ class ImageDataset(Dataset):
                 aug_spec = args.data_spec.aug
                 if exists('train_resize', aug_spec):
                     transforms.append(Resize(**aug_spec['train_resize']))
-                if exists('rotate', aug_spec):
-                    transforms.append(RandomRotation(**aug_spec['rotate'],
-                                                     interpolation=InterpolationMode.BILINEAR,
-                                                     fill=1))
+                    transforms.append(RandomCrop(size=aug_spec['train_resize']['size']))
+                # if exists('rotate', aug_spec):
+                #     transforms.append(RandomRotation(**aug_spec['rotate'],
+                #                                      interpolation=InterpolationMode.BILINEAR,
+                #                                      fill=1))
                 if exists('flip', aug_spec):
                     transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
-                if exists('color_jitter', aug_spec):
-                    transforms.append(ColorJitter(**aug_spec['color_jitter']))
+                # if exists('color_jitter', aug_spec):
+                #     transforms.append(ColorJitter(**aug_spec['color_jitter']))
                 if exists('scale_jitter', aug_spec):
                     transforms.append(ScaleJitter(**aug_spec['scale_jitter'], antialias=True))
-                if exists('random_affine', aug_spec):
-                    transforms.append(RandomAffine(**aug_spec['random_affine']))
+                # if exists('random_affine', aug_spec):
+                #     transforms.append(RandomAffine(**aug_spec['random_affine']))
                 if exists('random_crop', aug_spec):
                     transforms.append(RandomCrop(**aug_spec['random_crop']))
                 else:

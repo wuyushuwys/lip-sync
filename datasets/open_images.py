@@ -21,6 +21,6 @@ class OpenImages(ImageDataset):
 
         super(OpenImages, self).__init__(mode=mode, args=args, data_root=data_root)
         self.mode = mode
-        data_root = f"{DATA_ROOT}/{'train' if mode == 'train' else 'validation'}/**/*"
+        data_root = f"{DATA_ROOT}/{'train' if mode == 'train' else 'test'}/**/*"
         self.samples = list(filter(lambda fname: is_image_file(fname), glob(data_root, recursive=True)))
         self.__verbose__()
