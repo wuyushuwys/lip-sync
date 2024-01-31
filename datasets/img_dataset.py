@@ -15,7 +15,6 @@ from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import (Compose, ColorJitter, Resize, CenterCrop, RandomAffine,
                                        ToImageTensor, ConvertImageDtype,
                                        ScaleJitter, RandomCrop, Normalize,
-                                       RandomGrayscale, RandomAdjustSharpness,
                                        RandomRotation, RandomHorizontalFlip)
 
 import utils
