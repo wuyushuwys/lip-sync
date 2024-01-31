@@ -6,33 +6,19 @@ d_weight: null
 #warmup_iters: 100
 gan_starts: 0
 data_spec:
+  max_datasize: 1e6
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
+  train_size: 256
+  eval_size: 256
   aug:
-    train_resize:
-      size: 512
-    flip:
-      p: 0.5
+    use_orig: false  # using original resolution ( false will resize to 2*train_size, true will crop 2*train_size)
+    use_flip: true
     use_rot: true
-    #    color_jitter:
-    #      brightness: 0.1
-    #      contrast: 0.1
-    #      saturation: 0.1
-    #      hue: 0.1
-    scale_jitter:
-      target_size: [ 512, 512 ]
-      scale_range: [ 0.5, 1 ]
-    random_crop:
-      size: 256
-      pad_if_needed: true
-      padding_mode: edge
+    use_random_size: true
     #    normalize:
     #      std: [ 0.5, 0.5, 0.5 ]
     #      mean: [ 0.5, 0.5, 0.5 ]
-
-    # only used in eval set
-    eval_resize:
-      size: 256
 
 #g_model:
 #  img_size: 256
