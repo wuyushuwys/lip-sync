@@ -1,4 +1,3 @@
-
 from typing import AnyStr
 from argparse import Namespace
 
@@ -16,11 +15,10 @@ def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
 class OpenImages(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
-
-        super(OpenImages, self).__init__(mode=mode, args=args, data_root=data_root, trace_data=False)
         self.mode = mode
-        with open(f"{DATA_ROOT}/{'train.txt' if mode == utils.mode.TRAIN else 'validation.txt'}", 'r') as files:
-            self.samples = files.read().splitlines()
+        with open(f"{data_root}/{'train.txt' if mode == utils.mode.TRAIN else 'validation.txt'}", 'r') as files:
+            dataset = files.read().splitlines()[:args.data_spec.max_datasize]
 
-        # self.samples = list(filter(lambda fname: is_image_file(fname), glob(data_root, recursive=True)))
+        super(OpenImages, self).__init__(mode=mode, args=args, dataset=dataset)
+
         self.__verbose__()
