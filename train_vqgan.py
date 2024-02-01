@@ -92,6 +92,8 @@ def main(args):
 
     if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
+        if args.eval_only:
+            return logger.info('Finish evaluation')
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train

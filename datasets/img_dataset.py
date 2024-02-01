@@ -99,7 +99,7 @@ class ImageDataset(Dataset):
         to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
         self.to_tensor = Compose(to_tensor)
 
-        self.normalize = args.data_spec.get("normalize", False)
+        self.normalize = args.data_spec.get("normalize", None)
 
         self.cropper = Compose(cropper)
 
@@ -119,8 +119,8 @@ class ImageDataset(Dataset):
 
         img = self.cropper(img)
 
-        if self.normalize:
-            img = normalize(img, [0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5])
+        if self.normalize is not None:
+            img = normalize(img, mean=self.normalize.mean, std=self.normalize.std)
 
         return img, img  # return identical image-pair
 

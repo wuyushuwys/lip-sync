@@ -21,8 +21,8 @@ from logging import Logger
 from .utils import reduce_all
 from .metrics import calculate_psnr_pt
 
-psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=0))
-psnr_y = compute_per_image(partial(calculate_psnr_pt, crop_border=0, test_y_channel=True))
+psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=4))
+psnr_y = compute_per_image(partial(calculate_psnr_pt, crop_border=4, test_y_channel=True))
 
 
 @torch.no_grad()
@@ -67,9 +67,14 @@ def test(dataloader: DataLoader,
         x = x.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
 
+        not_scaled = y.min() < 0
+
         pred_y, codebook_loss, latent = model(x)
-        # pred_y = (pred_y + 1) / 2
-        # y = (y + 1) / 2
+
+        if not_scaled:
+            pred_y = (pred_y + 1) / 2
+            y = (y + 1) / 2
+
         recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, val=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
