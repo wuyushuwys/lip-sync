@@ -123,11 +123,11 @@ class LipSyncGAN(BasicModel):
             self.d_optimizer.zero_grad()
 
             real_d_pred = self.d_model(face_rearrange(y))
-            l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True) * 0.5
+            l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
             l_d_real.backward()
 
-            fake_d_pred = self.d_model(face_rearrange(pred_y.detach().clone()))
-            l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True) * 0.5
+            fake_d_pred = self.d_model(face_rearrange(pred_y.detach()))
+            l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
             l_d_fake.backward()
 
             self.d_optimizer.step()
