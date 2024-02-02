@@ -201,15 +201,27 @@ class FrameMelDataset(Dataset):
         return window
 
     def _load_lipsync_train_data(self, frame_list, audio_file):
+        false_offset = random.randint(self.video_spec.fps, self.video_spec.fps * 2)  # range for false frame
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 3
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 2
                 skip_end = len(frame_list) - self.window_size - 3
-            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+            idx = random.sample(range(skip_start, skip_end), 1)
+            if idx + false_offset < len(frame_list) - self.window_size:
+                idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+            else:
+                false_idx = idx + false_offset
+
         else:
-            idx, false_idx = random.sample(range(2, len(frame_list) - self.window_size - 3), 2)
+            skip_start = 2
+            skip_end = len(frame_list) - self.window_size - 3
+            idx = random.sample(range(skip_start, skip_end), 1)
+            if idx + false_offset < len(frame_list) - self.window_size:
+                idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+            else:
+                false_idx = idx + false_offset
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
