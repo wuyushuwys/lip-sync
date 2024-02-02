@@ -4,6 +4,7 @@ d_weight: null
 #ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
 #warmup_lr: true
 #warmup_iters: 100
+scale_lr: true
 gan_starts: 0
 clip_grad: 5
 data_spec:
@@ -51,19 +52,19 @@ optim:
   - type: Adam
     lr: !!float 4e-4
     betas: [ 0.9, 0.999 ]
-
-scheduler:
-  type: MultiStepLR
-  milestones: [ 1 ]
-  gamma: 1
+#
+#scheduler:
+#  type: MultiStepLR
+#  milestones: [ 1 ]
+#  gamma: 1
 
 #scheduler:
 #  type: PolynomialLR
 #  power: 0.9
 
-#scheduler:
-#  type: CosineAnnealingLR
-#  eta_min: 1.0e-7
+scheduler:
+  type: CosineAnnealingLR
+  eta_min: 1.0e-5
 
 
 losses:
