@@ -5,8 +5,9 @@ d_weight: null
 #warmup_lr: true
 #warmup_iters: 100
 gan_starts: 0
+clip_grad: 5
 data_spec:
-  max_datasize: 1e6
+  max_datasize: 100000
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
   train_size: 256
