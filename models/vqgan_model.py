@@ -57,6 +57,8 @@ class VQGANModel(BasicModel):
         self.semantic_weight = args.losses.semantic_loss.loss_weight if 'semantic_loss' in args.losses.keys() else None
         self.logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
 
+        self.clip_grad = args.get('clip_grad', False)
+
     @staticmethod
     def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight_max):
         recon_grads = torch.autograd.grad(recon_loss, last_layer, retain_graph=True)[0]
@@ -125,7 +127,8 @@ class VQGANModel(BasicModel):
 
             g_loss.backward()
 
-            # torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.g_model).parameters(), 5)
+            if self.clip_grad:
+                torch.nn.utils.clip_grad_norm_(self.model_no_ddp(self.g_model).parameters(), self.clip_grad)
 
             self.g_optimizer.step()
             self.g_scheduler.step()
@@ -149,7 +152,8 @@ class VQGANModel(BasicModel):
                 l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
                 l_d_fake.backward()
 
-                # torch.nn.utils.clip_grad_value_(self.model_no_ddp(self.d_model).parameters(), 5)
+                if self.clip_grad:
+                    torch.nn.utils.clip_grad_norm_(self.model_no_ddp(self.d_model).parameters(), self.clip_grad)
 
                 self.d_optimizer.step()
                 self.d_scheduler.step()
