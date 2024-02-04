@@ -6,7 +6,7 @@ d_weight: null
 #warmup_iters: 100
 scale_lr: true
 gan_starts: 0
-clip_grad: 5
+#clip_grad: 5
 data_spec:
   max_datasize: 100000
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
@@ -35,12 +35,20 @@ data_spec:
 #  ndf: 64
 #  n_layers: 4
 
+#g_model:
+#  gt_resolution: 256
+#  norm_type: 'gn'
+#  act_type: 'silu'
+#  codebook_params: # has to order from low to high
+#    - [ 32, 512, 256 ]
+
 g_model:
   gt_resolution: 256
   norm_type: 'gn'
   act_type: 'silu'
-  codebook_params: # has to order from low to high
-    - [ 32, 512, 256 ]
+  codebook_scale: 32
+  codebook_size: 256
+  emb_dim: 256
 
 d_model:
   num_in_ch: 3
@@ -80,7 +88,7 @@ losses:
   #    type: PerceptualLoss
   #    layer_weights: { '2': 0.1, '7': 0.1, '16': 1, '25': 1, '34': 1, }
   #    vgg_type: 'vgg19'
-  #    norm_img: False
+  #    norm_img: true
   #    criterion: 'l1'
   #    perceptual_weight: 1
 
