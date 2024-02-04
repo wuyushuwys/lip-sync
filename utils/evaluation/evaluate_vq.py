@@ -63,7 +63,7 @@ def test(dataloader: DataLoader,
     loss_dict["lpips[alex]"] = AverageMeter()
     ssim = compute_per_image(SSIM(data_range=1))
     ms_ssim = compute_per_image(MS_SSIM(data_range=1))
-    lpips = LPIPSLoss(loss_weight=1, lpips_loss_arch='alex')
+    lpips = LPIPSLoss(loss_weight=1, lpips_loss_arch='alex').to(args.local_rank)
 
     for idx, (x, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
