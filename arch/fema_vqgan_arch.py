@@ -9,9 +9,17 @@ from torch import nn as nn
 
 from torchvision.utils import make_grid
 
-from arch.vgg_arch import PerceptualVGG
+from utils.logging_tool import get_logger
 
-VQInfo = namedtuple('VQInfo', ['z', 'z_q', 'codebook_loss', 'semantic_loss', 'indices'])
+from arch.vgg_arch import PerceptualVGG
+from arch.quantizer_arch import VectorQuantizer, GumbelQuantizer
+
+VQInfo = namedtuple('VQInfo', ['z', 'z_q', 'codebook_loss', 'semantic_loss', 'quantizer_info'])
+
+
+@torch.jit.script
+def swish(x):
+    return x * torch.sigmoid(x)
 
 
 class NormLayer(nn.Module):
@@ -69,6 +77,8 @@ class ActLayer(nn.Module):
             self.func = nn.SiLU(True)
         elif relu_type == 'gelu':
             self.func = nn.GELU()
+        elif relu_type == 'swish':
+            self.norm = lambda x: swish(x)
         else:
             assert 1 == 0, 'activation type {} not support.'.format(relu_type)
 
@@ -113,101 +123,6 @@ class CombineQuantBlock(nn.Module):
             input = input1
         out = self.conv(input)
         return out
-
-
-class VectorQuantizer(nn.Module):
-    """
-    see https://github.com/MishaLaskin/vqvae/blob/d761a999e2267766400dc646d82d3ac3657771d4/models/quantizer.py
-    ____________________________________________
-    Discretization bottleneck part of the VQ-VAE.
-    Inputs:
-    - n_e : number of embeddings
-    - e_dim : dimension of embedding
-    - beta : commitment cost used in loss term, beta * ||z_e(x)-sg[e]||^2
-    _____________________________________________
-    """
-
-    def __init__(self, n_e, e_dim, beta=0.25):
-        super().__init__()
-        self.n_e = int(n_e)  # codebook size
-        self.e_dim = int(e_dim)  # number of embeddings
-        self.beta = beta
-        self.embedding = nn.Embedding(self.n_e, self.e_dim)
-        self.embedding.weight.data.uniform_(-1.0 / self.n_e, 1.0 / self.n_e)
-
-    def dist(self, x, y):
-        return torch.sum(x ** 2, dim=1, keepdim=True) + \
-            torch.sum(y ** 2, dim=1) - 2 * \
-            torch.matmul(x, y.t())
-
-    def gram_loss(self, x, y):
-        b, h, w, c = x.shape
-        x = x.reshape(b, h * w, c)
-        y = y.reshape(b, h * w, c)
-
-        gmx = x.transpose(1, 2) @ x / (h * w)
-        gmy = y.transpose(1, 2) @ y / (h * w)
-
-        return (gmx - gmy).square().mean()
-
-    def forward(self, z, gt_indices=None):
-        """
-        Args:
-            z: input features to be quantized, z (continuous) -> z_q (discrete)
-               z.shape = (batch, channel, height, width)
-            gt_indices: feature map of given indices, used for visualization.
-        """
-        # reshape z -> (batch, height, width, channel) and flatten
-        z = z.permute(0, 2, 3, 1).contiguous()
-        z_flattened = z.view(-1, self.e_dim)
-
-        codebook = self.embedding.weight
-
-        d = self.dist(z_flattened, codebook)
-
-        # find closest encodings
-        min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
-        min_encodings = torch.zeros(min_encoding_indices.shape[0], codebook.shape[0]).to(z)
-        min_encodings.scatter_(1, min_encoding_indices, 1)
-
-        if gt_indices is not None:
-            gt_indices = gt_indices.reshape(-1)
-
-            gt_min_indices = gt_indices.reshape_as(min_encoding_indices)
-            gt_min_onehot = torch.zeros(gt_min_indices.shape[0], codebook.shape[0]).to(z)
-            gt_min_onehot.scatter_(1, gt_min_indices, 1)
-
-            z_q_gt = torch.matmul(gt_min_onehot, codebook)
-            z_q_gt = z_q_gt.view(z.shape)
-
-        # get quantized latent vectors
-        z_q = torch.matmul(min_encodings, codebook)
-        z_q = z_q.view(z.shape)
-
-        e_latent_loss = torch.mean((z_q.detach() - z) ** 2)
-        q_latent_loss = torch.mean((z_q - z.detach()) ** 2)
-
-        codebook_loss = q_latent_loss + e_latent_loss * self.beta
-
-        # preserve gradients
-        z_q = z + (z_q - z).detach()
-
-        # reshape back to match original input shape
-        z_q = z_q.permute(0, 3, 1, 2).contiguous()
-
-        return z_q, codebook_loss, min_encoding_indices.reshape(z_q.shape[0], 1, z_q.shape[2], z_q.shape[3])
-
-    def get_codebook_entry(self, indices):
-        b, _, h, w = indices.shape
-
-        indices = indices.flatten().to(self.embedding.weight.device)
-        min_encodings = torch.zeros(indices.shape[0], self.n_e).to(indices)
-        min_encodings.scatter_(1, indices[:, None], 1)
-
-        # get quantized latent vectors
-        z_q = torch.matmul(min_encodings.float(), self.embedding.weight)
-        z_q = z_q.view(b, h, w, -1).permute(0, 3, 1, 2).contiguous()
-        return z_q
 
 
 class MultiScaleEncoder(nn.Module):
@@ -373,7 +288,7 @@ class FeMaSRNet(nn.Module):
                 vgg_feat = self.vgg_feat_extractor(input)[self.vgg_feat_layer]
 
         codebook_loss_list = []
-        indices_list = []
+        quantizer_info_list = []
         semantic_loss_list = []
 
         quant_idx = 0
@@ -392,10 +307,10 @@ class FeMaSRNet(nn.Module):
                 feat_to_quant = self.before_quant_group[quant_idx](before_quant_feat)
 
                 if gt_indices is not None:
-                    z_quant, codebook_loss, indices = self.quantize_group[quant_idx](feat_to_quant,
-                                                                                     gt_indices[quant_idx])
+                    z_quant, codebook_loss, quantizer_info = self.quantize_group[quant_idx](feat_to_quant,
+                                                                                            gt_indices[quant_idx])
                 else:
-                    z_quant, codebook_loss, indices = self.quantize_group[quant_idx](feat_to_quant)
+                    z_quant, codebook_loss, quantizer_info = self.quantize_group[quant_idx](feat_to_quant)
 
                 if self.use_semantic_loss and self.training:
                     semantic_z_quant = self.conv_semantic(z_quant)
@@ -408,7 +323,7 @@ class FeMaSRNet(nn.Module):
                 after_quant_feat = self.after_quant_group[quant_idx](z_quant, prev_quant_feat)
 
                 codebook_loss_list.append(codebook_loss)
-                indices_list.append(indices)
+                quantizer_info_list.append(quantizer_info)
 
                 quant_idx += 1
                 prev_quant_feat = z_quant
@@ -423,11 +338,11 @@ class FeMaSRNet(nn.Module):
         semantic_loss = sum(semantic_loss_list) if len(semantic_loss_list) else codebook_loss * 0
         if self.use_semantic_loss and self.training:
             return out_img, VQInfo(z=enc_feats[0], z_q=z_quant, codebook_loss=codebook_loss,
-                                   semantic_loss=semantic_loss, indices=indices_list)
+                                   semantic_loss=semantic_loss, quantizer_info=quantizer_info_list)
             # return out_img, codebook_loss, semantic_loss, indices_list
         else:
             return out_img, VQInfo(z=enc_feats[0], z_q=z_quant, codebook_loss=codebook_loss,
-                                   semantic_loss=None, indices=indices_list)
+                                   semantic_loss=None, quantizer_info=quantizer_info_list)
             # return out_img, codebook_loss, indices_list
 
     def decode_indices(self, indices):
@@ -549,24 +464,28 @@ class FaceCoderNet(nn.Module):
     def __init__(self,
                  *,
                  in_channel=3,
-                 codebook_scale=32, codebook_size=1024, emb_dim=512, beta=0.25,
+                 codebook_scale=32, codebook_size=1024, emb_dim=512,
+                 quantizer="nearest",
+                 beta=0.25,
+                 gumbel_kl_weight=1e-8,
+                 gumbel_straight_through=False,
                  gt_resolution=256,
                  norm_type='gn',
                  act_type='silu',
                  use_quantize=True,
-                 use_residual=True,
+
                  **ignore_kwargs):
         super(FaceCoderNet, self).__init__()
+        logger = get_logger()
 
         self.codebook_scale = codebook_scale
         self.codebook_size = codebook_size
         self.embed_dim = emb_dim
-        self.beta = beta
+        self.quantizer_type = quantizer
 
         self.use_quantize = use_quantize
         self.in_channel = in_channel
         self.gt_res = gt_resolution
-        self.use_residual = use_residual
 
         channel_query_dict = {
             8: 256,
@@ -598,8 +517,24 @@ class FaceCoderNet(nn.Module):
 
         self.out_conv = nn.Conv2d(out_ch, 3, 3, 1, 1)
 
+        if self.quantizer_type == "nearest":
+            self.beta = beta  # 0.25
+            self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+        elif self.quantizer_type == "gumbel":
+            self.gumbel_num_hiddens = emb_dim
+            self.straight_through = gumbel_straight_through
+            self.kl_weight = gumbel_kl_weight
+            self.quantizer = GumbelQuantizer(
+                self.codebook_size,
+                self.embed_dim,
+                self.gumbel_num_hiddens,
+                self.straight_through,
+                self.kl_weight
+            )
+        logger.info(f'VQAutoEncoder quantizer: {self.quantizer_type} '
+                    f'codebook_size: {self.codebook_size} embed_dim: {self.embed_dim}')
         # build vector quantizer
-        self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+        # self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
 
         scale_in_ch = channel_query_dict[self.codebook_scale]
 
@@ -611,8 +546,8 @@ class FaceCoderNet(nn.Module):
         x = self.before_quant(x)
         return x
 
-    def quantize(self, z, gt_indices=None):
-        z_q, codebook_loss, indices = self.quantizer(z, gt_indices)
+    def quantize(self, z):
+        z_q, codebook_loss, indices = self.quantizer(z)
         return z_q, codebook_loss, indices
 
     def decode(self, z_q):
@@ -631,9 +566,9 @@ class FaceCoderNet(nn.Module):
 
         feat_to_quant = self.before_quant(x)
         if gt_indices is not None:
-            z_quant, codebook_loss, indices = self.quantizer(feat_to_quant, gt_indices)
+            z_quant, codebook_loss, quantizer_info = self.quantizer(feat_to_quant, gt_indices)
         else:
-            z_quant, codebook_loss, indices = self.quantizer(feat_to_quant)
+            z_quant, codebook_loss, quantizer_info = self.quantizer(feat_to_quant)
 
         if not self.use_quantize:
             z_quant = feat_to_quant
@@ -648,7 +583,7 @@ class FaceCoderNet(nn.Module):
         # return out_img, codebook_loss, indices
 
         return out_img, VQInfo(z=feat_to_quant, z_q=z_quant, codebook_loss=codebook_loss,
-                               semantic_loss=None, indices=indices)
+                               semantic_loss=None, quantizer_info=quantizer_info)
 
     def decode_indices(self, indices):
         assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
@@ -657,13 +592,14 @@ class FaceCoderNet(nn.Module):
         out_img = self.decode(z_q)
         return out_img
 
-    def forward(self, x, gt_indices=None):
+    def forward(self, x):
 
         z = self.encode(x)
-        z_q, codebook_loss, indices = self.quantize(z, gt_indices)
+        z_q, codebook_loss, quantizer_info = self.quantize(z)
         output = self.decode(z_q if self.use_quantize else z)
 
-        return output, VQInfo(z=z, z_q=z_q, codebook_loss=codebook_loss, semantic_loss=None, indices=indices)
+        return output, VQInfo(z=z, z_q=z_q, codebook_loss=codebook_loss, semantic_loss=None,
+                              quantizer_info=quantizer_info)
 
     @torch.no_grad()
     def vis_codebook(self, up_factor=2, norm=True):

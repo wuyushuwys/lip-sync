@@ -93,11 +93,11 @@ def test(dataloader: DataLoader,
             perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
-        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))
+        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
-        loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
-        loss_dict['SSIM'].update(ssim(pred_y, y))
+        loss_dict['PSNR'].update(reduce_all(psnr(pred_y, y).mean()), bsz)
+        loss_dict['SSIM'].update(reduce_all(ssim(pred_y, y)), bsz)
 
     return loss_dict
 

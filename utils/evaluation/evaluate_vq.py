@@ -17,6 +17,7 @@ from utils.helpers import compute_per_image
 from utils.init_utils import master_only
 from utils.logger_utils import eval_tb_writer
 from logging import Logger
+from losses import LPIPSLoss
 
 from .utils import reduce_all
 from .metrics import calculate_psnr_pt
@@ -59,8 +60,10 @@ def test(dataloader: DataLoader,
     loss_dict["SSIM"] = AverageMeter()
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
+    loss_dict["lpips[alex]"] = AverageMeter()
     ssim = compute_per_image(SSIM(data_range=1))
     ms_ssim = compute_per_image(MS_SSIM(data_range=1))
+    lpips = LPIPSLoss(loss_weight=1, lpips_loss_arch='alex')
 
     for idx, (x, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
@@ -84,9 +87,10 @@ def test(dataloader: DataLoader,
 
         save_sample_images(pred_y, y, idx, epoch, img_folder)
 
-        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y), bsz)
-        loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
-        loss_dict['SSIM'].update(ssim(pred_y, y), bsz)
+        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
+        loss_dict['PSNR'].update(reduce_all(psnr(pred_y, y).mean()), bsz)
+        loss_dict['SSIM'].update(reduce_all(ssim(pred_y, y)), bsz)
+        loss_dict['LPIPS'].update(reduce_all(lpips(pred_y, y, True)), bsz)
 
     return loss_dict
 
