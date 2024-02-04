@@ -16,8 +16,8 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.codeformer_vqgan_arch import VQAutoEncoder, VQGANDiscriminator
-from arch.adacode_arch import AdaCodeSRNet
+# from arch.codeformer_vqgan_arch import VQAutoEncoder, VQGANDiscriminator
+# from arch.adacode_arch import AdaCodeSRNet
 from arch.fema_vqgan_arch import FeMaSRNet, FaceCoderNet
 from arch.discriminator_arch import UNetDiscriminatorSN
 from models.vqgan_model import VQGANModel
