@@ -69,7 +69,7 @@ def test(dataloader: DataLoader,
 
         not_scaled = y.min() < 0
 
-        pred_y, codebook_loss, latent = model(x)
+        pred_y, vq_info = model(x)
 
         if not_scaled:
             pred_y = (pred_y + 1) / 2
@@ -84,9 +84,9 @@ def test(dataloader: DataLoader,
 
         save_sample_images(pred_y, y, idx, epoch, img_folder)
 
-        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))
+        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y), bsz)
         loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
-        loss_dict['SSIM'].update(ssim(pred_y, y))
+        loss_dict['SSIM'].update(ssim(pred_y, y), bsz)
 
     return loss_dict
 

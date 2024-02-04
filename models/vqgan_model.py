@@ -94,10 +94,7 @@ class VQGANModel(BasicModel):
 
             self.g_optimizer.zero_grad()
 
-            if self.model_no_ddp(self.g_model).use_semantic_loss:
-                pred_y, codebook_loss, semantic_loss, quant_stats = self.g_model(x)
-            else:
-                pred_y, codebook_loss, quant_stats = self.g_model(x)
+            pred_y, vq_info = self.g_model(x)
 
             if 'recon_loss' in self.criterion.keys():
                 recon_loss = self.criterion['recon_loss'](pred_y, y)
@@ -109,10 +106,10 @@ class VQGANModel(BasicModel):
             else:
                 perceptual_loss = 0
 
-            g_loss = recon_loss + perceptual_loss + codebook_loss * self.codebook_weight
+            g_loss = recon_loss + perceptual_loss + vq_info.codebook_loss * self.codebook_weight
 
-            if self.model_no_ddp(self.g_model).use_semantic_loss:
-                g_loss += semantic_loss * self.semantic_weight
+            # if self.model_no_ddp(self.g_model).use_semantic_loss:
+            #     g_loss += vq_info.semantic_loss * self.semantic_weight
 
             if self.curr_iterations > self.gan_starts:
                 fake_g_pred = self.d_model(pred_y)
@@ -161,10 +158,10 @@ class VQGANModel(BasicModel):
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
             log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
-            log_vars['codebook_loss'] = codebook_loss
+            log_vars['codebook_loss'] = vq_info.codebook_loss
             log_vars['@g_loss'] = g_loss
-            if self.model_no_ddp(self.g_model).use_semantic_loss:
-                log_vars['semantic_loss'] = semantic_loss
+            # if self.model_no_ddp(self.g_model).use_semantic_loss:
+            #     log_vars['semantic_loss'] = vq_info.semantic_loss
 
             if self.curr_iterations > self.gan_starts:
                 log_vars['adversarial_loss'] = adversarial_loss
