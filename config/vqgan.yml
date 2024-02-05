@@ -18,9 +18,9 @@ data_spec:
     use_flip: true
     use_rot: true
     use_random_size: true
-    #    normalize:
-    #      std: [ 0.5, 0.5, 0.5 ]
-    #      mean: [ 0.5, 0.5, 0.5 ]
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
 
 #g_model:
 #  img_size: 256
@@ -47,8 +47,9 @@ g_model:
   norm_type: 'gn'
   act_type: 'silu'
   codebook_scale: 32
-  codebook_size: 256
+  codebook_size: 512
   emb_dim: 256
+  quantizer_type: nearest
 
 d_model:
   num_in_ch: 3
@@ -94,9 +95,9 @@ losses:
 
   codebook_loss:
     loss_weight: 1
-
-  semantic_loss:
-    loss_weight: 0.1
+#
+#  semantic_loss:
+#    loss_weight: 0.1
 
   adversarial:
     type: GANLoss

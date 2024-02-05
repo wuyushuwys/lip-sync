@@ -89,6 +89,7 @@ def test(dataloader: DataLoader,
 
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         loss_dict['PSNR'].update(reduce_all(psnr(pred_y, y).mean()), bsz)
+        loss_dict['PSNR_y'].update(reduce_all(psnr_y(pred_y, y).mean()), bsz)
         loss_dict['SSIM'].update(reduce_all(ssim(pred_y, y)), bsz)
         loss_dict["lpips[alex]"].update(reduce_all(lpips(pred_y, y, True)), bsz)
 

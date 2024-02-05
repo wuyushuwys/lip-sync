@@ -12,7 +12,7 @@ from torchvision.utils import make_grid
 from utils.logging_tool import get_logger
 
 from arch.vgg_arch import PerceptualVGG
-from arch.quantizer_arch import VectorQuantizer, GumbelQuantizer
+from arch.quantizer_arch import VectorQuantizer, GumbelQuantizer, VectorQuantizer2
 
 VQInfo = namedtuple('VQInfo', ['z', 'z_q', 'codebook_loss', 'semantic_loss', 'quantizer_info'])
 
@@ -520,6 +520,9 @@ class FaceCoderNet(nn.Module):
         if self.quantizer_type == "nearest":
             self.beta = beta  # 0.25
             self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+        elif self.quantizer_type == "nearest2":
+            self.beta = beta  # 0.25
+            self.quantizer = VectorQuantizer2(self.codebook_size, self.embed_dim, self.beta)
         elif self.quantizer_type == "gumbel":
             self.gumbel_num_hiddens = emb_dim
             self.straight_through = gumbel_straight_through
@@ -556,34 +559,6 @@ class FaceCoderNet(nn.Module):
             x = decoder_layer(x)
         x = self.out_conv(x)
         return x
-
-    def encode_and_decode(self, input, gt_indices=None):
-        enc_feats = self.multiscale_encoder(input.detach())
-
-        # enc_feats = enc_feats[::-1]
-
-        x = enc_feats
-
-        feat_to_quant = self.before_quant(x)
-        if gt_indices is not None:
-            z_quant, codebook_loss, quantizer_info = self.quantizer(feat_to_quant, gt_indices)
-        else:
-            z_quant, codebook_loss, quantizer_info = self.quantizer(feat_to_quant)
-
-        if not self.use_quantize:
-            z_quant = feat_to_quant
-
-        x = self.after_quant(z_quant)
-
-        for i in range(self.max_depth):
-            x = self.decoder_group[i](x)
-
-        out_img = self.out_conv(x)
-
-        # return out_img, codebook_loss, indices
-
-        return out_img, VQInfo(z=feat_to_quant, z_q=z_quant, codebook_loss=codebook_loss,
-                               semantic_loss=None, quantizer_info=quantizer_info)
 
     def decode_indices(self, indices):
         assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
