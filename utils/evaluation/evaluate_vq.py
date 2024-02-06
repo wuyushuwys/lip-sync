@@ -61,6 +61,7 @@ def test(dataloader: DataLoader,
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
     loss_dict["lpips[alex]"] = AverageMeter()
+    loss_dict['PSNR_y'] = AverageMeter()
     ssim = compute_per_image(SSIM(data_range=1))
     ms_ssim = compute_per_image(MS_SSIM(data_range=1))
     lpips = LPIPSLoss(loss_weight=1, lpips_loss_arch='alex').to(args.local_rank)
