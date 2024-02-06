@@ -550,8 +550,8 @@ class FaceCoderNet(nn.Module):
         return x
 
     def quantize(self, z):
-        z_q, codebook_loss, indices = self.quantizer(z)
-        return z_q, codebook_loss, indices
+        z_q, codebook_loss, quantizer_info = self.quantizer(z)
+        return z_q, codebook_loss, quantizer_info
 
     def decode(self, z_q):
         x = self.after_quant(z_q)
