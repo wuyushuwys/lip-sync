@@ -314,6 +314,9 @@ class DoubleConditionedMAGE(nn.Module):
         print(logits.shape)
         return loss, imgs, token_all_mask
 
+    def __str__(self):
+        return self.__class__.__name__.lower()
+
 
 class TransformerEncoder(nn.Module):
 
