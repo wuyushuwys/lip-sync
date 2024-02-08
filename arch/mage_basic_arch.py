@@ -107,11 +107,15 @@ class CrossAttention(nn.Module):
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
 
-    def forward(self, x_query, x_key, x_value):
+    def forward(self, x_query, x_key=None, x_value=None):
+        """
+        when both x_key and x_value are None then self-attention
+        """
+
         # Linear transformations for query, key, and value
         q = self.query(x_query)
-        k = self.key(x_key)
-        v = self.value(x_value)
+        k = self.key(x_key if x_key is not None else x_query)
+        v = self.value(x_value if x_value is not None else x_query)
 
         # Reshape and permute for multi-head attention
         B, N_query, C = q.shape
