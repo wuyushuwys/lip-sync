@@ -153,6 +153,7 @@ class MultiScaleEncoder(nn.Module):
             ]
             self.blocks.append(nn.Sequential(*tmp_down_block))
             res = res // 2
+        self.latent_resolution = res
 
     def forward(self, x, return_latent=False):
         if return_latent:
@@ -507,6 +508,7 @@ class FaceCoderNet(nn.Module):
             channel_query_dict,
             norm_type, act_type
         )
+        self.latent_resolution = self.multiscale_encoder.latent_resolution
 
         # build decoder
         self.decoder_group = nn.ModuleList()

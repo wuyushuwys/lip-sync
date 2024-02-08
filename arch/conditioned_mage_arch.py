@@ -4,12 +4,13 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+
 import scipy.stats as stats
 
 from omegaconf import OmegaConf
+from einops import rearrange
 
-from .mage_basic_arch import (LabelSmoothingCrossEntropy, MlmLayer, Block, NewBlock,
-                              BertEmbeddings, PatchEmbed)
+from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .audionet_arch import AudioNet
 from .ops import get_2d_sincos_pos_embed
@@ -42,7 +43,7 @@ class DoubleConditionedMAGE(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
-                 vq_config_path='config/vqgan.yml'):
+                 vq_config_path='config/vqgan.yml', use_audio_reference=True, use_image_reference=True):
         super().__init__()
 
         # --------------------------------------------------------------------------
@@ -55,12 +56,9 @@ class DoubleConditionedMAGE(nn.Module):
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
-        vocab_size = self.codebook_size + 1000 + 1  # 1024 codebook size, 1000 classes, 1 for mask token.
-        self.fake_class_label = self.codebook_size + 1100 - 1024
-        self.mask_token_label = vocab_size - 1
-
-        # create audio encoder based on VQ embed_dim
-        self.audio_net = AudioNet(emb_dim=decoder_embed_dim)
+        vocab_size = self.codebook_size + 1 + 1  # codebook size, 1 for mask token, 1 for fake_label
+        self.fake_class_label = self.codebook_size  # [0, ..., codebook_size - 1, fake_class_label, mask_token_label
+        self.mask_token_label = self.codebook_size + 1
 
         # froze the pretrained vqgan model
         for param in self.vqgan.parameters():
@@ -71,6 +69,16 @@ class DoubleConditionedMAGE(nn.Module):
         print(f"Vocab Size: {vocab_size}")
         print(f"Fake Class Label: {self.fake_class_label}")
         print(f"Mask Token Label: {self.mask_token_label}")
+
+        # create audio encoder based on decoder_embed_dim
+        self.use_audio_reference = use_audio_reference
+        if use_audio_reference:
+            self.audio_net = AudioNet(emb_dim=decoder_embed_dim)
+
+        # create image reference mapping that map img ref emb_dim to decoder_embed_dim
+        self.use_image_reference = use_image_reference
+        if use_image_reference:
+            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim)
 
         self.token_emb = BertEmbeddings(vocab_size=vocab_size,
                                         hidden_size=embed_dim,
@@ -88,17 +96,14 @@ class DoubleConditionedMAGE(nn.Module):
         # patch_embed, cls_token, pos_embed is never used in MAGE Encoder
         # check whether need to apply pos_embed for Encoder, not sure about this
         dropout_rate = 0.1
-        self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
-        num_patches = self.patch_embed.num_patches
+        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
+        # num_patches = self.patch_embed.num_patches
+        num_patches = self.vqgan.latent_resolution ** 2
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
                                       requires_grad=False)  # fixed sin-cos embedding
 
-        # self.blocks = nn.ModuleList([
-        #     Block(embed_dim, num_heads, mlp_ratio, qkv_bias=True, qk_scale=None, norm_layer=norm_layer,
-        #           drop=dropout_rate, attn_drop=dropout_rate)
-        #     for i in range(depth)])
         self.transformer_encoder = TransformerEncoder(embed_dim, num_heads, depth=depth, mlp_ratio=mlp_ratio,
                                                       qkv_bias=True, qk_scale=None,
                                                       norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate)
@@ -118,12 +123,8 @@ class DoubleConditionedMAGE(nn.Module):
 
         self.transformer_decoder = TransformerDecoder(decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
                                                       mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
-                                                      norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate)
-        # self.decoder_blocks = nn.ModuleList([
-        #     NewBlock(decoder_embed_dim, decoder_num_heads, mlp_ratio, qkv_bias=True, qk_scale=None,
-        #              norm_layer=norm_layer,
-        #              drop=dropout_rate, attn_drop=dropout_rate)
-        #     for i in range(decoder_depth)])
+                                                      norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
+                                                      cross_attn=self.use_image_reference or self.use_audio_reference)
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
         self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)  # decoder to patch
@@ -172,9 +173,13 @@ class DoubleConditionedMAGE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
+    @torch.no_grad()
     def encode_reference(self, ref):
-        # todo: encode reference image to indices
-        pass
+        # encode reference image to latent feature
+        z_ref = self.vqgan.encode(ref)
+        z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape from bsz, c, h, w --> bsz, h*w, c
+        z_map = self.decoder_embed_mapping(z)
+        return z_map
 
     def forward_encoder(self, x, gt=None):
         # tokenization
@@ -265,8 +270,17 @@ class DoubleConditionedMAGE(nn.Module):
         # add pos embed
         x = x_after_pad + self.decoder_pos_embed_learned
 
+        if self.use_audio_reference and self.use_image_reference:
+            assert audio_emb.size(-1) == ref_emb.size(-1)
+            ref = torch.cat([audio_emb, ref_emb], dim=1)
+        elif self.use_audio_reference:
+            ref = audio_emb
+        elif self.use_image_reference:
+            ref = ref_emb
+        else:
+            ref = x
         # apply Transformer blocks
-        x = self.transformer_decoder(x, y, y)
+        x = self.transformer_decoder(x, ref, ref)
 
         x = self.decoder_norm(x)
 
@@ -285,15 +299,19 @@ class DoubleConditionedMAGE(nn.Module):
         loss = (loss * mask[:, 1:]).sum() / mask[:, 1:].sum()  # mean loss on removed patches
         return loss
 
-    def forward(self, imgs):
+    def forward(self, imgs, gt=None, ref=None, audio=None):
         # encoder
-        latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs)
+        latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs, gt)
         # todo: generate audio embedding, reference embedding
+
+        ref_emb = self.encode_reference(ref=ref) if self.use_image_reference else None
+        audio_emb = self.audio_net(audio) if self.use_audio_reference else None
         # decoder
-        logits = self.forward_decoder(latent, y, token_drop_mask, token_all_mask)
+        logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
+                                      token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
         # compute prediction_masked_token_loss
         loss = self.forward_loss(gt_indices, logits, token_all_mask)
-
+        print(logits.shape)
         return loss, imgs, token_all_mask
 
 
@@ -315,11 +333,12 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True):
         super().__init__()
+        module = CrossBlock if cross_attn else Block
         self.decoder_blocks = nn.ModuleList([
-            NewBlock(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                     norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
+            module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
+                   norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
     def forward(self, x, key, query):
         assert key.size() == query.size()
