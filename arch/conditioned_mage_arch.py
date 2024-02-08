@@ -60,7 +60,7 @@ class DoubleConditionedMAGE(nn.Module):
         self.mask_token_label = vocab_size - 1
 
         # create audio encoder based on VQ embed_dim
-        self.audio_net = AudioNet(emb_dim=self.vqgan_embed_dim)
+        self.audio_net = AudioNet(emb_dim=decoder_embed_dim)
 
         # froze the pretrained vqgan model
         for param in self.vqgan.parameters():
@@ -172,63 +172,64 @@ class DoubleConditionedMAGE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def transformer_decode(self, x, y1, y2):
-        for blk in self.decoder_blocks:
-            x = blk(x, y1, y2)
-        return x
+    def encode_reference(self, ref):
+        # todo: encode reference image to indices
+        pass
 
-    def forward_encoder(self, x, ref, audio):
+    def forward_encoder(self, x, gt=None):
         # tokenization
-        # y is the output from vqgan encoder, serving as the MAGE Decoder CrossAttn Info
-
-        with torch.no_grad():
-            # encode and quantize x (masked image)
-            z_x = self.vqgan.encode(x)
-            z_q_x, _, quantizer_info_x = self.vqgan.quantize(z_x)
-            # encode and quantize ref_x (full image)
-            z_ref = self.vqgan.encode(ref)
-            z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
-            # todo: determine masked token based on z_q_indices difference
-
         bsz = x.size(0)
 
-        _, _, token_indices = token_tuple
-        token_indices = token_indices.reshape(z_q.size(0), -1)
-        gt_indices = token_indices.clone().detach().long()
+        with torch.no_grad():
+            # encode and quantize x
+            z_x = self.vqgan.encode(x)
+            z_q_x, _, quantizer_info_x = self.vqgan.quantize(z_x)
+            x_indices = quantizer_info_x['min_encoding_indices'].reshape(bsz, -1)
 
-        # masking
-        bsz, seq_len = token_indices.size()
-        mask_ratio_min = self.mask_ratio_min
-        mask_rate = self.mask_ratio_generator.rvs(1)[0]
+            # determine masked token based on z_q_indices difference
+            if gt is not None:
+                z_gt = self.vqgan.encode(gt)
+                z_q_gt, _, quantizer_info_gt = self.vqgan.quantize(z_gt)
+                gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
+                token_all_mask = x_indices.not_equal(gt_indices).float()
 
-        num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
-        num_masked_tokens = int(np.ceil(seq_len * mask_rate))
-
-        # it is possible that two elements of the noise is the same, so do a while loop to avoid it
-        while True:
-            noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
-            sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
-            cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
-            cutoff_mask = sorted_noise[:, num_masked_tokens - 1:num_masked_tokens]
-            token_drop_mask = (noise <= cutoff_drop).float()
-            token_all_mask = (noise <= cutoff_mask).float()
-            if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
-                break
+            # if no gt then self-supervised learning, in this case x should be a complete image
             else:
-                print("Rerandom the noise!")
+                gt_indices = x_indices.clone().detach().long()
+
+                # random masking
+                bsz, seq_len = x_indices.size()
+                mask_ratio_min = self.mask_ratio_min
+                mask_rate = self.mask_ratio_generator.rvs(1)[0]
+
+                num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
+                num_masked_tokens = int(np.ceil(seq_len * mask_rate))
+
+                # it is possible that two elements of the noise is the same, so do a while loop to avoid it
+                while True:
+                    noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                    sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
+                    cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
+                    cutoff_mask = sorted_noise[:, num_masked_tokens - 1:num_masked_tokens]
+                    token_drop_mask = noise.less_equal(cutoff_drop).float()
+                    token_all_mask = noise.less_equal(cutoff_mask).float()
+                    if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
+                        break
+                    else:
+                        print("Rerandom the noise!")
         # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
-        token_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
-        # print("Masekd num token:", torch.sum(token_indices == self.mask_token_label, dim=1))
+        x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
+        # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))
 
         # concate class token
-        token_indices = torch.cat(
-            [torch.zeros(token_indices.size(0), 1).cuda(device=token_indices.device), token_indices], dim=1)
-        token_indices[:, 0] = self.fake_class_label
-        token_drop_mask = torch.cat([torch.zeros(token_indices.size(0), 1).cuda(), token_drop_mask], dim=1)
-        token_all_mask = torch.cat([torch.zeros(token_indices.size(0), 1).cuda(), token_all_mask], dim=1)
-        token_indices = token_indices.long()
+        x_indices = torch.cat(
+            [torch.zeros(x_indices.size(0), 1).cuda(device=x_indices.device), x_indices], dim=1)
+        x_indices[:, 0] = self.fake_class_label
+        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).cuda(), token_drop_mask], dim=1)
+        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).cuda(), token_all_mask], dim=1)
+        x_indices = x_indices.long()
         # bert embedding
-        input_embeddings = self.token_emb(token_indices)
+        input_embeddings = self.token_emb(x_indices)
         # print("Input embedding shape:", input_embeddings.shape)
         bsz, seq_len, emb_dim = input_embeddings.shape
 
@@ -243,9 +244,9 @@ class DoubleConditionedMAGE(nn.Module):
         x = self.norm(x)
         # print("Encoder representation shape:", x.shape)
 
-        return x, gt_indices, token_drop_mask, token_all_mask, y
+        return x, gt_indices, token_drop_mask, token_all_mask
 
-    def forward_decoder(self, x, y, token_drop_mask, token_all_mask):
+    def forward_decoder(self, x, audio_emb, ref_emb, token_drop_mask, token_all_mask):
         # embed tokens
         x = self.decoder_embed(x)
 
@@ -265,7 +266,7 @@ class DoubleConditionedMAGE(nn.Module):
         x = x_after_pad + self.decoder_pos_embed_learned
 
         # apply Transformer blocks
-        x = self.transformer_decode(x, y, y)
+        x = self.transformer_decoder(x, y, y)
 
         x = self.decoder_norm(x)
 
@@ -286,7 +287,8 @@ class DoubleConditionedMAGE(nn.Module):
 
     def forward(self, imgs):
         # encoder
-        latent, gt_indices, token_drop_mask, token_all_mask, y = self.forward_encoder(imgs)
+        latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs)
+        # todo: generate audio embedding, reference embedding
         # decoder
         logits = self.forward_decoder(latent, y, token_drop_mask, token_all_mask)
         # compute prediction_masked_token_loss
