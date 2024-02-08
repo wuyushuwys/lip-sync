@@ -209,21 +209,21 @@ class FrameMelDataset(Dataset):
                 skip_start = 2
                 skip_end = len(frame_list) - self.window_size - 3
             # idx = random.sample(range(skip_start, skip_end), 1)
-            idx = random.choice(range(skip_start, skip_end))
-            if idx + false_offset < len(frame_list) - self.window_size:
-                idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            else:
-                false_idx = idx + false_offset
+            # idx = random.choice(range(skip_start, skip_end))
+            # if idx + false_offset < len(frame_list) - self.window_size:
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+            # else:
+            #     false_idx = idx + false_offset
 
         else:
             skip_start = 2
             skip_end = len(frame_list) - self.window_size - 3
             # idx = random.sample(range(skip_start, skip_end), 1)
-            idx = random.choice(range(skip_start, skip_end))
-            if idx + false_offset < len(frame_list) - self.window_size:
-                idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            else:
-                false_idx = idx + false_offset
+            # idx = random.choice(range(skip_start, skip_end))
+            # if idx + false_offset < len(frame_list) - self.window_size:
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+            # else:
+            #     false_idx = idx + false_offset
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
