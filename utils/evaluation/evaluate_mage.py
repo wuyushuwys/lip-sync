@@ -40,7 +40,7 @@ def test(dataloader: DataLoader,
          model: torch.nn.Module,
          args: argparse.Namespace):
     loss_dict = dict()
-    loss_dict["loss"] = AverageMeter()
+    loss_dict["mage_loss"] = AverageMeter()
 
     for idx, (x, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
