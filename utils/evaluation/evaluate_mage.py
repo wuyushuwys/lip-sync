@@ -41,15 +41,17 @@ def test(dataloader: DataLoader,
          args: argparse.Namespace):
     loss_dict = dict()
     loss_dict["mage_loss"] = AverageMeter()
+    loss_dict["acc"] = AverageMeter()
 
     for idx, (x, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
 
-        loss, imgs, token_all_mask = model(x)
+        (loss, acc), imgs, token_all_mask = model(x)
 
         mage_loss = reduce_all(loss)
+        mage_accuracy = reduce_all(acc)
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
-
+        loss_dict['acc'].update(mage_accuracy.item(), bsz)
     return loss_dict

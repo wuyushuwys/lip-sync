@@ -238,10 +238,12 @@ class DoubleConditionedMAGE(nn.Module):
 
         # concate class token
         x_indices = torch.cat(
-            [torch.zeros(x_indices.size(0), 1).cuda(device=x_indices.device), x_indices], dim=1)
+            [torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), x_indices], dim=1)
         x_indices[:, 0] = self.fake_class_label
-        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).cuda(), token_drop_mask], dim=1)
-        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).cuda(), token_all_mask], dim=1)
+        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_drop_mask],
+                                    dim=1)
+        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_all_mask],
+                                   dim=1)
         x_indices = x_indices.long()
         # bert embedding
         input_embeddings = self.token_emb(x_indices)
@@ -307,7 +309,17 @@ class DoubleConditionedMAGE(nn.Module):
                               gt_indices.reshape(bsz * seq_len))
         loss = loss.reshape(bsz, seq_len)
         loss = (loss * mask[:, 1:]).sum() / mask[:, 1:].sum()  # mean loss on removed patches
-        return loss
+        if self.training:
+            return loss
+        else:
+            _, pred = torch.topk(logits[:, 1:, :self.codebook_size].reshape(bsz * seq_len, -1), k=1)
+            acc = pred.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)].eq(
+                gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum() / bsz
+            # acc = 0
+            # for pred_seq, gt_seq, mask_seq in zip(pred.reshape(bsz, seq_len), gt_indices, mask[:, 1:]):
+            #     masked_idx = mask_seq.nonzero(as_tuple=True)
+            #     acc += pred_seq[masked_idx].eq(gt_seq[masked_idx]).float().sum() / mask_seq.sum()
+            return loss, acc / bsz
 
     def forward(self, imgs, gt=None, ref=None, audio=None):
         # encoder
