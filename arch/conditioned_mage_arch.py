@@ -322,9 +322,10 @@ class DoubleConditionedMAGE(nn.Module):
             #     acc += pred_seq[masked_idx].eq(gt_seq[masked_idx]).float().sum() / mask_seq.sum()
             return loss, acc
 
-    def forward(self, imgs, gt=None, ref=None, audio=None):
+    def forward(self, imgs, gt=None, ref=None, audio=None, generate=False):
         # encoder
         latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs, gt)
+        bsz = latent.size(0)
         # todo: generate audio embedding, reference embedding
 
         ref_emb = self.encode_reference(ref=ref) if self.use_image_reference else None
@@ -334,7 +335,16 @@ class DoubleConditionedMAGE(nn.Module):
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
         # compute prediction_masked_token_loss
         loss = self.forward_loss(gt_indices, logits, token_all_mask)
-
+        if generate:
+            latent_res = self.vqgan.latent_resolution
+            vq_emb = self.vqgan_embed_dim
+            logits = logits[:, 1:, :self.vqgan.codebook_size]
+            _, pred_indices = torch.topk(logits, k=1)
+            pred_indices = pred_indices * token_all_mask[:, 1:, None] + gt_indices[..., None] * (
+                    1 - token_all_mask[:, 1:, None])
+            z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
+                                                          shape=(bsz, latent_res, latent_res, vq_emb))
+            imgs = self.vqgan.decode(z_q)
         return loss, imgs, token_all_mask
 
     def __str__(self):

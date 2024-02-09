@@ -466,7 +466,7 @@ class FaceCoderNet(nn.Module):
                  *,
                  in_channel=3,
                  codebook_scale=32, codebook_size=1024, emb_dim=512,
-                 quantizer="nearest",
+                 quantizer_type="nearest",
                  beta=0.25,
                  gumbel_kl_weight=1e-8,
                  gumbel_straight_through=False,
@@ -482,7 +482,7 @@ class FaceCoderNet(nn.Module):
         self.codebook_scale = codebook_scale
         self.codebook_size = codebook_size
         self.embed_dim = emb_dim
-        self.quantizer_type = quantizer
+        self.quantizer_type = quantizer_type
 
         self.use_quantize = use_quantize
         self.in_channel = in_channel
