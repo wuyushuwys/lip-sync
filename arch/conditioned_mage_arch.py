@@ -60,8 +60,9 @@ class DoubleConditionedMAGE(nn.Module):
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
+        # [0, ..., codebook_size - 1, fake_class_label, mask_token_label]
         vocab_size = self.codebook_size + 1 + 1  # codebook size, 1 for mask token, 1 for fake_label
-        self.fake_class_label = self.codebook_size  # [0, ..., codebook_size - 1, fake_class_label, mask_token_label
+        self.fake_class_label = self.codebook_size
         self.mask_token_label = self.codebook_size + 1
 
         # froze the pretrained vqgan model
@@ -314,7 +315,7 @@ class DoubleConditionedMAGE(nn.Module):
         else:
             _, pred = torch.topk(logits[:, 1:, :self.codebook_size].reshape(bsz * seq_len, -1), k=1)
             acc = pred.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)].eq(
-                gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum() / bsz
+                gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum()
             # acc = 0
             # for pred_seq, gt_seq, mask_seq in zip(pred.reshape(bsz, seq_len), gt_indices, mask[:, 1:]):
             #     masked_idx = mask_seq.nonzero(as_tuple=True)
