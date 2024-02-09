@@ -1,0 +1,54 @@
+manual_seed: 1234
+g_weight: null
+d_weight: null
+#ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
+#warmup_lr: true
+#warmup_iters: 100
+scale_lr: true
+gan_starts: 0
+#clip_grad: 5
+data_spec:
+  max_datasize: 100000
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  num_eval: 200
+  train_size: 256
+  eval_size: 256
+  aug:
+    use_orig: false  # using original resolution ( false will resize to 2*train_size, true will crop 2*train_size)
+    use_flip: true
+    use_rot: true
+    use_random_size: true
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+
+model:
+  vq_config_path: config/vqgan.yml
+  use_audio_reference: true
+  use_image_reference: true
+  vq_state_dict: vq_model_512_256.pt
+
+
+optim:
+  - type: Adam
+    lr: !!float 1e-4
+    betas: [ 0.9, 0.999 ]
+  - type: Adam
+    lr: !!float 4e-4
+    betas: [ 0.9, 0.999 ]
+#
+#scheduler:
+#  type: MultiStepLR
+#  milestones: [ 1 ]
+#  gamma: 1
+
+#scheduler:
+#  type: PolynomialLR
+#  power: 0.9
+
+scheduler:
+  type: CosineAnnealingLR
+  eta_min: 1.0e-5
+
+
+losses: ~
