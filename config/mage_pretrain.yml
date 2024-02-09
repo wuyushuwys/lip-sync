@@ -4,8 +4,7 @@ d_weight: null
 #ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
 #warmup_lr: true
 #warmup_iters: 100
-scale_lr: true
-gan_starts: 0
+#scale_lr: true
 #clip_grad: 5
 data_spec:
   max_datasize: 100000
@@ -24,18 +23,15 @@ data_spec:
 
 model:
   vq_config_path: config/vqgan.yml
-  use_audio_reference: true
-  use_image_reference: true
+  use_audio_reference: false
+  use_image_reference: false
   vq_state_dict: pretrained/vq_model_512_256.pt
 
 
 optim:
-  - type: Adam
-    lr: !!float 1e-4
-    betas: [ 0.9, 0.999 ]
-  - type: Adam
-    lr: !!float 4e-4
-    betas: [ 0.9, 0.999 ]
+  type: Adam
+  lr: !!float 1e-4
+  betas: [ 0.9, 0.999 ]
 #
 #scheduler:
 #  type: MultiStepLR

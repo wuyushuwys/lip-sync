@@ -6,7 +6,7 @@ from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_lip
+from utils.evaluation import evaluate_mage
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from arch.conditioned_mage_arch import DoubleConditionedMAGE
@@ -93,7 +93,8 @@ class MageModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        pass
+        evaluate_mage.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders, epoch=epoch,
+                                 writer=self.writer, args=self.args, logger=self.logger)
 
     def save_model(self, path, *args):
         state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)

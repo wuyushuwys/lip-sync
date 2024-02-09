@@ -95,12 +95,17 @@ def create_criterions(args: argparse.Namespace):
     # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
     criterions = OrderedDict()
-    for name, kwargs in args.losses.items():
-        if 'type' in kwargs:
-            loss = getattr(losses_module, kwargs.get('type'))
-            criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
+    logger = get_logger()
+    if args.losses is not None:
+        for name, kwargs in args.losses.items():
+            if 'type' in kwargs:
+                loss = getattr(losses_module, kwargs.get('type'))
+                criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
-    return criterions
+        return criterions
+    else:
+        logger.info('No criterion initialized')
+        return None
 
 
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):

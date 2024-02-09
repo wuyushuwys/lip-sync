@@ -58,7 +58,7 @@ def main(args):
     [optimizer], [scheduler] = create_optim_scheduler(model,
                                                       args=args,
                                                       num_batches=len(train_data_loader))
-    trainer = MageModel(model=g_model,
+    trainer = MageModel(model=model,
                         optimizer=optimizer,
                         scheduler=scheduler,
                         criterion=criterion,
