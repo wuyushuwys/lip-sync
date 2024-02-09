@@ -41,7 +41,7 @@ def main(args):
     model = lip_mage_vit_small(**args.model)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    logger.info(f"G-Model {model} :[Trainable Parameters: {trainable_params}]")
+    logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
     logger.info(f"Load loss function")
@@ -54,6 +54,8 @@ def main(args):
     else:
         model.to(device)
 
+    # Scale learning rate based on effective batch_size (based on mage-pretrain)
+    args.optim.lr = args.optim.lr / 256 * args.batch_size * args.world_size
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model,
                                                       args=args,

@@ -20,7 +20,7 @@ from omegaconf.dictconfig import DictConfig
 import utils
 from utils import lr_scheduler, gradual_warmup_scheduler
 from utils.prefetch_dataloader import CUDAPrefetcher
-from utils.init_utils import master_only
+from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 
 __all__ = ["create_dataloader",
@@ -57,6 +57,10 @@ def create_dataloader(args):
 
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     prefetch_factor = args.data_spec['prefetch_factor'] if 'prefetch_factor' in args.data_spec.keys() else 2
+
+    _, world_size = get_dist_info()
+    logger = get_logger()
+    logger.info(f'Effective batch_size: {args.batch_size * world_size}')
     # Dataloader
     train_data_loader = DataLoader(dataset=train_dataset,
                                    num_workers=args.num_workers,

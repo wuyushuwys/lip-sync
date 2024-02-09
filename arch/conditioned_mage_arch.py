@@ -15,7 +15,6 @@ from utils.logging_tool import get_logger
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .audionet_arch import AudioNet
-from .ops import get_2d_sincos_pos_embed
 
 
 class DoubleConditionedMAGE(nn.Module):
