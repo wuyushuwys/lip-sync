@@ -320,7 +320,7 @@ class DoubleConditionedMAGE(nn.Module):
             # for pred_seq, gt_seq, mask_seq in zip(pred.reshape(bsz, seq_len), gt_indices, mask[:, 1:]):
             #     masked_idx = mask_seq.nonzero(as_tuple=True)
             #     acc += pred_seq[masked_idx].eq(gt_seq[masked_idx]).float().sum() / mask_seq.sum()
-            return loss, acc / bsz
+            return loss, acc
 
     def forward(self, imgs, gt=None, ref=None, audio=None):
         # encoder
