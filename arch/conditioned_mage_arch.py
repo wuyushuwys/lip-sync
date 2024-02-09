@@ -68,11 +68,11 @@ class DoubleConditionedMAGE(nn.Module):
         for param in self.vqgan.parameters():
             param.requires_grad = False
 
-        print("MAGE_encoder_related_embeddingindex:")
-        print(f"Codebook Size: {self.codebook_size}")
-        print(f"Vocab Size: {vocab_size}")
-        print(f"Fake Class Label: {self.fake_class_label}")
-        print(f"Mask Token Label: {self.mask_token_label}")
+        logger.info(f"MAGE_encoder_related_embeddingindex: "
+                    f"Codebook Size: {self.codebook_size} "
+                    f"Vocab Size: {vocab_size} "
+                    f"Fake Class Label: {self.fake_class_label} "
+                    f"Mask Token Label: {self.mask_token_label}")
 
         # create audio encoder based on decoder_embed_dim
         self.use_audio_reference = use_audio_reference
@@ -84,10 +84,8 @@ class DoubleConditionedMAGE(nn.Module):
         if use_image_reference:
             self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim)
 
-        self.token_emb = BertEmbeddings(vocab_size=vocab_size,
-                                        hidden_size=embed_dim,
-                                        max_position_embeddings=256 + 1,
-                                        dropout=0.1)
+        logger.info(f"use_audio_reference:{use_audio_reference}")
+        logger.info(f"use_image_reference:{use_image_reference}")
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
@@ -104,9 +102,14 @@ class DoubleConditionedMAGE(nn.Module):
         # num_patches = self.patch_embed.num_patches
         num_patches = self.vqgan.latent_resolution ** 2
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
-                                      requires_grad=False)  # fixed sin-cos embedding
+        self.token_emb = BertEmbeddings(vocab_size=vocab_size,
+                                        hidden_size=embed_dim,
+                                        max_position_embeddings=num_patches + 1,
+                                        dropout=0.1)
+
+        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
+        #                               requires_grad=False)  # fixed sin-cos embedding
 
         self.transformer_encoder = TransformerEncoder(embed_dim, num_heads, depth=depth, mlp_ratio=mlp_ratio,
                                                       qkv_bias=True, qk_scale=None,
@@ -118,8 +121,10 @@ class DoubleConditionedMAGE(nn.Module):
         # MAGE decoder specifics
         self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
 
-        self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
         self.pad_with_cls_token = True
+
+        if not self.pad_with_cls_token:
+            self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
         # self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_embed_dim), requires_grad=False)  # fixed sin-cos embedding
         self.decoder_pos_embed_learned = nn.Parameter(
@@ -131,7 +136,7 @@ class DoubleConditionedMAGE(nn.Module):
                                                       cross_attn=self.use_image_reference or self.use_audio_reference)
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
-        self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)  # decoder to patch
+        # self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)  # decoder to patch
         # --------------------------------------------------------------------------
 
         # --------------------------------------------------------------------------
@@ -160,8 +165,9 @@ class DoubleConditionedMAGE(nn.Module):
         # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
 
         # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        torch.nn.init.normal_(self.cls_token, std=.02)
-        torch.nn.init.normal_(self.mask_token, std=.02)
+        # torch.nn.init.normal_(self.cls_token, std=.02)
+        if not self.pad_with_cls_token:
+            torch.nn.init.normal_(self.mask_token, std=.02)
         torch.nn.init.normal_(self.decoder_pos_embed_learned, std=.02)
 
         # initialize nn.Linear and nn.LayerNorm
@@ -315,7 +321,7 @@ class DoubleConditionedMAGE(nn.Module):
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
         # compute prediction_masked_token_loss
         loss = self.forward_loss(gt_indices, logits, token_all_mask)
-        print(logits.shape)
+
         return loss, imgs, token_all_mask
 
     def __str__(self):
@@ -343,6 +349,7 @@ class TransformerDecoder(nn.Module):
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True):
         super().__init__()
         module = CrossBlock if cross_attn else Block
+        self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
@@ -350,7 +357,7 @@ class TransformerDecoder(nn.Module):
     def forward(self, x, key, query):
         assert key.size() == query.size()
         for blk in self.decoder_blocks:
-            x = blk(x, key, query)
+            x = blk(x, key, query) if self.cross_attn else blk(x)
         return x
 
 
