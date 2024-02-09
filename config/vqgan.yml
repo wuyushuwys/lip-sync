@@ -49,7 +49,7 @@ g_model:
   codebook_scale: 32
   codebook_size: 512
   emb_dim: 256
-  quantizer_type: nearest
+  quantizer_type: nearest2
 
 d_model:
   num_in_ch: 3

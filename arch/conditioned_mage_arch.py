@@ -10,6 +10,8 @@ import scipy.stats as stats
 from omegaconf import OmegaConf
 from einops import rearrange
 
+from utils.logging_tool import get_logger
+
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .audionet_arch import AudioNet
@@ -43,16 +45,18 @@ class DoubleConditionedMAGE(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
-                 vq_config_path='config/vqgan.yml', use_audio_reference=True, use_image_reference=True):
+                 vq_config_path='config/vqgan.yml', vq_state_dict=None,
+                 use_audio_reference=True, use_image_reference=True):
         super().__init__()
-
+        logger = get_logger()
         # --------------------------------------------------------------------------
         # VQGAN specifics
         # replace this part with our face_vqgan specifications
         vq_config = OmegaConf.load(vq_config_path)
         self.vqgan = FaceCoderNet(**vq_config.g_model)
-        if vq_config.get('g_weight', False):
-            self.vqgan.load_state_dict(torch.load(vq_config.g_weight, map_location='cpu'))
+        if vq_state_dict:
+            self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
+            logger.info(f"Load vq model weight from {vq_state_dict}")
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
