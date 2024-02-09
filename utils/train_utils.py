@@ -34,9 +34,10 @@ __all__ = ["create_dataloader",
 
 
 def create_dataloader(args):
+    logger = get_logger()
     dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
     train_dataset = ConcatDataset([module.get_dataset(utils.mode.TRAIN, args) for module in dataset_modules])
-
+    logger.info(f"Total training data:{len(train_dataset)}")
     # Load eval dataset
     if args.eval_datasets:
         eval_datasets = []
@@ -59,7 +60,6 @@ def create_dataloader(args):
     prefetch_factor = args.data_spec['prefetch_factor'] if 'prefetch_factor' in args.data_spec.keys() else 2
 
     _, world_size = get_dist_info()
-    logger = get_logger()
     logger.info(f'Effective batch_size: {args.batch_size * world_size}')
     # Dataloader
     train_data_loader = DataLoader(dataset=train_dataset,
