@@ -42,7 +42,7 @@ class MageModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.mask = Masking(half_precision=True).to(self.local_rank)
+        # self.mask = Masking(half_precision=True).to(self.local_rank)
 
         # self.ema_model = self.create_ema(model, power=0.75)
 
