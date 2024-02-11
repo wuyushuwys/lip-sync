@@ -214,12 +214,11 @@ class DoubleConditionedMAGE(nn.Module):
 
                 # random masking
                 bsz, seq_len = x_indices.size()
+                mask_ratio_min = self.mask_ratio_min
                 if self.training:
-                    mask_ratio_min = self.mask_ratio_min
                     mask_rate = self.mask_ratio_generator.rvs(1)[0]
                 else:
-                    mask_ratio_min = 0.75 # fix for testing
-                    mask_rate = 0.75 # fix for testing
+                    mask_rate = 0.75  # fix for testing
                 num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
                 num_masked_tokens = int(np.ceil(seq_len * mask_rate))
 
