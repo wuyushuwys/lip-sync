@@ -31,7 +31,10 @@ You can either edit the `DATA_ROOT` in each dataset file inside [datasets](datas
 ln -s [your dataset] data/[dataset-folder]
 
 # example
-ln -s [your path to FFHQ] data/FFHQ
+ln -s [PATH/ffhq-dataset/images1024x1024] data/FFHQ
+ln -s [PATH/imagenet] data/imagenet
+ln -s [PATH/open-images-dataset] data/open_images
+
 ```
 - Note: For celebAHQ dataset, only put images folder to `data`. Do not include mask data.
 
