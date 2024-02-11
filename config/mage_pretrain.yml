@@ -1,12 +1,12 @@
 manual_seed: 1234
 g_weight: null
 d_weight: null
-#ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
+
 warmup_lr: true
 warmup_iters: 0.1
-#clip_grad: 5
+
 data_spec:
-  max_datasize: 250000
+  max_datasize: 500000
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   num_eval: 200
   train_size: 256
@@ -29,22 +29,22 @@ model:
 
 optim:
   type: AdamW
-  lr: !!float 1.5e-4
+  lr: !!float 1.5e-4  # adjust by effective bsz as mage
   weight_decay: 0.05
   betas: [ 0.9, 0.999 ]
-#
-#scheduler:
-#  type: MultiStepLR
-#  milestones: [ 1 ]
-#  gamma: 1
+
+scheduler:
+ type: MultiStepLR
+ milestones: [ 1 ]
+ gamma: 1
 
 #scheduler:
 #  type: PolynomialLR
 #  power: 0.9
 
-scheduler:
-  type: CosineAnnealingLR
-  eta_min: 1.0e-5
+# scheduler:
+#   type: CosineAnnealingLR
+#   eta_min: 1.0e-5
 
 
 losses: ~

@@ -16,7 +16,7 @@ num_gpus=$(nvidia-smi --list-gpus | wc -l)
 
 # Experiments
 
-dataset=ffhq
+dataset=large_scale
 model=mage
 
 now=$(date +'%b%d-%H')
@@ -33,9 +33,9 @@ printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 
 srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT pretrain_mage.py \
   --config mage_pretrain.yml \
-  --dataset ffhq celeba \
-  --model vqgan \
+  --dataset ffhq celeba open_images imagenet \
+  --model mage \
   --job_dir "${job_dir}" \
   --batch_size 16 \
   --num_workers 8 \
-  --epochs 50
+  --epochs 200
