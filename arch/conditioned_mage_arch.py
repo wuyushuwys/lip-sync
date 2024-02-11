@@ -245,7 +245,7 @@ class DoubleConditionedMAGE(nn.Module):
                     else:
                         print("Rerandom the noise!")
 
-        print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
+        # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
         x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
         # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))
 
