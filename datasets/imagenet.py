@@ -16,10 +16,12 @@ def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
 class ImageNet(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
-        if mode == utils.mode.TRAIN:
-            subset = 'train'
+
+        if os.path.exists(f"{data_root}/train.txt") and os.path.exists(f"{data_root}/val.txt"):
+            with open(f"{data_root}/{'train.txt' if mode == utils.mode.TRAIN else 'val.txt'}", 'r') as files:
+                dataset = files.read().splitlines()[:args.data_spec.max_datasize]
         else:
-            subset = 'val'
-        dataset = make_dataset(dir=os.path.join(data_root, subset))
+            dataset = make_dataset(os.path.join(data_root, 'train' if mode == utils.mode.TRAIN else 'val'),
+                                   max_dataset_size=args.data_spec.get("max_datasize", float("inf")))
         super(ImageNet, self).__init__(mode=mode, args=args, dataset=dataset)
         self.__verbose__()

@@ -23,7 +23,7 @@ class OpenImages(ImageDataset):
                 dataset = files.read().splitlines()[:args.data_spec.max_datasize]
         else:
             dataset = make_dataset(os.path.join(data_root, 'train' if mode == utils.mode.TRAIN else 'validation'),
-                                   max_dataset_size=args.data_spec.max_datasize)
+                                   max_dataset_size=args.data_spec.get("max_datasize", float("inf")))
 
         super(OpenImages, self).__init__(mode=mode, args=args, dataset=dataset)
 

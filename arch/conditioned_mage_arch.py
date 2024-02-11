@@ -218,8 +218,8 @@ class DoubleConditionedMAGE(nn.Module):
                     mask_ratio_min = self.mask_ratio_min
                     mask_rate = self.mask_ratio_generator.rvs(1)[0]
                 else:
-                    mask_ratio_min = self.mask_ratio_min
-                    mask_rate = self.mask_ratio_min  # fix for testing
+                    mask_ratio_min = 0.75 # fix for testing
+                    mask_rate = 0.75 # fix for testing
                 num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
                 num_masked_tokens = int(np.ceil(seq_len * mask_rate))
 
@@ -230,8 +230,9 @@ class DoubleConditionedMAGE(nn.Module):
                         noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
                     else:
                         # generate fake noise for evaluation
-                        fake_noise = torch.arange(0, seq_len, device=x.device)[None, :] / seq_len
-                        noise = fake_noise.repeat(bsz, 1)
+                        num_subseq = seq_len // 4  # typically seq_len is a multiple of 4
+                        fake_noise = torch.arange(0, 4, device=x.device)[None, :] / 4
+                        noise = fake_noise.repeat(bsz, num_subseq)
                         # print(noise.shape)
                     sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
                     cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
@@ -245,7 +246,7 @@ class DoubleConditionedMAGE(nn.Module):
                     else:
                         print("Rerandom the noise!")
 
-        # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
+        print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
         x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
         # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))
 
