@@ -16,7 +16,7 @@ class CelebA_HQ(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
 
-        dataset = make_dataset(dir=data_root, max_dataset_size=args.data_spec.max_datasize)
+        dataset = make_dataset(dir=data_root, max_dataset_size=args.data_spec.get('max_datasize', float('inf')))
         num_eval = min(int(args.data_spec.num_eval), int(len(dataset) * 0.025))
         if mode == utils.mode.TRAIN:
             dataset = dataset[:-num_eval]
