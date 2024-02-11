@@ -214,24 +214,37 @@ class DoubleConditionedMAGE(nn.Module):
 
                 # random masking
                 bsz, seq_len = x_indices.size()
-                mask_ratio_min = self.mask_ratio_min
-                mask_rate = self.mask_ratio_generator.rvs(1)[0]
-
+                if self.training:
+                    mask_ratio_min = self.mask_ratio_min
+                    mask_rate = self.mask_ratio_generator.rvs(1)[0]
+                else:
+                    mask_ratio_min = self.mask_ratio_min
+                    mask_rate = self.mask_ratio_min  # fix for testing
                 num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
                 num_masked_tokens = int(np.ceil(seq_len * mask_rate))
 
                 # it is possible that two elements of the noise is the same, so do a while loop to avoid it
+
                 while True:
-                    noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                    if self.training:
+                        noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                    else:
+                        # generate fake noise for evaluation
+                        fake_noise = torch.arange(0, seq_len, device=x.device)[None, :] / seq_len
+                        noise = fake_noise.repeat(bsz, 1)
+                        # print(noise.shape)
                     sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
                     cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
                     cutoff_mask = sorted_noise[:, num_masked_tokens - 1:num_masked_tokens]
                     token_drop_mask = noise.less_equal(cutoff_drop).float()
                     token_all_mask = noise.less_equal(cutoff_mask).float()
+                    # if not self.training:
+                    #     break
                     if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
                         break
                     else:
                         print("Rerandom the noise!")
+
         # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
         x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
         # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))

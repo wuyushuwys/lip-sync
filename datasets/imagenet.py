@@ -19,7 +19,7 @@ class ImageNet(ImageDataset):
         if mode == utils.mode.TRAIN:
             subset = 'train'
         else:
-            subset = 'test'
+            subset = 'val'
         dataset = make_dataset(dir=os.path.join(data_root, subset))
         super(ImageNet, self).__init__(mode=mode, args=args, dataset=dataset)
         self.__verbose__()
