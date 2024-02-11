@@ -201,8 +201,9 @@ class VQGANModel(BasicModel):
     @master_only
     def log_codebook(self, up_factor=2):
         codebook, num_code = self.model_no_ddp(self.g_model).vis_codebook(up_factor=up_factor)
-        image = wandb.Image(codebook, caption=f"num_code-{num_code}", file_type='jpg')
-        wandb.log({"Codebook": image})
+        if wandb.run is not None:
+            image = wandb.Image(codebook, caption=f"num_code-{num_code}", file_type='jpg')
+            wandb.log({"Codebook": image})
 
     def save_model(self, path, *args):
 

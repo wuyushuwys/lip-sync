@@ -75,7 +75,8 @@ def eval_tb_writer(writer: tensorboard.writer,
                    nb: int,
                    eval_data_name: str = 'dataset'):
     log_string = f"Eval: {eval_data_name}"
-    wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
+    if wandb.run is not None:
+        wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
     for k, v in loss_dict.items():
         log_string += f" {k}: {v.avg:.04e}"
         writer.add_scalar(f'eval_{eval_data_name}/{k}', v.avg, nb)
