@@ -31,12 +31,13 @@ You can either edit the `DATA_ROOT` in each dataset file inside [datasets](datas
 ln -s [your dataset] data/[dataset-folder]
 
 # example
-ln -s [PATH/ffhq-dataset/images1024x1024] data/FFHQ
-ln -s [PATH/imagenet] data/imagenet
-ln -s [PATH/open-images-dataset] data/open_images
+ln -s [YOUR_PATH]/ffhq-dataset/images1024x1024 data/FFHQ
+ln -s [YOUR_PATH]/imagenet data/imagenet
+ln -s [YOUR_PATH]/open-images-dataset data/open_images
+ln -s [YOUR_PATH]/CelebAMask-HQ/CelebA-HQ-img data/CelebA-HQ
 
 ```
-- Note: For celebAHQ dataset, only put images folder to `data`. Do not include mask data.
+- Note: For celebAHQ dataset, only put face images folder to `data`. Do not include mask data.
 
 ### Data pre-processing
 
