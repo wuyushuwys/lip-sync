@@ -21,7 +21,7 @@ class VQGANModel(BasicModel):
                  d_model,
                  d_optimizer,
                  d_scheduler,
-                 criterion,
+                 criteria,
                  train_data_loader,
                  eval_data_loaders,
                  logger,
@@ -44,7 +44,7 @@ class VQGANModel(BasicModel):
         self.d_optimizer = d_optimizer
         self.d_scheduler = d_scheduler
 
-        self.criterion = criterion
+        self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
@@ -96,13 +96,13 @@ class VQGANModel(BasicModel):
 
             pred_y, vq_info = self.g_model(x)
 
-            if 'recon_loss' in self.criterion.keys():
-                recon_loss = self.criterion['recon_loss'](pred_y, y)
+            if 'recon_loss' in self.criteria.keys():
+                recon_loss = self.criteria['recon_loss'](pred_y, y)
             else:
                 recon_loss = 0
 
-            if 'perceptual_loss' in self.criterion.keys():
-                perceptual_loss = self.criterion['perceptual_loss'](pred_y, y, normalize=False)
+            if 'perceptual_loss' in self.criteria.keys():
+                perceptual_loss = self.criteria['perceptual_loss'](pred_y, y, normalize=False)
             else:
                 perceptual_loss = 0
 
@@ -114,7 +114,7 @@ class VQGANModel(BasicModel):
             if self.curr_iterations > self.gan_starts:
                 fake_g_pred = self.d_model(pred_y)
 
-                adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
+                adversarial_loss = self.criteria['adversarial'](fake_g_pred, True, is_disc=False)
                 # adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
                 #                                             adversarial_loss,
                 #                                             last_layer=self.g_model.module.generator.blocks[-1].weight,
@@ -141,12 +141,12 @@ class VQGANModel(BasicModel):
                 self.d_optimizer.zero_grad()
 
                 real_d_pred = self.d_model(y.contiguous().detach())
-                l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
+                l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
 
                 l_d_real.backward()
 
                 fake_d_pred = self.d_model(pred_y.contiguous().detach())
-                l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
+                l_d_fake = self.criteria['adversarial'](fake_d_pred, False, is_disc=True)
                 l_d_fake.backward()
 
                 if self.clip_grad:
@@ -193,7 +193,7 @@ class VQGANModel(BasicModel):
         evaluate_vq.evaluation(model=self.g_model,
                                eval_data_loaders=self.eval_data_loaders,
                                epoch=epoch,
-                               criterions=self.criterion,
+                               criteria=self.criteria,
                                writer=self.writer,
                                args=self.args,
                                logger=self.logger)

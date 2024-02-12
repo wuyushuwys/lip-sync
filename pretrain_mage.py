@@ -12,7 +12,7 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
@@ -45,7 +45,7 @@ def main(args):
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
@@ -63,7 +63,7 @@ def main(args):
     trainer = MageModel(model=model,
                         optimizer=optimizer,
                         scheduler=scheduler,
-                        criterion=criterion,
+                        criteria=criteria,
                         train_data_loader=train_data_loader,
                         eval_data_loaders=eval_data_loaders,
                         logger=logger,

@@ -23,7 +23,7 @@ printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_lipsync_gan.py \
   --config lipsync_gan.yml \
   --dataset ${dataset} \
-  --model ${model} \
+  --arch ${model} \
   --job_dir "${job_dir}" \
   --batch_size 8 \
   --num_workers 4 \

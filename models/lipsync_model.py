@@ -17,7 +17,7 @@ class LipSyncModel(BasicModel):
                  model,
                  optimizer,
                  scheduler,
-                 criterion,
+                 criteria,
                  train_data_loader,
                  eval_data_loaders,
                  logger,
@@ -35,7 +35,7 @@ class LipSyncModel(BasicModel):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.criterion = criterion
+        self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
@@ -66,13 +66,13 @@ class LipSyncModel(BasicModel):
 
             pred_y = self.model(indiv_mels, x)
 
-            sync_weight = self.criterion['sync_loss'].loss_weight
-            sync_loss = self.criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+            sync_weight = self.criteria['sync_loss'].loss_weight
+            sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
 
-            recon_loss = self.criterion['recon_loss'](pred_y, y) if 'recon_loss' in self.criterion.keys() else 0
+            recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
-            perceptual_loss = self.criterion['perceptual_loss'](pred_y,
-                                                                y) if 'perceptual_loss' in self.criterion.keys() else 0
+            perceptual_loss = self.criteria['perceptual_loss'](pred_y,
+                                                                y) if 'perceptual_loss' in self.criteria.keys() else 0
 
             loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
@@ -107,13 +107,13 @@ class LipSyncModel(BasicModel):
         sync_loss = evaluate_lip.evaluation(model=self.model,
                                             eval_data_loaders=self.eval_data_loaders,
                                             epoch=epoch,
-                                            criterions=self.criterion,
+                                            criteria=self.criteria,
                                             writer=self.writer,
                                             args=self.args,
                                             logger=self.logger,
                                             mask=self.mask)
         if sync_loss < 0.75:
-            self.criterion['sync_loss'].loss_weight = 0.03
+            self.criteria['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
         state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)

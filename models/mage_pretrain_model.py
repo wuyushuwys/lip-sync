@@ -7,7 +7,7 @@ from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_mage
+from utils.evaluation import evaluate_mage_pretrain
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from arch.conditioned_mage_arch import DoubleConditionedMAGE
@@ -21,7 +21,7 @@ class MageModel(BasicModel):
                  model: DoubleConditionedMAGE,
                  optimizer,
                  scheduler,
-                 criterion,
+                 criteria,
                  train_data_loader,
                  eval_data_loaders,
                  logger,
@@ -39,7 +39,7 @@ class MageModel(BasicModel):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.criterion = criterion
+        self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
@@ -67,13 +67,12 @@ class MageModel(BasicModel):
                 x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
                              torch.split(x, 3, dim=1))
 
-            assert x.dim() == 4 and x.size(1) == 3
+            assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
                 loss, imgs, token_all_mask = self.model(x)
-
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
@@ -102,9 +101,10 @@ class MageModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        evaluate_mage.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders, criterions=self.criterion,
-                                 epoch=epoch,
-                                 writer=self.writer, args=self.args, logger=self.logger)
+        evaluate_mage_pretrain.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders,
+                                          criteria=self.criteria,
+                                          epoch=epoch,
+                                          writer=self.writer, args=self.args, logger=self.logger)
 
     def save_model(self, path, *args):
         state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)

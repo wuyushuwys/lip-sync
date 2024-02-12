@@ -1,7 +1,9 @@
 manual_seed: 1234
 
 data_spec:
-  mode: 'h5'  # h5 or image
+  num_samples: 300
+  eval_samples: 50
+  mode: 'image'  # h5 or image
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
@@ -29,8 +31,6 @@ audio_spec:
   mel_step_size: 16
   sample_rate: 16000
 
-num_samples: 300
-eval_samples: 50
 
 optim:
   type: Adam

@@ -25,7 +25,7 @@ class LipSyncGAN(BasicModel):
                  d_model,
                  d_optimizer,
                  d_scheduler,
-                 criterion,
+                 criteria,
                  train_data_loader,
                  eval_data_loaders,
                  logger,
@@ -48,7 +48,7 @@ class LipSyncGAN(BasicModel):
         self.d_optimizer = d_optimizer
         self.d_scheduler = d_scheduler
 
-        self.criterion = criterion
+        self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
@@ -89,22 +89,22 @@ class LipSyncGAN(BasicModel):
 
             pred_y = self.g_model(indiv_mels, x)
 
-            sync_weight = self.criterion['sync_loss'].loss_weight
-            sync_loss = self.criterion['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+            sync_weight = self.criteria['sync_loss'].loss_weight
+            sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
 
-            if 'recon_loss' in self.criterion.keys():
-                recon_loss = self.criterion['recon_loss'](pred_y, y)
+            if 'recon_loss' in self.criteria.keys():
+                recon_loss = self.criteria['recon_loss'](pred_y, y)
             else:
                 recon_loss = 0
 
-            if 'perceptual_loss' in self.criterion.keys():
-                perceptual_loss = self.criterion['perceptual_loss'](pred_y, y)
+            if 'perceptual_loss' in self.criteria.keys():
+                perceptual_loss = self.criteria['perceptual_loss'](pred_y, y)
             else:
                 perceptual_loss = 0
 
             fake_g_pred = self.d_model(face_rearrange(pred_y))
 
-            adversarial_loss = self.criterion['adversarial'](fake_g_pred, True, is_disc=False)
+            adversarial_loss = self.criteria['adversarial'](fake_g_pred, True, is_disc=False)
 
             g_loss = sync_loss * sync_weight + (recon_loss + perceptual_loss + adversarial_loss) * (1 - sync_weight)
 
@@ -123,11 +123,11 @@ class LipSyncGAN(BasicModel):
             self.d_optimizer.zero_grad()
 
             real_d_pred = self.d_model(face_rearrange(y))
-            l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
+            l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
             l_d_real.backward()
 
             fake_d_pred = self.d_model(face_rearrange(pred_y.detach()))
-            l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
+            l_d_fake = self.criteria['adversarial'](fake_d_pred, False, is_disc=True)
             l_d_fake.backward()
 
             self.d_optimizer.step()
@@ -164,13 +164,13 @@ class LipSyncGAN(BasicModel):
         sync_loss = evaluate_lip.evaluation(model=self.g_model,
                                             eval_data_loaders=self.eval_data_loaders,
                                             epoch=epoch,
-                                            criterions=self.criterion,
+                                            criteria=self.criteria,
                                             writer=self.writer,
                                             args=self.args,
                                             logger=self.logger,
                                             mask=self.mask)
         if sync_loss < 0.75:
-            self.criterion['sync_loss'].loss_weight = 0.03
+            self.criteria['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
 

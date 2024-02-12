@@ -16,14 +16,14 @@ from .utils import reduce_all
 
 
 @torch.no_grad()
-def evaluation(model, eval_data_loaders, epoch, criterions,
+def evaluation(model, eval_data_loaders, epoch, criteria,
                writer: SummaryWriter, args: argparse.Namespace, logger: Logger):
     """
     Evaluate Generator in eval datasets
     :param model: Generator model
     :param eval_data_loaders: list of eval dataloader
     :param epoch: current epoch
-    :param criterions: criterions
+    :param criteria: criteria
     :param writer: tb_writer
     :param device: index of device
     :param args: params
@@ -33,7 +33,7 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
     model.eval()
     sync_losses = {}
     for eval_data_name, eval_data_loader in eval_data_loaders:
-        loss_dict = test(eval_data_loader, model, criterions, args)
+        loss_dict = test(eval_data_loader, model, criteria, args)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
         sync_losses['eval_data_name'] = loss_dict['sync_loss']
@@ -44,7 +44,7 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
 @torch.no_grad()
 def test(dataloader: DataLoader,
          model: torch.nn.Module,
-         criterions: Dict,
+         criteria: Dict,
          args: argparse.Namespace):
     loss_dict = {"sync_loss": AverageMeter()}
 
@@ -54,7 +54,7 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
 
         a, v = model(mel, x)
-        sync_loss = reduce_all(criterions["sync_loss"](a, v, y))
+        sync_loss = reduce_all(criteria["sync_loss"](a, v, y))
         loss_dict['sync_loss'].update(sync_loss.item(), x.size(0))
 
     return loss_dict

@@ -16,9 +16,7 @@ import torchvision
 torchvision.disable_beta_transforms_warning()
 from torch.utils.data.dataset import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
-from torchvision.transforms.v2 import (Compose, ColorJitter,
-                                       RandomAutocontrast,
-                                       RandomGrayscale, RandomAdjustSharpness,
+from torchvision.transforms.v2 import (Compose, Normalize,
                                        RandomRotation, RandomHorizontalFlip)
 from torchvision.io import read_image
 
@@ -27,8 +25,6 @@ import utils
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
-
-from datasets.utils import exists
 
 
 class FrameMelDataset(Dataset):
@@ -59,15 +55,15 @@ class FrameMelDataset(Dataset):
         self.audio_spec = args.audio_spec
         self.data_spec = args.data_spec
         self.window_size = args.data_spec['window_size']
-        self.model = args.model
+        self.arch = args.arch
         self.mode = mode
         self.data_mode = data_mode
         self.skip_offset = skip_offset
         self.bottom_half = bottom_half
         if self.mode == utils.mode.TRAIN:
-            self.num_samples = args.num_samples  # number of samples from each video
+            self.num_samples = self.data_spec.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
-            self.num_samples = args.eval_samples  # number of samples from each video
+            self.num_samples = self.data_spec.eval_samples  # number of samples from each video
 
         # if self.model == 'syncnet':
         #     # Indexing eval list
@@ -111,23 +107,17 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"{self}: Loading audio from file")
 
-        if 'aug' in self.data_spec.keys():
-            aug_spec = self.data_spec['aug']
-            transforms = []
-            if exists('rotate', aug_spec):
-                transforms.append(RandomRotation(**aug_spec['rotate'],
+        transforms = []
+        if self.data_spec.get('aug', False):
+            aug_spec = self.data_spec.aug
+            if aug_spec.get('rotate', False):
+                transforms.append(RandomRotation(**aug_spec.rotate,
                                                  interpolation=InterpolationMode.BILINEAR,
                                                  fill=1))
-            if exists('flip', aug_spec):
-                transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
-            if exists('contrast', aug_spec):
-                transforms.append(RandomAutocontrast(**aug_spec['contrast']))
-            if exists('grayscale', aug_spec):
-                transforms.append(RandomGrayscale(**aug_spec['grayscale']))
-            if exists('sharpness', aug_spec):
-                transforms.append(RandomAdjustSharpness(**aug_spec['sharpness']))
-            if exists('color_jitter', aug_spec):
-                transforms.append(ColorJitter(**aug_spec['color_jitter']))
+            if aug_spec.get('flip', False):
+                transforms.append(RandomHorizontalFlip(**aug_spec.flip))
+        if self.data_spec.get('normalize', False):
+            transforms.append(Normalize(**self.data_spec.normalize))
             self.transform = Compose(transforms)
 
     def __len__(self):
@@ -137,7 +127,7 @@ class FrameMelDataset(Dataset):
         return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
-        if self.model == 'syncnet':
+        if self.arch == 'syncnet':
             # if self.mode == utils.mode.TRAIN:
             frame_list, audio_file = self._load_index(index)
             img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
@@ -148,12 +138,12 @@ class FrameMelDataset(Dataset):
             #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
             #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
             #     return img_window, mel, label
-        elif self.model == 'lipsync':
+        elif self.arch == 'lipsync':
             frame_list, audio_file = self._load_index(index)
             x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
             return x, indiv_mels, mel, y
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f"{self.model} is not implemented")
 
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]

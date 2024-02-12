@@ -328,18 +328,14 @@ class DoubleConditionedMAGE(nn.Module):
             _, pred = torch.topk(logits[:, 1:, :self.codebook_size].reshape(bsz * seq_len, -1), k=1)
             acc = pred.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)].eq(
                 gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum()
-            # acc = 0
-            # for pred_seq, gt_seq, mask_seq in zip(pred.reshape(bsz, seq_len), gt_indices, mask[:, 1:]):
-            #     masked_idx = mask_seq.nonzero(as_tuple=True)
-            #     acc += pred_seq[masked_idx].eq(gt_seq[masked_idx]).float().sum() / mask_seq.sum()
             return loss, acc
 
     def forward(self, imgs, gt=None, ref=None, audio=None, generate=False):
         # encoder
         latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs, gt)
         bsz = latent.size(0)
-        # todo: generate audio embedding, reference embedding
 
+        # generate ref_emb and audio_emb when use_image/audio_reference
         ref_emb = self.encode_reference(ref=ref) if self.use_image_reference else None
         audio_emb = self.audio_net(audio) if self.use_audio_reference else None
         # decoder

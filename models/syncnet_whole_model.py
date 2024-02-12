@@ -17,7 +17,7 @@ class SyncNetModel(BasicModel):
                  model,
                  optimizer,
                  scheduler,
-                 criterion,
+                 criteria,
                  train_data_loader,
                  eval_data_loaders,
                  logger,
@@ -35,7 +35,7 @@ class SyncNetModel(BasicModel):
         self.model = model
         self.optimizer = optimizer
         self.scheduler = scheduler
-        self.criterion = criterion
+        self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
@@ -62,7 +62,7 @@ class SyncNetModel(BasicModel):
 
             a, v = self.model(mel, x)
 
-            loss = self.criterion['sync_loss'](a, v, y)
+            loss = self.criteria['sync_loss'](a, v, y)
             loss.backward()
 
             self.optimizer.step()
@@ -90,7 +90,7 @@ class SyncNetModel(BasicModel):
         return evaluate_sync.evaluation(model=self.model,
                                         eval_data_loaders=self.eval_data_loaders,
                                         epoch=epoch,
-                                        criterions=self.criterion,
+                                        criteria=self.criteria,
                                         writer=self.writer,
                                         args=self.args,
                                         logger=self.logger)

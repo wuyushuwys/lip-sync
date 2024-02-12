@@ -24,7 +24,7 @@ from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 
 __all__ = ["create_dataloader",
-           "create_criterions",
+           "create_criteria",
            "load_ckpt",
            "state_dict_saver",
            "ckpt_loader",
@@ -93,20 +93,20 @@ def subdict(dict: Union[Dict, DictConfig], *exceptions) -> Dict:
     return {k: v for k, v in dict.items() if k not in exceptions}
 
 
-def create_criterions(args: argparse.Namespace):
+def create_criteria(args: argparse.Namespace):
     # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'losses'), "Missing losses in model config"
     # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
-    criterions = OrderedDict()
+    criteria = OrderedDict()
     logger = get_logger()
     if args.losses is not None:
         for name, kwargs in args.losses.items():
             if 'type' in kwargs:
                 loss = getattr(losses_module, kwargs.get('type'))
-                criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
+                criteria[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
-        return criterions
+        return criteria
     else:
         logger.info('No criterion initialized')
         return None

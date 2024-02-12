@@ -53,7 +53,7 @@ def main(args):
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
@@ -74,7 +74,7 @@ def main(args):
                          d_model=d_model,
                          d_optimizer=d_optimizer,
                          d_scheduler=d_scheduler,
-                         criterion=criterion,
+                         criteria=criteria,
                          train_data_loader=train_data_loader,
                          eval_data_loaders=eval_data_loaders,
                          logger=logger,

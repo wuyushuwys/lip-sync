@@ -26,14 +26,14 @@ psnr_y = compute_per_image(partial(calculate_psnr_pt, crop_border=0, test_y_chan
 
 
 @torch.no_grad()
-def evaluation(model, eval_data_loaders, epoch, criterions,
+def evaluation(model, eval_data_loaders, epoch, criteria,
                writer: SummaryWriter, args: argparse.Namespace, logger: Logger, mask=None):
     """
     Evaluate Generator in eval datasets
     :param model: Generator model
     :param eval_data_loaders: list of eval dataloader
     :param epoch: current epoch
-    :param criterions: criterions for evaluation
+    :param criteria: criteria for evaluation
     :param writer: tb_writer
     :param device: index of device
     :param args: params
@@ -44,7 +44,7 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
     sync_losses = {}
     for eval_data_name, eval_data_loader in eval_data_loaders:
         img_folder = f"{args.job_dir}/samples/{eval_data_name}"
-        loss_dict = test(eval_data_loader, model, criterions, epoch, img_folder, args, mask)
+        loss_dict = test(eval_data_loader, model, criteria, epoch, img_folder, args, mask)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
         sync_losses[eval_data_name] = loss_dict['sync_loss']
@@ -55,12 +55,12 @@ def evaluation(model, eval_data_loaders, epoch, criterions,
 @torch.no_grad()
 def test(dataloader: DataLoader,
          model: torch.nn.Module,
-         criterions: Dict,
+         criteria: Dict,
          epoch: int,
          img_folder: str,
          args: argparse.Namespace,
          mask=None):
-    loss_dict = {k: AverageMeter() for k in criterions.keys()}
+    loss_dict = {k: AverageMeter() for k in criteria.keys()}
     loss_dict["SSIM"] = AverageMeter()
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
@@ -75,22 +75,18 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
 
         if mask is not None:
-            try:
-                x = mask(x)
-            except RuntimeError as e:
-                args.logger.error(f'failed at face masking {e}')
-                continue
+            x = mask(x)
 
         pred_y = model(indiv_mels, x)
 
-        sync_loss = reduce_all(criterions['sync_loss'](mel, pred_y))
+        sync_loss = reduce_all(criteria['sync_loss'](mel, pred_y))
         loss_dict['sync_loss'].update(sync_loss.item(), bsz)
 
-        recon_loss = reduce_all(criterions['recon_loss'](pred_y, y, val=True))
+        recon_loss = reduce_all(criteria['recon_loss'](pred_y, y, val=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
-        if 'perceptual_loss' in criterions.keys():
-            perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, val=True))
+        if 'perceptual_loss' in criteria.keys():
+            perceptual_loss = reduce_all(criteria['perceptual_loss'](pred_y, y, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)

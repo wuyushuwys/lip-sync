@@ -1,34 +1,27 @@
 import argparse
 import os
 from pathlib import Path
-from functools import partial, reduce
 
 import torch
 
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
+
 from torchvision.utils import save_image, make_grid
-from pytorch_msssim import SSIM, MS_SSIM
-from einops import rearrange
 
 import wandb
 
 from common.meters import AverageMeter
-from utils.helpers import compute_per_image
 from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 
 from .utils import reduce_all
-from .metrics import calculate_psnr_pt
-
-psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=0))
-psnr_y = compute_per_image(partial(calculate_psnr_pt, crop_border=0, test_y_channel=True))
 
 
 @torch.no_grad()
 def evaluation(model, eval_data_loaders, epoch, criteria,
-               writer: SummaryWriter, args: argparse.Namespace, logger: Logger, mask=None):
+               writer: SummaryWriter, args: argparse.Namespace, logger: Logger):
     """
     Evaluate Generator in eval datasets
     :param model: Generator model
@@ -38,13 +31,12 @@ def evaluation(model, eval_data_loaders, epoch, criteria,
     :param writer: tb_writer
     :param args: params
     :param logger: logger
-    :param mask: mask
     """
 
     model.eval()
     for eval_data_name, eval_data_loader in eval_data_loaders:
         img_folder = f"{args.job_dir}/samples/{eval_data_name}"
-        loss_dict = test(eval_data_loader, model, epoch, img_folder, args, mask)
+        loss_dict = test(eval_data_loader, model, epoch, img_folder, args)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
@@ -55,56 +47,27 @@ def test(dataloader: DataLoader,
          model: torch.nn.Module,
          epoch: int,
          img_folder: str,
-         args: argparse.Namespace,
-         mask=None):
+         args: argparse.Namespace):
     loss_dict = dict()
     loss_dict["mage_loss"] = AverageMeter()
     loss_dict["acc"] = AverageMeter()
-    # although mage does not optimize pixel level loss, we still evaluate these metrics
-    loss_dict["SSIM"] = AverageMeter()
-    loss_dict["MS_SSIM"] = AverageMeter()
-    loss_dict["PSNR"] = AverageMeter()
 
-    ssim = compute_per_image(SSIM(data_range=1))
-    ms_ssim = compute_per_image(MS_SSIM(data_range=1))
-
-    for idx, (x, indiv_mels, mel, y) in enumerate(dataloader, start=1):
+    for idx, (x, y) in enumerate(dataloader, start=1):
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
-
-        x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                     torch.split(x, 3, dim=1))
-
-        assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
-
-        indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
-        audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
-
-        # unused for now
-        # mel = mel.to(args.local_rank, non_blocking=True)
-
         y = y.to(args.local_rank, non_blocking=True)
-        y = rearrange(y, 'b c t h w -> (b t) c h w')
 
-        x_masked = mask(x.clone())
-
-        with torch.autocast('cuda', dtype=torch.float16):
-            (loss, acc), imgs, token_all_mask = model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=True)
+        with torch.amp.autocast('cuda', dtype=torch.float16):
+            (loss, acc), imgs, token_all_mask = model(x, generate=True)
 
         mage_loss = reduce_all(loss)
         mage_accuracy = reduce_all(acc)
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
         loss_dict['acc'].update(mage_accuracy.item(), bsz)
 
-        # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
+        # scale image from [-1, 1] to [0, 1] for saving
         imgs = (imgs + 1) / 2
         y = (y + 1) / 2
-
-        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), bsz)
-        save_sample_images(x, imgs, y, idx, epoch=epoch, folder_path=img_folder)
-
-        loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), bsz)
-        loss_dict['SSIM'].update(reduce_all(ssim(imgs, y)), bsz)
 
         save_sample_images(imgs, y, idx, epoch, img_folder)
 

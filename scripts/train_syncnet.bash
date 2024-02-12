@@ -23,7 +23,7 @@ printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_syncnet.py \
   --config ${model}.yml \
   --dataset ${dataset} \
-  --model ${model} \
+  --arch ${model} \
   --job_dir "${job_dir}" \
   --batch_size 64 \
   --warmup_lr \
