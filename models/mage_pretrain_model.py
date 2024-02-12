@@ -2,6 +2,7 @@ import os
 from argparse import Namespace
 
 import torch
+
 from einops import rearrange
 import common
 
@@ -42,6 +43,10 @@ class MageModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
+        self.use_amp = args.get('use_amp', False)
+
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
         # self.mask = Masking(half_precision=True).to(self.local_rank)
 
         # self.ema_model = self.create_ema(model, power=0.75)
@@ -66,11 +71,15 @@ class MageModel(BasicModel):
 
             self.optimizer.zero_grad()
 
-            loss, imgs, token_all_mask = self.model(x)
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                loss, imgs, token_all_mask = self.model(x)
 
-            loss.backward()
 
-            self.optimizer.step()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            # loss.backward()
+            # self.optimizer.step()
             self.scheduler.step()
 
             log_vars['@lr'] = self.scheduler.get_last_lr()[0]
