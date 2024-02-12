@@ -28,8 +28,9 @@ class Masking(nn.Module):
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.detector.eval()
         self.inverse_mask = None
-        if half_precision:
-            self.detector.half()
+        self.use_amp = half_precision
+        # if half_precision:
+        #     self.detector.half()
 
     @torch.no_grad()
     def mask(self, x, mask_face=True, bottom=True):
@@ -41,7 +42,10 @@ class Masking(nn.Module):
         Returns:
             masks
         """
-        mask = self.detector(x).argmax(1)
+        with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
+                            dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
+                            enabled=self.use_amp):
+            mask = self.detector(x).argmax(1)
 
         flag = (mask == 1) | (mask == 2) | (mask == 3) | (mask == 4) | (mask == 5) | (mask == 6) | (mask == 10) | (
                 mask == 11) | (mask == 12) | (mask == 13)
@@ -95,22 +99,22 @@ class Masking(nn.Module):
             # face [bsz, 6, t, h, w]
             face, ref = x.split(3, dim=1)
             face = rearrange(face, 'b c t h w -> (b t) c h w')
-            face = face * self.mask(face.half() if self.half_precision else face, mask_face, bottom)
+            face = face * self.mask(face, mask_face, bottom)
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         elif x.dim() == 4:
             if x.size(1) == 6:
                 face, ref = x.split(3, dim=1)
-                face = face * self.mask(face.half() if self.half_precision else face, mask_face, bottom)
+                face = face * self.mask(face, mask_face, bottom)
                 return torch.cat([face, ref], dim=1)
             elif x.size(1) == 3:
-                x = x * self.mask(x.half() if self.half_precision else x, mask_face, bottom)
+                x = x * self.mask(x, mask_face, bottom)
                 return x
             elif x.size(1) == 15:
                 face = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
-                face = face * self.mask(face.half() if self.half_precision else face, mask_face, bottom)
+                face = face * self.mask(face, mask_face, bottom)
                 return rearrange(face, '(b t) c h w -> b (c t) h w', b=bsz)
             else:
                 raise NotImplementedError(f'{x.shape}')
         else:
-                raise NotImplementedError(f'{x.dim()}')
+            raise NotImplementedError(f'{x.dim()}')
