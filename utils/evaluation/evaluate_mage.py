@@ -56,9 +56,12 @@ def test(dataloader: DataLoader,
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
+        not_scaled = y.min() < 0
 
         (loss, acc), imgs, token_all_mask = model(x, generate=True)
 
+        if not_scaled:
+            imgs = (imgs + 1) / 2
         mage_loss = reduce_all(loss)
         mage_accuracy = reduce_all(acc)
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
