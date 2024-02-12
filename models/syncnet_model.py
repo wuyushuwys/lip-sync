@@ -39,12 +39,14 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
+        # self.ema_model = self.create_ema(model, power=0.75)
+
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
-        log_vars = {'@loss': None, 'lr': None}
+        log_vars = {'@loss': None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
@@ -60,12 +62,17 @@ class SyncNetModel(BasicModel):
             loss = self.criterion['sync_loss'](a, v, y)
             loss.backward()
 
-            log_vars['sync_loss'] = loss
-            log_vars['lr'] = self.scheduler.get_last_lr()[0]
-            log_vars['@loss'] = loss
-
             self.optimizer.step()
             self.scheduler.step()
+
+            log_vars['sync_loss'] = loss
+            log_vars['@lr'] = self.scheduler.get_last_lr()[0]
+            log_vars['@loss'] = loss
+
+            log_vars = self.reduce_loss_dict(log_vars)
+
+            # EMA model update for stable results
+            # self.ema_model.update()
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))

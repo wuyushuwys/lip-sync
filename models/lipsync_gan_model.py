@@ -54,13 +54,16 @@ class LipSyncGAN(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
+        # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
+        # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
+
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.g_model.train()
         self.d_model.train()
         nb = len(self.train_data_loader)
-        log_vars = {"@g_loss": None, "@d_loss": None, 'lr': None}
+        log_vars = {"@g_loss": None, "@d_loss": None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
@@ -123,22 +126,27 @@ class LipSyncGAN(BasicModel):
             l_d_real = self.criterion['adversarial'](real_d_pred, True, is_disc=True)
             l_d_real.backward()
 
-            fake_d_pred = self.d_model(face_rearrange(pred_y.detach().clone()))
+            fake_d_pred = self.d_model(face_rearrange(pred_y.detach()))
             l_d_fake = self.criterion['adversarial'](fake_d_pred, False, is_disc=True)
             l_d_fake.backward()
 
             self.d_optimizer.step()
             self.d_scheduler.step()
 
+            # self.ema_g_model.update()
+            # self.ema_d_model.update()
+
             log_vars['sync_loss'] = sync_loss
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
             log_vars['adversarial_loss'] = adversarial_loss
-            log_vars['lr'] = self.g_scheduler.get_last_lr()[0]
+            log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
             log_vars['@g_loss'] = g_loss
             log_vars['d_real'] = l_d_real
             log_vars['d_fake'] = l_d_fake
             log_vars['@d_loss'] = l_d_real + l_d_real
+
+            log_vars = self.reduce_loss_dict(log_vars)
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
@@ -165,12 +173,9 @@ class LipSyncGAN(BasicModel):
             self.criterion['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(
-            os.path.join(path, f"{self.g_model.module if hasattr(self.g_model, 'module') else self.g_model}.pt"),
-            self.g_model)
-        state_dict_saver(
-            os.path.join(path, f"{self.d_model.module if hasattr(self.d_model, 'module') else self.d_model}.pt"),
-            self.d_model)
+
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.g_model)}.pt"), self.g_model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.d_model)}.pt"), self.d_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),

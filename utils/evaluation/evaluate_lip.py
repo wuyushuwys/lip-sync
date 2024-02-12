@@ -1,12 +1,15 @@
 import argparse
 import os
 import torch
+import wandb
 
 from typing import Dict
 from functools import partial, reduce
+from pathlib import Path
+
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
-from torchvision.utils import save_image
+from torchvision.utils import save_image, make_grid
 from pytorch_msssim import SSIM, MS_SSIM
 
 from common.meters import AverageMeter
@@ -90,11 +93,11 @@ def test(dataloader: DataLoader,
             perceptual_loss = reduce_all(criterions['perceptual_loss'](pred_y, y, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
-        loss_dict['MS_SSIM'].update(ms_ssim(pred_y, y))
+        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
-        loss_dict['PSNR'].update(psnr(pred_y, y).mean(), bsz)
-        loss_dict['SSIM'].update(ssim(pred_y, y))
+        loss_dict['PSNR'].update(reduce_all(psnr(pred_y, y).mean()), bsz)
+        loss_dict['SSIM'].update(reduce_all(ssim(pred_y, y)), bsz)
 
     return loss_dict
 
@@ -105,6 +108,10 @@ def save_sample_images(x, g, gt, batch_num, epoch, folder_path):
     outputs = torch.cat([refs, inps, g, gt], dim=-1).unbind(2)
     outputs = torch.cat(outputs, dim=-2)
 
-    folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
-    if not os.path.exists(folder): os.makedirs(folder, exist_ok=True)
-    save_image(outputs[:1, ...], fp=f"{folder}/{batch_num}.jpg", nrow=1, padding=10)
+    # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
+    if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
+    outputs = make_grid(outputs, nrow=4, padding=10)
+    save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
+    if batch_num == 1 and wandb.run is not None:
+        image = wandb.Image(outputs, file_type='jpg')
+        wandb.log({f"{Path(folder_path).stem}": image})

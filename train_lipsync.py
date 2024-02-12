@@ -16,12 +16,12 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.wav2lip import Wav2Lip
+from arch.wav2lip_arch import Wav2Lip
 from models.lipsync_model import LipSyncModel
 
 
 def main(args):
-    logger = get_logger(args.job_dir)
+    logger = get_logger()
     device = args.local_rank
 
     # init wandb
@@ -58,26 +58,6 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    # Load ckpt
-    if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location='cpu')
-        ckpt_loader(ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
-        start_epoch = ckpt['epoch'] - 1
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-    if args.weight:
-        ckpt = torch.load(args.weight, map_location='cpu')
-        if args.distributed:
-            model.module.load_state_dict(ckpt)
-        else:
-            model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
-
-    logger.info(attr_extractor(args))
-
     trainer = LipSyncModel(model=model,
                            optimizer=optimizer,
                            scheduler=scheduler,
@@ -88,7 +68,15 @@ def main(args):
                            args=args,
                            writer=writer)
 
-    if args.weight:
+    # Load ckpt
+    start_epoch = trainer.load_ckpt(args.ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
+
+    # Load state_dict
+    trainer.load_model(model=model, ckpt_path=args.weight)
+
+    logger.info(attr_extractor(args))
+
+    if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):

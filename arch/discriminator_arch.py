@@ -68,4 +68,4 @@ class UNetDiscriminatorSN(nn.Module):
         return out
     
     def __str__(self):
-        return "unet_discriminator"
+        return self.__class__.__name__.lower()

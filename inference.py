@@ -11,14 +11,12 @@ from tqdm import tqdm
 
 import torch
 from torch.utils.data import DataLoader
-# from torchvision.transforms.functional import resize
-from torchvision.utils import save_image
 
 import ffmpeg
 from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset, EMA
-from arch.wav2lip import Wav2Lip
+from arch.wav2lip_arch import Wav2Lip
 from models.modules.masking import Masking
 from utils import audio
 
@@ -172,7 +170,7 @@ if __name__ == '__main__':
                 ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
                 face_mask = masked_flag[batch_id, ...].permute(1, 2, 0).numpy()
                 face = (face * face_mask + ori_face * (1 - face_mask)).astype(np.uint8)
-                face = (face * face_mask).astype(np.uint8)
+            #     face = (face * face_mask).astype(np.uint8)
             if args.verbose:
                 g = face.copy()
                 ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))

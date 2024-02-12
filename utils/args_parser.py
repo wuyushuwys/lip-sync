@@ -5,7 +5,8 @@ def arguments_parser(parser):
     parser.add_argument('--config_file', default=None, type=str, required=True,
                         help='path to config file')
 
-    parser.add_argument('--model', default=None, type=str, required=True, choices=['syncnet', 'lipsync'],
+    parser.add_argument('--model', default=None, type=str, required=True,
+                        choices=['syncnet', 'lipsync', 'vqgan', 'mage'],
                         help='model to train')
 
     # Dataset
@@ -68,10 +69,10 @@ def arguments_parser(parser):
     #                     help='% of epochs to perform gradient clipper')
 
     # Verbose
-    parser.add_argument('-v', '--verbose', action='count', default=1,
-                        help='Increasing output verbosity.', )
-    parser.add_argument('--debug', default=False, action='store_true',
-                        help='debug mode. Enable torch anomaly check')
+    # parser.add_argument('-v', '--verbose', action='count', default=1,
+    #                     help='Increasing output verbosity.', )
+    # parser.add_argument('--debug', default=False, action='store_true',
+    #                     help='debug mode. Enable torch anomaly check')
 
     # manual seed
     parser.add_argument('--manual_seed', default=False, action='store_true',

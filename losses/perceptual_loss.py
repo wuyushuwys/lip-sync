@@ -5,7 +5,7 @@ warnings.simplefilter('ignore')
 import torch
 import torch.nn as nn
 from lpips import LPIPS
-from .vgg_arch import PerceptualVGG
+from arch.vgg_arch import PerceptualVGG
 
 __all__ = [
     "LPIPSLoss",
@@ -27,7 +27,7 @@ class LPIPSLoss(nn.Module):
                 source: torch.Tensor,
                 target: torch.Tensor,
                 normalize: bool = True,
-                val=False
+                val=False, **ignore_kwargs
                 ) -> torch.Tensor:
         if source.dim() > 4:
             source = torch.cat(source.unbind(2), dim=0)
@@ -128,7 +128,7 @@ class PerceptualLoss(nn.Module):
                 f'{criterion} criterion has not been supported in'
                 ' this version.')
 
-    def forward(self, x, gt, val=False):
+    def forward(self, x, gt, val=False, **ignore_kwargs):
 
         if x.dim() > 4:
             x = torch.cat(x.unbind(2), dim=0)

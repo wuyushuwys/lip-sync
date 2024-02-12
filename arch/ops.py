@@ -5,6 +5,65 @@ from torch import nn
 from torch.nn import functional as F
 
 
+@torch.jit.script
+def swish(x):
+    return x * torch.sigmoid(x)
+
+
+def normalize(in_channels):
+    return torch.nn.GroupNorm(num_groups=32, num_channels=in_channels, eps=1e-6, affine=True)
+
+
+class Downsample(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv = torch.nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=2, padding=0)
+
+    def forward(self, x):
+        pad = (0, 1, 0, 1)
+        x = torch.nn.functional.pad(x, pad, mode="constant", value=0)
+        x = self.conv(x)
+        return x
+
+
+class Upsample(nn.Module):
+    def __init__(self, in_channels):
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, in_channels, kernel_size=3, stride=1, padding=1)
+
+    def forward(self, x):
+        x = F.interpolate(x, scale_factor=2.0, mode="nearest")
+        x = self.conv(x)
+
+        return x
+
+
+class ResBlock(nn.Module):
+    def __init__(self, in_channels, out_channels=None):
+        super(ResBlock, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = in_channels if out_channels is None else out_channels
+        self.norm1 = normalize(in_channels)
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.norm2 = normalize(out_channels)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        if self.in_channels != self.out_channels:
+            self.conv_out = nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=1, padding=0)
+
+    def forward(self, x_in):
+        x = x_in
+        x = self.norm1(x)
+        x = swish(x)
+        x = self.conv1(x)
+        x = self.norm2(x)
+        x = swish(x)
+        x = self.conv2(x)
+        if self.in_channels != self.out_channels:
+            x_in = self.conv_out(x_in)
+
+        return x + x_in
+
+
 def conv(in_planes: int,
          out_planes: int,
          kernel_size: int = 3,
@@ -31,44 +90,44 @@ def conv1x1(in_planes: int, out_planes: int, stride: int = 1) -> nn.Conv2d:
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
-class ResBlock(nn.Module):
-
-    def __init__(self, inplanes, outplanes, kernel_size, stride,
-                 norm_layer=None, act='leaky'):
-        super().__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-
-        if act == 'relu':
-            self.activation = nn.ReLU(True)
-        elif act == 'leaky':
-            self.activation = nn.LeakyReLU(0.2, inplace=True)
-        else:
-            raise NotImplementedError()
-
-        self.conv1 = conv(inplanes, outplanes, kernel_size, stride)
-        self.bn1 = norm_layer(outplanes)
-        self.conv2 = conv3x3(outplanes, outplanes)
-        self.bn2 = norm_layer(outplanes)
-        if stride != 1 or (inplanes != outplanes):
-            self.downsample = conv1x1(inplanes, outplanes, stride)
-        else:
-            self.downsample = nn.Identity()
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.activation(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        out += self.downsample(identity)
-        out = self.activation(out)
-        return out
+#
+# class ResBlock(nn.Module):
+#
+#     def __init__(self, inplanes, outplanes, kernel_size, stride, norm_layer=None, act='leaky'):
+#         super().__init__()
+#         if norm_layer is None:
+#             norm_layer = nn.BatchNorm2d
+#
+#         if act == 'relu':
+#             self.activation = nn.ReLU(True)
+#         elif act == 'leaky':
+#             self.activation = nn.LeakyReLU(0.2, inplace=True)
+#         else:
+#             raise NotImplementedError()
+#
+#         self.conv1 = conv(inplanes, outplanes, kernel_size, stride)
+#         self.bn1 = norm_layer(outplanes)
+#         self.conv2 = conv3x3(outplanes, outplanes)
+#         self.bn2 = norm_layer(outplanes)
+#         if stride != 1 or (inplanes != outplanes):
+#             self.downsample = conv1x1(inplanes, outplanes, stride)
+#         else:
+#             self.downsample = nn.Identity()
+#         self.stride = stride
+#
+#     def forward(self, x):
+#         identity = x
+#
+#         out = self.conv1(x)
+#         out = self.bn1(out)
+#         out = self.activation(out)
+#
+#         out = self.conv2(out)
+#         out = self.bn2(out)
+#
+#         out += self.downsample(identity)
+#         out = self.activation(out)
+#         return out
 
 
 class Shape(nn.Module):

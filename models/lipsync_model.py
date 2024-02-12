@@ -41,12 +41,14 @@ class LipSyncModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
+        # self.ema_model = self.create_ema(model, power=0.75)
+
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
-        log_vars = {'@loss': None, 'lr': None}
+        log_vars = {'@loss': None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
@@ -59,7 +61,6 @@ class LipSyncModel(BasicModel):
 
             # mask face
             x = self.mask(x)
-
 
             self.optimizer.zero_grad()
 
@@ -76,14 +77,19 @@ class LipSyncModel(BasicModel):
             loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
             loss.backward()
-            log_vars['sync_loss'] = sync_loss
-            log_vars['recon_loss'] = recon_loss
-            log_vars['perceptual_loss'] = perceptual_loss
-            log_vars['lr'] = self.scheduler.get_last_lr()[0]
-            log_vars['@loss'] = loss
 
             self.optimizer.step()
             self.scheduler.step()
+
+            log_vars['sync_loss'] = sync_loss
+            log_vars['recon_loss'] = recon_loss
+            log_vars['perceptual_loss'] = perceptual_loss
+            log_vars['@lr'] = self.scheduler.get_last_lr()[0]
+            log_vars['@loss'] = loss
+
+            log_vars = self.reduce_loss_dict(log_vars)
+
+            # self.ema_model.update()
 
             time_meter.update()
             losses_meter.update(log_vars, x.size(0))
@@ -110,8 +116,7 @@ class LipSyncModel(BasicModel):
             self.criterion['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
-                         self.model)
+        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),

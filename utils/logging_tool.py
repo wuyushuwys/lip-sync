@@ -25,9 +25,9 @@ def _release_lock() -> None:
         _lock.release()
 
 
-def get_logger(file_path):
+def get_logger(name='logger', file_path=None):
     rank, _ = get_dist_info()
-    name = f"{file_path}:{rank}"
+    name = f"{name}:{rank}"
     logger = logging.getLogger(name)
     if name in logger_initialized:
         return logger
@@ -44,13 +44,14 @@ def get_logger(file_path):
 
     format_str = f'[%(asctime)s] %(message)s'
     formatter = logging.Formatter(format_str, "%Y-%m-%d %H:%M:%S")
-    os.makedirs(file_path, exist_ok=True)
+    if file_path:
+        os.makedirs(file_path, exist_ok=True)
 
-    if rank == 0:
-        file_handler = logging.FileHandler(f"{file_path}/result.log", 'w')
-        file_handler.setFormatter(formatter)
-        file_handler.setLevel(log_level)
-        logger.addHandler(file_handler)
+        if rank == 0:
+            file_handler = logging.FileHandler(f"{file_path}/result.log", 'w')
+            file_handler.setFormatter(formatter)
+            file_handler.setLevel(log_level)
+            logger.addHandler(file_handler)
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     if rank == 0:

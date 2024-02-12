@@ -53,7 +53,7 @@ def attr_extractor(obj):
 @master_only
 def loss_printer(loss_dict: dict, fmt='.4f'):
     s = ''
-    for k, v in loss_dict.items():
+    for k, v in sorted(loss_dict.items()):
         if k != 'loss':
             s += f"{k}:{v.item():{fmt}}  " if hasattr(v, 'item') else f"{k}:{v:{fmt}}  "
 
@@ -75,7 +75,8 @@ def eval_tb_writer(writer: tensorboard.writer,
                    nb: int,
                    eval_data_name: str = 'dataset'):
     log_string = f"Eval: {eval_data_name}"
-    wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
+    if wandb.run is not None:
+        wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
     for k, v in loss_dict.items():
         log_string += f" {k}: {v.avg:.04e}"
         writer.add_scalar(f'eval_{eval_data_name}/{k}', v.avg, nb)

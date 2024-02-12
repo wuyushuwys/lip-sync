@@ -2,7 +2,7 @@ import math
 from collections import Counter
 from torch.optim.lr_scheduler import _LRScheduler
 
-from torch.optim.lr_scheduler import MultiStepLR, StepLR, CosineAnnealingLR
+from torch.optim.lr_scheduler import MultiStepLR, StepLR, CosineAnnealingLR, PolynomialLR
 
 
 class MultiStepRestartLR(_LRScheduler):

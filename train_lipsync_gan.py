@@ -16,13 +16,13 @@ from utils.train_utils import create_dataloader, create_criterions, create_optim
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.wav2lip import Wav2Lip
-from arch.discriminator import UNetDiscriminatorSN
+from arch.wav2lip_arch import Wav2Lip
+from arch.discriminator_arch import UNetDiscriminatorSN
 from models.lipsync_gan_model import LipSyncGAN
 
 
 def main(args):
-    logger = get_logger(args.job_dir)
+    logger = get_logger()
     device = args.local_rank
 
     # init wandb
@@ -64,28 +64,6 @@ def main(args):
                                                                                     args=args,
                                                                                     num_batches=len(train_data_loader))
 
-    # Load ckpt
-    if args.ckpt:
-        ckpt = torch.load(args.ckpt, map_location='cpu')
-        ckpt_loader(ckpt,
-                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
-                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
-        start_epoch = ckpt['epoch'] - 1
-        logger.info(f'Load checkpoint from {args.ckpt}. Resume from epoch {start_epoch}')
-    else:
-        start_epoch = 0
-
-    # Load state_dict
-    if args.weight:
-        ckpt = torch.load(args.weight, map_location='cpu')
-        if args.distributed:
-            g_model.module.load_state_dict(ckpt)
-        else:
-            g_model.load_state_dict(ckpt)
-        logger.info(f"Load weight from {args.weight}")
-
-    logger.info(attr_extractor(args))
-
     trainer = LipSyncGAN(g_model=g_model,
                          g_optimizer=g_optimizer,
                          g_scheduler=g_scheduler,
@@ -99,7 +77,18 @@ def main(args):
                          args=args,
                          writer=writer)
 
-    if args.weight:
+    # Load ckpt
+    start_epoch = trainer.load_ckpt(args.ckpt,
+                                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
+                                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
+
+    # Load state_dict
+    trainer.load_model(model=g_model, ckpt_path=args.g_weight)
+    trainer.load_model(model=d_model, ckpt_path=args.d_weight)
+
+    logger.info(attr_extractor(args))
+
+    if args.weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):

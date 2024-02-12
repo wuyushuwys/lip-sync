@@ -162,7 +162,7 @@ class Wav2Lip(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def __str__(self):
-        return "wav2lip"
+        return self.__class__.__name__.lower()
 
     @staticmethod
     def evaluate(*args, **kwargs):
@@ -227,3 +227,6 @@ class Wav2Lip_disc_qual(nn.Module):
             x = f(x)
 
         return self.binary_pred(x).view(len(x), -1)
+
+    def __str__(self):
+        return self.__class__.__name__.lower()

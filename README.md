@@ -21,6 +21,23 @@ pip install -r requirements.txt
 - HDTF
 - TalkingHead-1KF
 - LRS2
+- ...
+### Dataset Preparation
+
+Put you dataset in the `data` folder. 
+
+You can either edit the `DATA_ROOT` in each dataset file inside [datasets](datasets) or use symbolic link to create folder as `DATA_ROOT` for each dataset.
+```bash
+ln -s [your dataset] data/[dataset-folder]
+
+# example
+ln -s [YOUR_PATH]/ffhq-dataset/images1024x1024 data/FFHQ
+ln -s [YOUR_PATH]/imagenet data/imagenet
+ln -s [YOUR_PATH]/open-images-dataset data/open_images
+ln -s [YOUR_PATH]/CelebAMask-HQ/CelebA-HQ-img data/CelebA-HQ
+
+```
+- Note: For celebAHQ dataset, only put face images folder to `data`. Do not include mask data.
 
 ### Data pre-processing
 
