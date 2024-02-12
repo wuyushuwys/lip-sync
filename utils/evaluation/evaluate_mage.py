@@ -65,6 +65,7 @@ def test(dataloader: DataLoader,
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
         loss_dict['acc'].update(mage_accuracy.item(), bsz)
 
+        # scale image from [-1, 1] to [0 ,1]
         imgs = (imgs + 1) / 2
         y = (y + 1) / 2
 
