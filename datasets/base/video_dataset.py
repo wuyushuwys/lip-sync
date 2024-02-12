@@ -28,7 +28,7 @@ from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
 
-from .utils import exists
+from datasets.utils import exists
 
 
 class FrameMelDataset(Dataset):

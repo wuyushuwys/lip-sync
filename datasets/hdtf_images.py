@@ -3,16 +3,16 @@ from argparse import Namespace
 
 import utils.mode
 
-from .img_dataset import ImageDataset, make_dataset
+from datasets.base.img_dataset import ImageDataset, make_dataset
 
 DATA_ROOT = "data/HDTF_Image"
 
 
-def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
-    return HDTF_Image(mode, args, data_root)
+def get_dataset(mode: AnyStr, args: Namespace):
+    return HDTFImages(mode, args, args.data_root.hdtf_images if args.get("data_root", False) else DATA_ROOT)
 
 
-class HDTF_Image(ImageDataset):
+class HDTFImages(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         sample_rate = 25 * 180
@@ -23,5 +23,5 @@ class HDTF_Image(ImageDataset):
         else:
             dataset = dataset[-num_eval:][::sample_rate]
 
-        super(HDTF_Image, self).__init__(mode=mode, args=args, dataset=dataset)
+        super(HDTFImages, self).__init__(mode=mode, args=args, dataset=dataset)
         self.__verbose__()

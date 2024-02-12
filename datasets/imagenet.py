@@ -4,13 +4,13 @@ import os
 
 import utils.mode
 
-from .img_dataset import ImageDataset, make_dataset
+from datasets.base.img_dataset import ImageDataset, make_dataset
 
 DATA_ROOT = "data/imagenet"
 
 
-def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
-    return ImageNet(mode, args, data_root)
+def get_dataset(mode: AnyStr, args: Namespace):
+    return ImageNet(mode, args, args.data_root.imagenet if args.get("data_root", False) else DATA_ROOT)
 
 
 class ImageNet(ImageDataset):

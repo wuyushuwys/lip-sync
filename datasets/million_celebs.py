@@ -3,13 +3,13 @@ from argparse import Namespace
 
 import utils.mode
 
-from .img_dataset import ImageDataset, make_dataset
+from datasets.base.img_dataset import ImageDataset, make_dataset
 
 DATA_ROOT = "data/MillionCelebs"
 
 
-def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
-    return MillionCelebs(mode, args, data_root)
+def get_dataset(mode: AnyStr, args: Namespace):
+    return MillionCelebs(mode, args, args.data_root.million_celebs if args.get("data_root", False) else DATA_ROOT)
 
 
 class MillionCelebs(ImageDataset):

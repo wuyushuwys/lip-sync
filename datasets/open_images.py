@@ -4,14 +4,14 @@ from argparse import Namespace
 
 import utils.mode
 
-from .img_dataset import ImageDataset
-from .img_dataset import make_dataset
+from datasets.base.img_dataset import ImageDataset
+from datasets.base.img_dataset import make_dataset
 
 DATA_ROOT = "data/open_images"
 
 
-def get_dataset(mode: AnyStr, args: Namespace, data_root: AnyStr = DATA_ROOT):
-    return OpenImages(mode, args, data_root)
+def get_dataset(mode: AnyStr, args: Namespace):
+    return OpenImages(mode, args, args.data_root.open_images if args.get("data_root", False) else DATA_ROOT)
 
 
 class OpenImages(ImageDataset):

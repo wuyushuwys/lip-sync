@@ -215,8 +215,8 @@ class FeMaSRNet(nn.Module):
         self.use_residual = use_residual
 
         channel_query_dict = {
-            8: 256,
-            16: 256,
+            8: 512,
+            16: 512,
             32: 256,
             64: 256,
             128: 128,
