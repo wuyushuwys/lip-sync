@@ -56,12 +56,9 @@ def test(dataloader: DataLoader,
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
-        not_scaled = y.min() < 0
 
         (loss, acc), imgs, token_all_mask = model(x, generate=True)
 
-        if not_scaled:
-            imgs = (imgs + 1) / 2
         mage_loss = reduce_all(loss)
         mage_accuracy = reduce_all(acc)
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
@@ -77,7 +74,7 @@ def save_sample_images(g, gt, batch_num, epoch, folder_path):
     outputs = torch.cat([g, gt], dim=-1)
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
-    outputs = make_grid(outputs, nrow=4, padding=10)
+    outputs = make_grid(outputs, nrow=4, padding=10, normalize=True)
     save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1 and wandb.run is not None:
         image = wandb.Image(outputs, file_type='jpg')
