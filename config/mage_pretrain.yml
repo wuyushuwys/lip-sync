@@ -4,7 +4,7 @@ d_weight: null
 
 warmup_lr: true
 warmup_iters: 0.1
-
+use_amp: true
 data_spec:
   max_datasize: 500000
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)

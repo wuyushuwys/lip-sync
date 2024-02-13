@@ -45,6 +45,7 @@ class DoubleConditionedMAGE(nn.Module):
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
                  vq_config_path='config/vqgan.yml', vq_state_dict=None,
+                 mage_pretrain_ckpt_path=None,
                  use_audio_reference=True, use_image_reference=True):
         super().__init__()
         logger = get_logger()
@@ -147,7 +148,32 @@ class DoubleConditionedMAGE(nn.Module):
 
         self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
 
-        self.initialize_weights()
+        if not mage_pretrain_ckpt_path:
+            self.initialize_weights()
+        else:
+            logger.info(f"Load pretrain weight from {mage_pretrain_ckpt_path}")
+            mage_pretrain_weight = torch.load(mage_pretrain_ckpt_path, map_location='cpu')
+            incompatible_keys = self.load_state_dict(mage_pretrain_weight, strict=False)
+            assert len(
+                incompatible_keys.unexpected_keys) == 0, f"do not expected unexpected_keys {incompatible_keys.unexpected_keys}"
+            # logger.info(incompatible_keys)
+
+            for name, p in self.named_parameters():
+                # first, we only unfreeze new parameters
+                if name in incompatible_keys.missing_keys:
+                    continue
+                # then, we unfreeze mlp parameters in decoder
+                elif 'decoder_blocks' in name and 'mlp' in name:
+                    continue
+                p.requires_grad = False
+
+        # unfreeze decoder_norm layer
+        for p in self.decoder_norm.parameters():
+            p.requires_grad = True
+
+        # unfreeze mlm layer
+        for p in self.mlm_layer.parameters():
+            p.requires_grad = True
 
     def initialize_weights(self):
         # initialization
@@ -183,11 +209,11 @@ class DoubleConditionedMAGE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    @torch.no_grad()
     def encode_reference(self, ref):
         # encode reference image to latent feature
-        z_ref = self.vqgan.encode(ref)
-        z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape from bsz, c, h, w --> bsz, h*w, c
+        with torch.no_grad():
+            z_ref = self.vqgan.encode(ref)
+            z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
         z_map = self.decoder_embed_mapping(z)
         return z_map
 
@@ -207,7 +233,7 @@ class DoubleConditionedMAGE(nn.Module):
                 z_q_gt, _, quantizer_info_gt = self.vqgan.quantize(z_gt)
                 gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
                 token_all_mask = x_indices.not_equal(gt_indices).float()
-
+                # print(token_all_mask.sum()/token_all_mask.numel())
             # if no gt then self-supervised learning, in this case x should be a complete image
             else:
                 gt_indices = x_indices.clone().detach().long()
@@ -253,6 +279,12 @@ class DoubleConditionedMAGE(nn.Module):
         x_indices = torch.cat(
             [torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), x_indices], dim=1)
         x_indices[:, 0] = self.fake_class_label
+
+        # for current test
+        if gt is not None:
+            # token_drop_mask = torch.rand_like(token_all_mask).less_equal(self.mask_ratio_min).float()
+            token_drop_mask = torch.zeros_like(token_all_mask)
+
         token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_drop_mask],
                                     dim=1)
         token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_all_mask],

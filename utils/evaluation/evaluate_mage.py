@@ -88,35 +88,36 @@ def test(dataloader: DataLoader,
 
         x_masked = mask(x.clone())
 
-        with torch.autocast('cuda', dtype=torch.float16):
-            (loss, acc), imgs, token_all_mask = model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=True)
+        (loss, acc), imgs, token_all_mask = model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=True)
 
         mage_loss = reduce_all(loss)
         mage_accuracy = reduce_all(acc)
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
         loss_dict['acc'].update(mage_accuracy.item(), bsz)
 
+        vq_y, _ = model.module.vqgan(y)
+
         # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
+        x_masked = (x_masked + 1) / 2
         imgs = (imgs + 1) / 2
         y = (y + 1) / 2
+        vq_y = (vq_y + 1) / 2
 
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), bsz)
-        save_sample_images(x, imgs, y, idx, epoch=epoch, folder_path=img_folder)
-
         loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), bsz)
         loss_dict['SSIM'].update(reduce_all(ssim(imgs, y)), bsz)
 
-        save_sample_images(imgs, y, idx, epoch, img_folder)
+        save_sample_images(x_masked, imgs, vq_y, y, idx, epoch, img_folder)
 
     return loss_dict
 
 
 @master_only
-def save_sample_images(g, gt, batch_num, epoch, folder_path):
-    outputs = torch.cat([g, gt], dim=-1)
+def save_sample_images(x, g, vq_gt, gt, batch_num, epoch, folder_path):
+    outputs = torch.cat([x, g, vq_gt, gt], dim=-1)
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
-    outputs = make_grid(outputs, nrow=4, padding=10)
+    outputs = make_grid(outputs, nrow=1, padding=10)
     save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1 and wandb.run is not None:
         image = wandb.Image(outputs, file_type='jpg')

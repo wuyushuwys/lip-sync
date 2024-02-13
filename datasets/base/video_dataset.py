@@ -138,12 +138,12 @@ class FrameMelDataset(Dataset):
             #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
             #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
             #     return img_window, mel, label
-        elif self.arch == 'lipsync':
+        elif self.arch in ['lipsync', 'mage']:
             frame_list, audio_file = self._load_index(index)
             x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
             return x, indiv_mels, mel, y
         else:
-            raise NotImplementedError(f"{self.model} is not implemented")
+            raise NotImplementedError(f"{self.arch} is not implemented")
 
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
