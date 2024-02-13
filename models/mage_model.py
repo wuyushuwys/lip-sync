@@ -112,7 +112,14 @@ class MageModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        evaluate_mage.evaluation()
+        evaluate_mage.evaluation(model=self.model,
+                                 eval_data_loaders=self.eval_data_loaders,
+                                 epoch=epoch,
+                                 criteria=self.criteria,
+                                 writer=self.writer,
+                                 args=self.args,
+                                 logger=self.logger,
+                                 mask=self.mask)
 
     def save_model(self, path, *args):
         state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)
