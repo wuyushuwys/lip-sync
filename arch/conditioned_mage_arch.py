@@ -342,11 +342,9 @@ class DoubleConditionedMAGE(nn.Module):
             ref = torch.cat([audio_emb, ref_emb], dim=1)
             ref += self.cross_embed(ref)
         elif self.use_audio_reference:
-            ref = audio_emb
-            ref += self.cross_embed(ref)
+            ref = audio_emb + self.cross_embed(audio_emb)
         elif self.use_image_reference:
-            ref = ref_emb
-            ref += self.cross_embed(ref)
+            ref = ref_emb + self.cross_embed(ref_emb)
         else:
             ref = x
         # apply Transformer blocks
