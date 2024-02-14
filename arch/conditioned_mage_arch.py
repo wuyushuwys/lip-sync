@@ -238,13 +238,15 @@ class DoubleConditionedMAGE(nn.Module):
                 gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
                 token_all_mask = x_indices.not_equal(gt_indices).float()
                 # print(token_all_mask.sum()/token_all_mask.numel())
-                bsz, seq_len = x_indices.size()
-                num_dropped_tokens = int(np.ceil(seq_len * self.mask_ratio_min))
-                noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
-                sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
-                cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
-                token_drop_mask = noise.less_equal(cutoff_drop).float()
-
+                while True:
+                    bsz, seq_len = x_indices.size()
+                    num_dropped_tokens = int(np.ceil(seq_len * self.mask_ratio_min))
+                    noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                    sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
+                    cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
+                    token_drop_mask = noise.less_equal(cutoff_drop).float()
+                    if token_drop_mask.sum() == bsz * num_dropped_tokens:
+                        break
             # if no gt then self-supervised learning, in this case x should be a complete image
             else:
                 gt_indices = x_indices.clone().detach().long()
