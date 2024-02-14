@@ -289,7 +289,7 @@ class DoubleConditionedMAGE(nn.Module):
 
         # concate class token
         x_indices = torch.cat(
-            [torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), x_indices], dim=1)
+            [torch.zeros(x_indices.size(0), 1, device=x_indices.device), x_indices], dim=1)
         x_indices[:, 0] = self.fake_class_label
 
         # for current test
@@ -297,9 +297,9 @@ class DoubleConditionedMAGE(nn.Module):
         #     # token_drop_mask = torch.rand_like(token_all_mask).less_equal(self.mask_ratio_min).float()
         #     token_drop_mask = torch.zeros_like(token_all_mask)
 
-        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_drop_mask],
+        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_drop_mask],
                                     dim=1)
-        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_all_mask],
+        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_all_mask],
                                    dim=1)
         x_indices = x_indices.long()
         # bert embedding
