@@ -437,7 +437,7 @@ class TransformerDecoder(nn.Module):
         return x
 
 
-def lip_mage_vit_base_patch16(**kwargs):
+def lip_mage_vit_base(**kwargs):
     model = DoubleConditionedMAGE(
         patch_size=32, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=768, decoder_depth=8, decoder_num_heads=16,

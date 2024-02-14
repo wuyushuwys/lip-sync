@@ -23,6 +23,7 @@ from utils.prefetch_dataloader import CUDAPrefetcher
 from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 
+
 __all__ = ["create_dataloader",
            "create_criteria",
            "load_ckpt",
@@ -90,6 +91,15 @@ def create_dataloader(args):
 
 
 def subdict(dict: Union[Dict, DictConfig], *exceptions) -> Dict:
+    """
+    Return a dictionary exclude specific keys without modifying original dict
+    Args:
+        dict: dictionary
+        *exceptions: keys that exclude
+
+    Returns: Sub-Dictionary
+
+    """
     return {k: v for k, v in dict.items() if k not in exceptions}
 
 
@@ -172,8 +182,9 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     if isinstance(args.optim, ListConfig):
         for model, optim, optim_args in zip(model_list, optim_module, optim_dict):
             # todo: modify if needed
-            optimizer = optim(filter(lambda p: p.requires_grad, model.parameters()),
-                              **optim_args)
+
+            params_group = filter(lambda p: p.requires_grad, model.parameters())
+            optimizer = optim(params_group, **optim_args)
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:
@@ -186,8 +197,22 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     else:
         for model in model_list:
             # todo: modify if needed
-            optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
-                                     **optim_dict)
+            if optim_dict.get('weight_decay', False):
+                decay = []
+                no_decay = []
+                for name, p in model.named_parameters():
+                    if not p.requires_grad:
+                        continue
+                    if p.ndim <= 1 or name.endswith(".bias") or name:
+                        no_decay.append(p)
+                    else:
+                        decay.append(p)
+                params_group = [
+                    {'params': no_decay, 'weight_decay': 0.},
+                    {'params': decay, 'weight_decay': optim_dict.pop("weight_decay")}]
+            else:
+                params_group = filter(lambda p: p.requires_grad, model.parameters())
+            optimizer = optim_module(params_group, **optim_dict)
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:

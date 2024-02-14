@@ -12,11 +12,11 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler, subdict
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.conditioned_mage_arch import lip_mage_vit_small
+from arch import conditioned_mage_arch
 from models.mage_model import MageModel
 
 
@@ -38,7 +38,8 @@ def main(args):
     # Create generator
     logger.info(f"Create Model")
 
-    model = lip_mage_vit_small(**args.model)
+    model = conditioned_mage_arch.__dict__[args.model.get("type")](**subdict(args.model, 'type'))
+    # model = lip_mage_vit_small(**args.model)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
