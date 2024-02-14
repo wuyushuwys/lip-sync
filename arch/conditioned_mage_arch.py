@@ -15,6 +15,7 @@ from utils.logging_tool import get_logger
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .audionet_arch import AudioNet
+from .ops import PositionalEncoding
 
 
 class DoubleConditionedMAGE(nn.Module):
@@ -84,6 +85,9 @@ class DoubleConditionedMAGE(nn.Module):
         self.use_image_reference = use_image_reference
         if use_image_reference:
             self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim)
+
+        if use_image_reference or use_audio_reference:
+            self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
 
         logger.info(f"use_audio_reference:{use_audio_reference}")
         logger.info(f"use_image_reference:{use_image_reference}")
@@ -234,6 +238,13 @@ class DoubleConditionedMAGE(nn.Module):
                 gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
                 token_all_mask = x_indices.not_equal(gt_indices).float()
                 # print(token_all_mask.sum()/token_all_mask.numel())
+                bsz, seq_len = x_indices.size()
+                num_dropped_tokens = int(np.ceil(seq_len * self.mask_ratio_min))
+                noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
+                cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
+                token_drop_mask = noise.less_equal(cutoff_drop).float()
+
             # if no gt then self-supervised learning, in this case x should be a complete image
             else:
                 gt_indices = x_indices.clone().detach().long()
@@ -258,14 +269,13 @@ class DoubleConditionedMAGE(nn.Module):
                         num_subseq = seq_len // 4  # typically seq_len is a multiple of 4
                         fake_noise = torch.arange(0, 4, device=x.device)[None, :] / 4
                         noise = fake_noise.repeat(bsz, num_subseq)
-                        # print(noise.shape)
+
                     sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
                     cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
                     cutoff_mask = sorted_noise[:, num_masked_tokens - 1:num_masked_tokens]
                     token_drop_mask = noise.less_equal(cutoff_drop).float()
                     token_all_mask = noise.less_equal(cutoff_mask).float()
-                    # if not self.training:
-                    #     break
+
                     if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
                         break
                     else:
@@ -281,9 +291,9 @@ class DoubleConditionedMAGE(nn.Module):
         x_indices[:, 0] = self.fake_class_label
 
         # for current test
-        if gt is not None:
-            # token_drop_mask = torch.rand_like(token_all_mask).less_equal(self.mask_ratio_min).float()
-            token_drop_mask = torch.zeros_like(token_all_mask)
+        # if gt is not None:
+        #     # token_drop_mask = torch.rand_like(token_all_mask).less_equal(self.mask_ratio_min).float()
+        #     token_drop_mask = torch.zeros_like(token_all_mask)
 
         token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_drop_mask],
                                     dim=1)
@@ -330,10 +340,13 @@ class DoubleConditionedMAGE(nn.Module):
         if self.use_audio_reference and self.use_image_reference:
             assert audio_emb.size(-1) == ref_emb.size(-1)
             ref = torch.cat([audio_emb, ref_emb], dim=1)
+            ref += self.cross_embed(ref)
         elif self.use_audio_reference:
             ref = audio_emb
+            ref += self.cross_embed(ref)
         elif self.use_image_reference:
             ref = ref_emb
+            ref += self.cross_embed(ref)
         else:
             ref = x
         # apply Transformer blocks

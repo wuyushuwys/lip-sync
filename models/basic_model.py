@@ -6,6 +6,7 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 
 from ema_pytorch import EMA
 
+from common.meters import AverageMeter
 from utils.logging_tool import get_logger
 from utils import ckpt_loader, get_dist_info
 
@@ -13,6 +14,7 @@ from utils import ckpt_loader, get_dist_info
 class BasicModel(ABC):
 
     def __init__(self, *args, **kwargs):
+        self.data_timer = AverageMeter()
         pass
 
     def init_trainer(self, *args, **kwargs):

@@ -12,7 +12,7 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, criteria, create_optim_scheduler, ckpt_loader
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 

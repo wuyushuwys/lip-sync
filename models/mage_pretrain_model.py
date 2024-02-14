@@ -1,4 +1,5 @@
 import os
+import time
 from argparse import Namespace
 
 import torch
@@ -57,7 +58,9 @@ class MageModel(BasicModel):
         self.model.train()
         nb = len(self.train_data_loader)
         log_vars = {'@loss': None, '@lr': None}
+        start_time = time.monotonic()
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
+            self.data_timer.update(time.monotonic() - start_time)
             total_batches = (epoch - 1) * nb + batch_idx
             # typically we pretrain model with image only dataset, can be same as VQGAN
             x, y = batch
@@ -96,8 +99,9 @@ class MageModel(BasicModel):
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
                 s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
-                    f"est. {time_meter.remain_time} {loss_printer(log_vars, fmt='.04e')}"
+                    f"est. {time_meter.remain_time} {self.data_timer.avg*1000:.02f}ms {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
+            start_time = time.monotonic()
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):

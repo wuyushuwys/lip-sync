@@ -19,16 +19,16 @@ class AudioNet(nn.Module):
         logger = get_logger()
 
         self.encoder_conv = nn.Sequential(
-            nn.Conv1d(80, 32, kernel_size=3, stride=2, padding=1, bias=True),
+            nn.Conv1d(80, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=32),
             nn.LeakyReLU(0.02, True),
-            nn.Conv1d(32, 32, kernel_size=3, stride=2, padding=1, bias=True),
+            nn.Conv1d(32, 32, kernel_size=3, stride=1, padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=32),
             nn.LeakyReLU(0.02, True),
-            nn.Conv1d(32, 64, kernel_size=3, stride=2, padding=1, bias=True),
+            nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=64),
             nn.LeakyReLU(0.02, True),
-            nn.Conv1d(64, 64, kernel_size=3, stride=2, padding=1, bias=True),
+            nn.Conv1d(64, 64, kernel_size=3, stride=1, padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=64),
             nn.LeakyReLU(0.02, True),
         )
