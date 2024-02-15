@@ -263,7 +263,7 @@ class DoubleConditionedMAGE(nn.Module):
 
                 # random masking
                 bsz, seq_len = x_indices.size()
-                mask_ratio_min = self.mask_ratio_min
+                mask_ratio_min = self.mask_ratio_min if self.training else 0
                 if self.training:
                     mask_rate = self.mask_ratio_generator.rvs(1)[0]
                 else:
@@ -293,8 +293,8 @@ class DoubleConditionedMAGE(nn.Module):
 
                     if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
                         break
-                    else:
-                        print("Rerandom the noise!")
+                    # else:
+                    #     print("Rerandom the noise!")
 
         # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
         x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label
