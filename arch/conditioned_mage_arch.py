@@ -1,3 +1,4 @@
+import os.path
 from functools import partial
 
 import numpy as np
@@ -15,7 +16,7 @@ from utils.logging_tool import get_logger
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .audionet_arch import AudioNet
-from .ops import PositionalEncoding
+from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
 
 class DoubleConditionedMAGE(nn.Module):
@@ -45,6 +46,7 @@ class DoubleConditionedMAGE(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
+                 eval_mask_ratio=0.5, pos_embed=False,
                  vq_config_path='config/vqgan.yml', vq_state_dict=None,
                  mage_pretrain_ckpt_path=None,
                  use_audio_reference=True, use_image_reference=True):
@@ -55,9 +57,11 @@ class DoubleConditionedMAGE(nn.Module):
         # replace this part with our face_vqgan specifications
         vq_config = OmegaConf.load(vq_config_path)
         self.vqgan = FaceCoderNet(**vq_config.g_model)
-        if vq_state_dict:
+        if os.path.exists(vq_state_dict):
             self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
             logger.info(f"Load vq model weight from {vq_state_dict}")
+        else:
+            raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
@@ -97,6 +101,7 @@ class DoubleConditionedMAGE(nn.Module):
         self.mask_ratio_generator = stats.truncnorm((mask_ratio_min - mask_ratio_mu) / mask_ratio_std,
                                                     (mask_ratio_max - mask_ratio_mu) / mask_ratio_std,
                                                     loc=mask_ratio_mu, scale=mask_ratio_std)
+        self.eval_mask_ratio = eval_mask_ratio
 
         # --------------------------------------------------------------------------
         # MAGE encoder specifics
@@ -182,9 +187,10 @@ class DoubleConditionedMAGE(nn.Module):
     def initialize_weights(self):
         # initialization
         # initialize (and freeze) pos_embed by sin-cos embedding
-        # pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
-        #                                     cls_token=True)
-        # self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
+        # if hasattr(self, 'pos_embed'):
+        #     pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
+        #                                         cls_token=True)
+        #     self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
 
         # decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
         #                                             int(self.patch_embed.num_patches ** .5), cls_token=True)
@@ -242,6 +248,7 @@ class DoubleConditionedMAGE(nn.Module):
                     bsz, seq_len = x_indices.size()
                     num_dropped_tokens = int(np.ceil(seq_len * self.mask_ratio_min))
                     noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
+                    noise[token_all_mask.nonzero(as_tuple=True)] = 0
                     sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
                     cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
                     token_drop_mask = noise.less_equal(cutoff_drop).float()
@@ -257,7 +264,7 @@ class DoubleConditionedMAGE(nn.Module):
                 if self.training:
                     mask_rate = self.mask_ratio_generator.rvs(1)[0]
                 else:
-                    mask_rate = 0.75  # fix for testing
+                    mask_rate = self.eval_mask_ratio  # fix for testing
                 num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
                 num_masked_tokens = int(np.ceil(seq_len * mask_rate))
 
