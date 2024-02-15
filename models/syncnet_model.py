@@ -84,7 +84,7 @@ class SyncNetModel(BasicModel):
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {time_meter.remain_time} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         return evaluate_sync.evaluation(model=self.model,

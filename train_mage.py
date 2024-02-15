@@ -25,7 +25,7 @@ def main(args):
     device = args.local_rank
 
     # init wandb
-    if args.rank == 0:
+    if args.rank == 0 and args.get("use_wandb", False):
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1],
                    config=OmegaConf.to_container(args))
     # Create job and tb_writer

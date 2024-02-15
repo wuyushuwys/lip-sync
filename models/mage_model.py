@@ -116,7 +116,7 @@ class MageModel(BasicModel):
                 self.logger.info(s)
 
             start_time = time.monotonic()
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. SyncLoss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         evaluate_mage.evaluation(model=self.model,
