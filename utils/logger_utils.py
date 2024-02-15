@@ -48,6 +48,7 @@ def attr_extractor(obj):
     #
     # string += f"{'':{'*'}{'^'}{total_len}s}\n"
     string += pprint.pformat(omegaconf.OmegaConf.to_object(obj))
+    string += f"\n{'':{'*'}{'^'}{total_len}s}\n"
     return string
 
 
