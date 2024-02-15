@@ -4,6 +4,8 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from functools import partial
+
 
 @torch.jit.script
 def swish(x):
@@ -138,11 +140,16 @@ class Shape(nn.Module):
 
 
 class Conv2d(nn.Module):
-    def __init__(self, cin, cout, kernel_size, stride, padding, batch_norm=True, residual=False, act='leaky'):
+    def __init__(self, cin, cout, kernel_size, stride, padding, batch_norm=True, residual=False, act='leaky',
+                 norm='bn'):
         super().__init__()
+        if norm == 'bn':
+            norm = nn.BatchNorm2d
+        elif norm == 'gn':
+            norm = partial(nn.GroupNorm, 32)
         self.conv_block = nn.Sequential(
             nn.Conv2d(cin, cout, kernel_size, stride, padding),
-            nn.BatchNorm2d(cout) if batch_norm else nn.Identity()
+            norm(cout) if batch_norm else nn.Identity()
         )
         self.residual = residual
         self.act = nn.ReLU(True)
@@ -198,11 +205,15 @@ class nonorm_Conv2d(nn.Module):
 
 
 class Conv2dTranspose(nn.Module):
-    def __init__(self, cin, cout, kernel_size, stride, padding, output_padding=0, *args, **kwargs):
+    def __init__(self, cin, cout, kernel_size, stride, padding, output_padding=0, norm='bn', *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if norm == 'bn':
+            norm = nn.BatchNorm2d
+        elif norm == 'gn':
+            norm = partial(nn.GroupNorm, 32)
         self.conv_block = nn.Sequential(
             nn.ConvTranspose2d(cin, cout, kernel_size, stride, padding, output_padding),
-            nn.BatchNorm2d(cout)
+            norm(cout)
         )
         self.act = nn.ReLU()
 
