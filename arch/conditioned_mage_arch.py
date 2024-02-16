@@ -10,6 +10,7 @@ import scipy.stats as stats
 
 from omegaconf import OmegaConf
 from einops import rearrange
+from timm.layers import use_fused_attn
 
 from utils.logging_tool import get_logger
 
@@ -74,6 +75,7 @@ class DoubleConditionedMAGE(nn.Module):
         for param in self.vqgan.parameters():
             param.requires_grad = False
 
+        logger.info(f"Use Flash Attention: {use_fused_attn()}")
         logger.info(f"MAGE_encoder_related_embeddingindex: "
                     f"Codebook Size: {self.codebook_size} "
                     f"Vocab Size: {vocab_size} "
