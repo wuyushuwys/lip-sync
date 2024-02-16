@@ -2,8 +2,12 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from torch.jit import Final
 
 from timm.models.vision_transformer import PatchEmbed, DropPath, Mlp
+from timm.layers import use_fused_attn
 
 from omegaconf import OmegaConf
 import numpy as np
@@ -92,6 +96,8 @@ def interpolate_pos_embed(model, checkpoint_model):
 
 
 class CrossAttention(nn.Module):
+    fused_attn: Final[bool]
+
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super(CrossAttention, self).__init__()
         self.num_heads = num_heads
@@ -106,6 +112,7 @@ class CrossAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+        self.fused_attn = use_fused_attn()
 
     def forward(self, x_query, x_key=None, x_value=None):
         """
@@ -127,13 +134,20 @@ class CrossAttention(nn.Module):
         v = v.reshape(B, N_value, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
         # Attention computation
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        if self.fused_attn:
+            x = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_drop.p if self.training else 0.,
+            )
+            x = x.transpose(1, 2).reshape(B, N_query, C)
+        else:
+            attn = (q @ k.transpose(-2, -1)) * self.scale
+            attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
+            attn = attn.softmax(dim=-1)
+            attn = self.attn_drop(attn)
 
-        # Weighted sum of values
-        x = (attn @ v).transpose(1, 2).reshape(B, N_query, C)
+            # Weighted sum of values
+            x = (attn @ v).transpose(1, 2).reshape(B, N_query, C)
 
         # Linear projection and dropout
         x = self.proj(x)
@@ -208,6 +222,8 @@ class Block(nn.Module):
 
 
 class Attention(nn.Module):
+    fused_attn: Final[bool]
+
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.num_heads = num_heads
@@ -219,22 +235,33 @@ class Attention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+        self.fused_attn = use_fused_attn()
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        # q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv.unbind(0)
 
-        attn = (q.float() @ k.float().transpose(-2, -1)) * self.scale
-
-        attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x, attn
+        if self.fused_attn and not return_attn:
+            x = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_drop.p if self.training else 0.,
+            )
+            x = x.transpose(1, 2).reshape(B, N, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x
+        else:
+            q = q * self.scale
+            attn = q @ k.transpose(-2, -1)
+            attn = attn.softmax(dim=-1)
+            attn = self.attn_drop(attn)
+            x = attn @ v
+            x = x.transpose(1, 2).reshape(B, N, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x, attn
 
 
 class Block(nn.Module):
@@ -253,7 +280,7 @@ class Block(nn.Module):
 
     def forward(self, x, return_attention=False):
         if return_attention:
-            _, attn = self.attn(self.norm1(x))
+            _, attn = self.attn(self.norm1(x), return_attention)
             return attn
         else:
             y, _ = self.attn(self.norm1(x))
