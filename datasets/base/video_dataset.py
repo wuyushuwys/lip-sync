@@ -118,7 +118,7 @@ class FrameMelDataset(Dataset):
                 transforms.append(RandomHorizontalFlip(**aug_spec.flip))
         if self.data_spec.get('normalize', False):
             transforms.append(Normalize(**self.data_spec.normalize))
-            self.transform = Compose(transforms)
+        self.transform = Compose(transforms)
 
     def __len__(self):
         # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
@@ -139,8 +139,16 @@ class FrameMelDataset(Dataset):
             #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
             #     return img_window, mel, label
         elif self.arch in ['lipsync', 'mage']:
+            """
+            x: (ch, T, H, W)
+            indiv_mels: (1, T, 80, mel_step_size)
+            mel: (1, 80, mel_step_size)
+            y: (ch, T, H, W)
+            """
             frame_list, audio_file = self._load_index(index)
             x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
+            if self.data_spec.get('singular', False):
+                return x[:, 2], indiv_mels[2], mel, y[:, 2]
             return x, indiv_mels, mel, y
         else:
             raise NotImplementedError(f"{self.arch} is not implemented")
