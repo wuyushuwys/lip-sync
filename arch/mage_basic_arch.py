@@ -212,10 +212,10 @@ class Block(nn.Module):
 
     def forward(self, x, return_attention=False):
         if return_attention:
-            _, attn = self.attn(self.norm1(x))
+            _, attn = self.attn(self.norm1(x), return_attention)
             return attn
         else:
-            y, _ = self.attn(self.norm1(x))
+            y = self.attn(self.norm1(x), return_attention)
             x = x + self.drop_path(y)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
         return x
