@@ -19,7 +19,7 @@ class ImageNet(ImageDataset):
 
         if os.path.exists(f"{data_root}/train.txt") and os.path.exists(f"{data_root}/val.txt"):
             with open(f"{data_root}/{'train.txt' if mode == utils.mode.TRAIN else 'val.txt'}", 'r') as files:
-                dataset = files.read().splitlines()[:args.data_spec.max_datasize]
+                dataset = files.read().splitlines()[:args.data_spec.get("max_datasize", float('inf'))]
         else:
             dataset = make_dataset(os.path.join(data_root, 'train' if mode == utils.mode.TRAIN else 'val'),
                                    max_dataset_size=args.data_spec.get("max_datasize", float("inf")))
