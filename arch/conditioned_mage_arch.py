@@ -90,7 +90,8 @@ class DoubleConditionedMAGE(nn.Module):
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
         if use_image_reference:
-            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim)
+            # self.decoder_embed_mapping = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
+            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         if use_image_reference or use_audio_reference:
             self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
@@ -225,7 +226,11 @@ class DoubleConditionedMAGE(nn.Module):
         # encode reference image to latent feature
         with torch.no_grad():
             z_ref = self.vqgan.encode(ref)
-            z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
+            z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
+            ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1).long()
+            z = self.token_emb(ref_indices)
+            # z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
+
         z_map = self.decoder_embed_mapping(z)
         return z_map
 
