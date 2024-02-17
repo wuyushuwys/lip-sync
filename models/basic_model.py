@@ -44,7 +44,7 @@ class BasicModel(ABC):
 
             logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
 
-    def compile(self, *models, mode='max-autotune'):
+    def compile(self, *models, mode='default'):
         if torch.cuda.is_available():
             logger = get_logger()
             device_cap = torch.cuda.get_device_capability()
