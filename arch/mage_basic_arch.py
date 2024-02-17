@@ -114,7 +114,7 @@ class CrossAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.fused_attn = use_fused_attn()
 
-    def forward(self, x_query, x_key=None, x_value=None):
+    def forward(self, x_query, x_key=None, x_value=None, return_attn=False):
         """
         when both x_key and x_value are None then self-attention
         """
@@ -134,12 +134,15 @@ class CrossAttention(nn.Module):
         v = v.reshape(B, N_value, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
         # Attention computation
-        if self.fused_attn:
+        if self.fused_attn and not return_attn:
             x = F.scaled_dot_product_attention(
                 q, k, v,
                 dropout_p=self.attn_drop.p if self.training else 0.,
             )
             x = x.transpose(1, 2).reshape(B, N_query, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x
         else:
             attn = (q @ k.transpose(-2, -1)) * self.scale
             attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
@@ -149,11 +152,11 @@ class CrossAttention(nn.Module):
             # Weighted sum of values
             x = (attn @ v).transpose(1, 2).reshape(B, N_query, C)
 
-        # Linear projection and dropout
-        x = self.proj(x)
-        x = self.proj_drop(x)
+            # Linear projection and dropout
+            x = self.proj(x)
+            x = self.proj_drop(x)
 
-        return x, attn
+            return x, attn
 
 
 class CrossBlock(nn.Module):
@@ -179,21 +182,21 @@ class CrossBlock(nn.Module):
 
     def forward(self, x, x_key, x_query, return_attention=False):
         if return_attention:
-            _, attn = self.attn(self.norm1(x))
-            _, attn = self.cross_attn(self.norm1(x), x_key, x_query)
+            _, attn = self.attn(self.norm1(x), return_attention)
+            _, attn = self.cross_attn(self.norm1(x), x_key, x_query, return_attention)
             return attn
         else:
             # self-attention
-            y, _ = self.attn(self.norm1(x))
+            y = self.attn(self.norm1(x), return_attention)
             x = x + self.drop_path(y)
 
             # cross-attention with lq
-            y, _ = self.cross_attn(self.norm2(x), x_key, x_query)
+            y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
             x = x + self.drop_path(y)
 
             # mlp forward
             x = x + self.drop_path(self.mlp(self.norm3(x)))
-        return x
+            return x
 
 
 class Block(nn.Module):
@@ -218,7 +221,7 @@ class Block(nn.Module):
             y = self.attn(self.norm1(x), return_attention)
             x = x + self.drop_path(y)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
+            return x
 
 
 class Attention(nn.Module):
