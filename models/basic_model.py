@@ -54,7 +54,6 @@ class BasicModel(ABC):
                     logger.info(f"Compile {m} in mode {mode}")
                     m = torch.compile(model=m, mode=mode)
 
-
     @staticmethod
     def load_ckpt(ckpt_path, **kwargs):
         """
