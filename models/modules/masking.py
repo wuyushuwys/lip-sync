@@ -12,7 +12,7 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, pad=0.02, half_precision=True):
+    def __init__(self, size=256, pad=0.02, half_precision=True, norm=True):
         """
         Masking toolkit for half-face masking
         Args:
@@ -20,7 +20,7 @@ class Masking(nn.Module):
             half_precision: whether using half-precision inference
         """
         super().__init__()
-        self.detector = BiSeNet(n_classes=19)
+        self.detector = BiSeNet(n_classes=19, norm=norm)
         assert 0 <= pad < 0.5, f"mask pad should between [0, 0.5], but got {pad}"
         self.pad = pad  # pad mask for better boundary effect.
         self.half_precision = half_precision
