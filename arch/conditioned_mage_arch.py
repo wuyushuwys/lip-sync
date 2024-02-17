@@ -50,7 +50,9 @@ class DoubleConditionedMAGE(nn.Module):
                  eval_mask_ratio=0.5,
                  vq_config_path='config/vqgan.yml', vq_state_dict=None,
                  mage_pretrain_ckpt_path=None,
-                 use_audio_reference=True, use_image_reference=True):
+                 use_audio_reference=True,
+                 use_image_reference=True,
+                 tokenize_reference=False):
         super().__init__()
         logger = get_logger()
         # --------------------------------------------------------------------------
@@ -90,14 +92,19 @@ class DoubleConditionedMAGE(nn.Module):
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
         if use_image_reference:
-            # self.decoder_embed_mapping = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
-            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+            if tokenize_reference:
+                self.decoder_embed_mapping = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
+            else:
+                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         if use_image_reference or use_audio_reference:
             self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
 
+        self.tokenize_reference = tokenize_reference
+
         logger.info(f"use_audio_reference:{use_audio_reference}")
         logger.info(f"use_image_reference:{use_image_reference}")
+        logger.info(f"tokenize_reference:{tokenize_reference}")
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
@@ -222,14 +229,16 @@ class DoubleConditionedMAGE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    def encode_reference(self, ref):
+    def encode_reference(self, ref, tokenize=False):
         # encode reference image to latent feature
         with torch.no_grad():
             z_ref = self.vqgan.encode(ref)
-            z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
-            ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1).long()
-            z = self.token_emb(ref_indices)
-            # z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
+            if tokenize:
+                z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
+                ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1).long()
+                z = self.token_emb(ref_indices)
+            else:
+                z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
         z_map = self.decoder_embed_mapping(z)
         return z_map
@@ -401,7 +410,7 @@ class DoubleConditionedMAGE(nn.Module):
         bsz = latent.size(0)
 
         # generate ref_emb and audio_emb when use_image/audio_reference
-        ref_emb = self.encode_reference(ref=ref) if self.use_image_reference else None
+        ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
         audio_emb = self.audio_net(audio) if self.use_audio_reference else None
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
