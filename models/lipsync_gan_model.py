@@ -52,10 +52,16 @@ class LipSyncGAN(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
+        self.save_g_model = self.model_no_ddp(g_model)
+        self.save_d_model = self.model_no_ddp(d_model)
+
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
         # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
+
+    def compile_model(self):
+        self.compile(self.g_model, self.d_model)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -174,15 +180,15 @@ class LipSyncGAN(BasicModel):
 
     def save_model(self, path, *args):
 
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.g_model)}.pt"), self.g_model)
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.d_model)}.pt"), self.d_model)
+        state_dict_saver(os.path.join(path, f"{self.save_g_model}.pt"), self.save_g_model)
+        state_dict_saver(os.path.join(path, f"{self.save_d_model}.pt"), self.save_d_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   g_model=self.g_model,
+                   g_model=self.save_g_model,
                    g_optimizer=self.g_optimizer,
                    g_scheduler=self.g_scheduler,
-                   d_model=self.d_model,
+                   d_model=self.save_d_model,
                    d_optimizer=self.d_optimizer,
                    d_scheduler=self.d_scheduler,
                    epoch=epoch)

@@ -48,9 +48,12 @@ class MageModel(BasicModel):
 
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
-        # self.mask = Masking(half_precision=True).to(self.local_rank)
+        self.save_model = self.model_no_ddp(model)
 
         # self.ema_model = self.create_ema(model, power=0.75)
+
+    def compile_model(self):
+        self.compile(self.model)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -99,7 +102,7 @@ class MageModel(BasicModel):
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
                 s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
-                    f"est. {time_meter.remain_time} {self.data_timer.avg*1000:.02f}ms {loss_printer(log_vars, fmt='.04e')}"
+                    f"est. {time_meter.remain_time} {self.data_timer.avg * 1000:.02f}ms {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
             start_time = time.monotonic()
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
@@ -111,11 +114,11 @@ class MageModel(BasicModel):
                                           writer=self.writer, args=self.args, logger=self.logger)
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)
+        state_dict_saver(os.path.join(path, f"{self.save_model}.pt"), self.save_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.model,
+                   model=self.save_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

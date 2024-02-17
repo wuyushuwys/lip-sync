@@ -47,7 +47,7 @@ class DoubleConditionedMAGE(nn.Module):
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
-                 eval_mask_ratio=0.5, pos_embed=False,
+                 eval_mask_ratio=0.5,
                  vq_config_path='config/vqgan.yml', vq_state_dict=None,
                  mage_pretrain_ckpt_path=None,
                  use_audio_reference=True, use_image_reference=True):

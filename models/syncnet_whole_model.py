@@ -39,7 +39,12 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
+        self.save_model = self.model_no_ddp(model)
+
         self.mask = Masking(half_precision=True).to(self.local_rank)
+
+    def compile_model(self):
+        self.compile(self.model)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -98,16 +103,14 @@ class SyncNetModel(BasicModel):
     def save_model(self, path, best=False):
         if best:
             state_dict_saver(
-                os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}_best.pt"),
-                self.model)
+                os.path.join(path, f"{self.save_model}_best.pt"), self.save_model)
         else:
             state_dict_saver(
-                os.path.join(path, f"{self.model.module if hasattr(self.model, 'module') else self.model}.pt"),
-                self.model)
+                os.path.join(path, f"{self.save_model}.pt"), self.save_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.model,
+                   model=self.save_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

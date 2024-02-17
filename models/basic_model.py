@@ -1,4 +1,5 @@
 from abc import ABC
+from enum import Enum
 
 import torch
 import torch.distributed as dist
@@ -9,6 +10,12 @@ from ema_pytorch import EMA
 from common.meters import AverageMeter
 from utils.logging_tool import get_logger
 from utils import ckpt_loader, get_dist_info
+
+
+class CompileMode(Enum):
+    DEFAULT = 'default'
+    REDUCE_OVERHEAD = 'reduce-overhead'
+    MAX_AUTOTUNE = 'max-autotune'
 
 
 class BasicModel(ABC):
@@ -36,6 +43,17 @@ class BasicModel(ABC):
             self.model_no_ddp(model).load_state_dict(ckpt)
 
             logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
+
+    @staticmethod
+    def compile(*models, mode='default'):
+        if torch.cuda.is_available():
+            logger = get_logger()
+            device_cap = torch.cuda.get_device_capability()
+            if device_cap in ((7, 0), (8, 0), (9, 0)):
+                for m in models:
+                    logger.info(f"Compile {m} in mode {mode}")
+                    m = torch.compile(model=m, mode=mode)
+
 
     @staticmethod
     def load_ckpt(ckpt_path, **kwargs):

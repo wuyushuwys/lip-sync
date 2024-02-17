@@ -41,7 +41,11 @@ class LipSyncModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
+        self.save_model = self.model_no_ddp(model)
         # self.ema_model = self.create_ema(model, power=0.75)
+
+    def compile_model(self):
+        self.compile(self.model)
 
     def training_epoch(self, epoch):
         time_meter = common.meters.TimeMeter()
@@ -72,7 +76,7 @@ class LipSyncModel(BasicModel):
             recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
             perceptual_loss = self.criteria['perceptual_loss'](pred_y,
-                                                                y) if 'perceptual_loss' in self.criteria.keys() else 0
+                                                               y) if 'perceptual_loss' in self.criteria.keys() else 0
 
             loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
@@ -116,11 +120,11 @@ class LipSyncModel(BasicModel):
             self.criteria['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.model_no_ddp(self.model)}.pt"), self.model)
+        state_dict_saver(os.path.join(path, f"{self.save_model}.pt"), self.save_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.model,
+                   model=self.save_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)
