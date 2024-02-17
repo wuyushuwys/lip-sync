@@ -90,6 +90,9 @@ def main(args):
     trainer.load_model(model=g_model, ckpt_path=args.g_weight)
     trainer.load_model(model=d_model, ckpt_path=args.d_weight)
 
+    # optimize model graph
+    trainer.compile_model()
+
     logger.info(attr_extractor(args))
 
     if args.weight or args.ckpt:

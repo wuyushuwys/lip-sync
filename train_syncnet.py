@@ -75,6 +75,9 @@ def main(args):
     # Load state_dict
     trainer.load_model(model=model, ckpt_path=args.weight)
 
+    # optimize model graph
+    trainer.compile_model()
+
     logger.info(attr_extractor(args))
 
     if args.weight or args.ckpt:
