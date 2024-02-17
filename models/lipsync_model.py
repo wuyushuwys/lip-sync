@@ -41,7 +41,7 @@ class LipSyncModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
-        self.save_model = self.model_no_ddp(model)
+        self.no_ddp_model = self.model_no_ddp(model)
         # self.ema_model = self.create_ema(model, power=0.75)
 
     def compile_model(self):
@@ -120,11 +120,11 @@ class LipSyncModel(BasicModel):
             self.criteria['sync_loss'].loss_weight = 0.03
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.save_model}.pt"), self.save_model)
+        state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.save_model,
+                   model=self.no_ddp_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

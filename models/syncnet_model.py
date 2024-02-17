@@ -39,7 +39,7 @@ class SyncNetModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.save_model = self.model_no_ddp(model)
+        self.no_ddp_model = self.model_no_ddp(model)
 
         # self.ema_model = self.create_ema(model, power=0.75)
 
@@ -103,14 +103,14 @@ class SyncNetModel(BasicModel):
     def save_model(self, path, best=False):
         if best:
             state_dict_saver(
-                os.path.join(path, f"{self.save_model}_best.pt"), self.save_model)
+                os.path.join(path, f"{self.no_ddp_model}_best.pt"), self.no_ddp_model)
         else:
             state_dict_saver(
-                os.path.join(path, f"{self.save_model}.pt"), self.save_model)
+                os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.save_model,
+                   model=self.no_ddp_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

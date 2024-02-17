@@ -48,7 +48,7 @@ class MageModel(BasicModel):
         self.use_amp = args.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
-        self.save_model = self.model_no_ddp(model)
+        self.no_ddp_model = self.model_no_ddp(model)
 
         # self.ema_model = self.create_ema(model, power=0.75)
 
@@ -134,11 +134,11 @@ class MageModel(BasicModel):
                                  mask=self.mask)
 
     def save_model(self, path, *args):
-        state_dict_saver(os.path.join(path, f"{self.save_model}.pt"), self.save_model)
+        state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   model=self.save_model,
+                   model=self.no_ddp_model,
                    optimizer=self.optimizer,
                    scheduler=self.scheduler,
                    epoch=epoch)

@@ -49,8 +49,8 @@ class VQGANModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.save_g_model = self.model_no_ddp(g_model)
-        self.save_d_model = self.model_no_ddp(d_model)
+        self.no_ddp_g_model = self.model_no_ddp(g_model)
+        self.no_ddp_d_model = self.model_no_ddp(d_model)
 
         # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
@@ -213,22 +213,22 @@ class VQGANModel(BasicModel):
 
     @master_only
     def log_codebook(self, up_factor=2):
-        codebook, num_code = self.model_no_ddp(self.g_model).vis_codebook(up_factor=up_factor)
+        codebook, num_code = self.no_ddp_g_model.vis_codebook(up_factor=up_factor)
         if wandb.run is not None:
             image = wandb.Image(codebook, caption=f"num_code-{num_code}", file_type='jpg')
             wandb.log({"Codebook": image})
 
     def save_model(self, path, *args):
 
-        state_dict_saver(os.path.join(path, f"{self.save_g_model}.pt"), self.save_g_model)
-        state_dict_saver(os.path.join(path, f"{self.save_d_model}.pt"), self.save_d_model)
+        state_dict_saver(os.path.join(path, f"{self.no_ddp_g_model}.pt"), self.no_ddp_g_model)
+        state_dict_saver(os.path.join(path, f"{self.no_ddp_d_model}.pt"), self.no_ddp_d_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
-                   g_model=self.save_g_model,
+                   g_model=self.no_ddp_g_model,
                    g_optimizer=self.g_optimizer,
                    g_scheduler=self.g_scheduler,
-                   d_model=self.save_d_model,
+                   d_model=self.no_ddp_d_model,
                    d_optimizer=self.d_optimizer,
                    d_scheduler=self.d_scheduler,
                    epoch=epoch)
