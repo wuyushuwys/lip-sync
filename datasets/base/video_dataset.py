@@ -375,6 +375,7 @@ class FrameMelDataset(Dataset):
             if not os.path.isfile(npy_name):
                 wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
                 mel = melspectrogram(wav).T
+                np.save(npy_name, mel)
             else:
                 mel = np.load(npy_name)
         else:
