@@ -11,10 +11,10 @@ META_PATH = lambda data_root, mode: f'{data_root}/{mode}.txt'
 
 
 def get_dataset(mode: AnyStr, args: Namespace):
-    return HDTF(mode, args, args.data_root.hdtf if args.get("data_root", False) else DATA_ROOT)
+    return HDTF_original(mode, args, args.data_root.hdtf_original if args.get("data_root", False) else DATA_ROOT)
 
 
-class HDTF(FrameMelDataset):
+class HDTF_original(FrameMelDataset):
     EXT = 'jpg'
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
@@ -30,8 +30,9 @@ class HDTF(FrameMelDataset):
         audio_cache_path = f"{data_root}/HDTF_audio_sr_{args.audio_spec['sample_rate']}.h5"
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
-        super(HDTF, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
-                                   audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
+        super(HDTF_original, self).__init__(folder_tree=folder_tree, mode=mode, args=args,
+                                            data_mode=args.data_spec['mode'],
+                                            audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
 
     def __str__(self):
         return self.__class__.__name__.lower()

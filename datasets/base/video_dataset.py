@@ -14,7 +14,7 @@ import torch
 import torchvision
 
 torchvision.disable_beta_transforms_warning()
-from torch.utils.data import Dataset, get_worker_info
+from torch.utils.data import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms.v2 import (Compose, Normalize,
                                        RandomRotation, RandomHorizontalFlip)
