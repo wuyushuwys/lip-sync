@@ -26,9 +26,9 @@ class HDTF_original(FrameMelDataset):
                 folder = line.strip('\n')
                 load_from_folder(folder_tree=folder_tree, folder=folder, mode=args.data_spec['mode'], ext=self.EXT)
 
-        video_cache_path = f"{data_root}/data.h5" if os.path.exists(f"{data_root}/data.h5") else None
+        video_cache_path = f"{data_root}/data.h5" if os.path.isfile(f"{data_root}/data.h5") else None
         audio_cache_path = f"{data_root}/HDTF_original_audio_sr_{args.audio_spec['sample_rate']}.h5"
-        if not os.path.exists(audio_cache_path):
+        if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
         super(HDTF_original, self).__init__(folder_tree=folder_tree, mode=mode, args=args,
                                             data_mode=args.data_spec['mode'],
