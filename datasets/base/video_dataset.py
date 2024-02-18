@@ -1,6 +1,8 @@
 import math
 import os
 import random
+import tarfile
+import numpy as np
 
 from pathlib import Path
 from typing import Dict, AnyStr
@@ -8,17 +10,15 @@ from argparse import Namespace
 from datetime import timedelta
 from tqdm import tqdm
 
-import numpy as np
-
 import torch
 import torchvision
 
 torchvision.disable_beta_transforms_warning()
-from torch.utils.data.dataset import Dataset
+from torch.utils.data import Dataset, get_worker_info
 from torchvision.transforms.functional import resize, InterpolationMode
 from torchvision.transforms.v2 import (Compose, Normalize,
                                        RandomRotation, RandomHorizontalFlip)
-from torchvision.io import read_image
+from torchvision.io import read_image, decode_image
 
 import common
 import utils
@@ -60,6 +60,7 @@ class FrameMelDataset(Dataset):
         self.data_mode = data_mode
         self.skip_offset = skip_offset
         self.bottom_half = bottom_half
+
         if self.mode == utils.mode.TRAIN:
             self.num_samples = self.data_spec.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
@@ -82,15 +83,19 @@ class FrameMelDataset(Dataset):
         #
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
+        if self.data_mode == 'tar':
+            self.tar_files = {}
+            self.tarfile_worker_tree = {k: {} for k in self.root_key}
+
         if video_cache_path:
             self.video_cache = common.io.Hdf5(video_cache_path)
             logger.info(f"{self}: Loading video cache: {video_cache_path}")
         else:
             self.video_cache = None
-            if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
+            if self.data_spec.get('verbose', False):
                 rank, _ = get_dist_info()
                 iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
-                if self.data_mode == 'image':
+                if self.data_mode == 'image' or self.data_mode == 'tar':
                     load_frames = sum(len(v) for v in iterator)
                 elif self.data_mode == 'h5':
                     load_frames = sum(len(v.keys) for v in iterator)
@@ -156,7 +161,7 @@ class FrameMelDataset(Dataset):
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
         frame_list = self.folder_tree[index_folder]
-        if self.data_mode == 'image':
+        if self.data_mode == 'image' or self.data_mode == 'tar':
             frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
         elif self.data_mode == 'h5':
             if self.video_cache:
@@ -177,6 +182,18 @@ class FrameMelDataset(Dataset):
             else:
                 root, key = os.path.split(fname)
                 return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+        elif self.data_mode == 'tar':
+            root, key = os.path.split(fname)
+            # worker = get_worker_info()
+            # worker = worker.id if worker else None
+            # if worker not in self.tarfile_worker_tree[root]:
+            #     self.tarfile_worker_tree[root][worker] = tarfile.open(os.path.join(root, 'data.tar'), mode='r|*')
+            # img_bytes = self.tarfile_worker_tree[root][worker].extractfile(key)
+            if root not in self.tar_files:
+                self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
+            tar_file = self.tar_files[root]
+            img_bytes = tar_file.extractfile(key)
+            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8)) / 255
         else:
             raise NotImplementedError()
 

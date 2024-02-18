@@ -11,6 +11,9 @@ def load_from_folder(folder_tree, folder, mode, ext):
         cache_path = os.path.join(folder, 'cache.h5')
         if os.path.exists(cache_path):  # only load if cache file exist
             folder_tree[folder] = Hdf5(cache_path)
+    elif mode == 'tar':
+        with open(os.path.join(folder, 'meta_data.txt')) as f:
+            folder_tree[folder] = sorted(f.read().splitlines())
     else:
         raise NotImplementedError(f"{mode} not supported")
     return folder_tree
