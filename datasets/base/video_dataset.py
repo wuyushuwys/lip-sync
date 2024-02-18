@@ -193,7 +193,7 @@ class FrameMelDataset(Dataset):
                 self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
             tar_file = self.tar_files[root]
             img_bytes = tar_file.extractfile(key)
-            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8)) / 255
+            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
         else:
             raise NotImplementedError()
 
