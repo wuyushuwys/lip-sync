@@ -138,7 +138,7 @@ class VQGANModel(BasicModel):
 
                 if self.clip_grad:
                     self.scaler.unscale_(self.g_optimizer)
-                    torch.nn.utils.clip_grad_norm_(self.no_ddp_g_model.parameters(), self.clip_grad)
+                    torch.nn.utils.clip_grad_norm_(self.no_ddp_g_model.parameters(), self.clip_grad, foreach=True)
 
                 self.scaler.step(self.g_optimizer)
                 self.scaler.update()
@@ -168,7 +168,7 @@ class VQGANModel(BasicModel):
 
                     if self.clip_grad:
                         self.scaler.unscale_(self.d_optimizer)
-                        torch.nn.utils.clip_grad_norm_(self.no_ddp_d_model.parameters(), self.clip_grad)
+                        torch.nn.utils.clip_grad_norm_(self.no_ddp_d_model.parameters(), self.clip_grad, foreach=True)
                     self.scaler.step(self.d_optimizer)
                     self.scaler.update()
                 # self.d_optimizer.step()
