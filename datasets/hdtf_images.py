@@ -1,3 +1,5 @@
+import os
+
 from typing import AnyStr
 from argparse import Namespace
 
@@ -16,7 +18,11 @@ class HDTFImages(ImageDataset):
 
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         sample_rate = 25 * 180
-        dataset = make_dataset(dir=data_root)
+        if os.path.exists(f"{data_root}/filelist.txt"):
+            with open(f"{data_root}/filelist.txt", 'r') as files:
+                dataset = files.read().splitlines()
+        else:
+            dataset = make_dataset(dir=data_root)
         num_eval = min(int(args.data_spec.num_eval), int(len(dataset) * 0.025))
         if mode == utils.mode.TRAIN:
             dataset = dataset[:-num_eval][::sample_rate]
