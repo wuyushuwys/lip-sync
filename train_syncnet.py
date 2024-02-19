@@ -73,7 +73,7 @@ def main(args):
     start_epoch = trainer.load_ckpt(args.ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
 
     # Load state_dict
-    trainer.load_model(model=model, ckpt_path=args.weight)
+    trainer.load_model(model=model, ckpt_path=args.get("weight", None))
 
     # optimize model graph
     trainer.compile_model()

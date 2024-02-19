@@ -83,8 +83,8 @@ def main(args):
                                     d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
 
     # Load state_dict
-    trainer.load_model(model=g_model, ckpt_path=args.g_weight)
-    trainer.load_model(model=d_model, ckpt_path=args.d_weight)
+    trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
+    trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
 
     # optimize model graph
     trainer.compile_model()
