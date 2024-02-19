@@ -53,35 +53,44 @@ class AverageMeter:
 class TimeMeter:
     """Computes and stores the average and current value"""
 
-    def __init__(self):
-        self.start_time = time.time()
+    def __init__(self, total_iterations=None):
+        self.start_time = time.monotonic()
         self.end_time = self.start_time
         self.sum = 0
         self.avg = 0
         self.count = 0
         self.remain_time = 0
+        self.total_iterations = total_iterations
 
     def reset(self):
-        self.start_time = time.time()
+        self.start_time = time.monotonic()
         self.end_time = self.start_time
         self.sum = 0
         self.avg = 0
         self.count = 0
 
     def update(self, n=1):
-        self.end_time = time.time()
+        self.end_time = time.monotonic()
         self.sum = self.end_time - self.start_time
         self.count += n
         self.avg = self.sum / self.count
 
     def update_count(self, count):
-        self.end_time = time.time()
+        self.end_time = time.monotonic()
         self.sum = self.end_time - self.start_time
         self.count += count
         self.avg = self.sum / self.count
 
-    def complete_time(self, remain_batch):
+    def tic(self):
+        self.start_time = time.monotonic()
+
+    def toc(self):
+        self.end_time = time.monotonic()
+
+    def eta(self):
+        remain_batch = self.total_iterations - self.count
         self.remain_time = datetime.timedelta(seconds=int(self.avg * remain_batch))
+        return self.remain_time
 
 
 class LossesMeter:
