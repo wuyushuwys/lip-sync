@@ -87,9 +87,9 @@ class TimeMeter:
     def toc(self):
         self.end_time = time.monotonic()
 
-    def eta(self):
-        remain_batch = self.total_iterations - self.count
-        self.remain_time = datetime.timedelta(seconds=int(self.avg * remain_batch))
+    def est(self, current_iterations):
+        remain_iterations = self.total_iterations - current_iterations
+        self.remain_time = datetime.timedelta(seconds=int(self.avg * remain_iterations))
         return self.remain_time
 
 

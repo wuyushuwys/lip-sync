@@ -48,13 +48,11 @@ class SyncNetModel(BasicModel):
         self.compile(self.model)
 
     def training_epoch(self, epoch):
-        data_timer = common.meters.TimeMeter()
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
         log_vars = {'@loss': None, '@lr': None}
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
-            data_timer.update()
             total_batches = (epoch - 1) * nb + batch_idx
 
             x, mel, y = batch
@@ -88,9 +86,8 @@ class SyncNetModel(BasicModel):
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
                 s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
-                    f"est. {self.eta_timer.eta()} data:{data_timer.avg * 1000:.02f}ms {loss_printer(log_vars, fmt='.04e')}"
+                    f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
-            data_timer.tic()
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):

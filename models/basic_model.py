@@ -53,8 +53,7 @@ class BasicModel(ABC):
                     logger.info(f"Compile {self.model_no_ddp(m)} in mode {mode}")
                     m = torch.compile(model=m, mode=mode)
 
-    @staticmethod
-    def load_ckpt(ckpt_path, **kwargs):
+    def load_ckpt(self, ckpt_path, **kwargs):
         """
         Load ckpt if ckpt_path is not None
         Args:
@@ -71,6 +70,7 @@ class BasicModel(ABC):
             ckpt_loader(ckpt, **kwargs)
             start_epoch = ckpt['epoch'] - 1
             logger.info(f'Load checkpoint from {ckpt_path}. Resume from epoch {start_epoch}')
+            self.eta_timer.total_iterations -= start_epoch * len(self.train_data_loader)
         else:
             start_epoch = 0
         return start_epoch
