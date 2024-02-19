@@ -71,13 +71,10 @@ def test(dataloader: DataLoader,
         x = x.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
 
-        not_scaled = y.min() < 0
-
         pred_y, vq_info = model(x)
 
-        if not_scaled:
-            pred_y = (pred_y + 1) / 2
-            y = (y + 1) / 2
+        pred_y = (pred_y + 1) / 2
+        y = (y + 1) / 2
 
         recon_loss = reduce_all(criteria['recon_loss'](pred_y, y, val=True))
         loss_dict['recon_loss'].update(recon_loss.item(), bsz)

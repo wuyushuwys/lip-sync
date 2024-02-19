@@ -91,7 +91,7 @@ def main(args):
 
     logger.info(attr_extractor(args))
 
-    if args.weight or args.ckpt:
+    if args.g_weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
