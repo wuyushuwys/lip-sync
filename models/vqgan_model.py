@@ -63,6 +63,9 @@ class VQGANModel(BasicModel):
 
         self.clip_grad = args.get('clip_grad', False)
 
+        self.use_amp = args.get('use_amp', False)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
     def compile_model(self):
         self.compile(self.g_model, self.d_model)
 
@@ -101,41 +104,45 @@ class VQGANModel(BasicModel):
                 p.requires_grad = False
 
             self.g_optimizer.zero_grad()
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                pred_y, vq_info = self.g_model(x)
 
-            pred_y, vq_info = self.g_model(x)
+                if 'recon_loss' in self.criteria.keys():
+                    recon_loss = self.criteria['recon_loss'](pred_y, y)
+                else:
+                    recon_loss = 0
 
-            if 'recon_loss' in self.criteria.keys():
-                recon_loss = self.criteria['recon_loss'](pred_y, y)
-            else:
-                recon_loss = 0
+                if 'perceptual_loss' in self.criteria.keys():
+                    perceptual_loss = self.criteria['perceptual_loss'](pred_y, y, normalize=False)
+                else:
+                    perceptual_loss = 0
 
-            if 'perceptual_loss' in self.criteria.keys():
-                perceptual_loss = self.criteria['perceptual_loss'](pred_y, y, normalize=False)
-            else:
-                perceptual_loss = 0
+                g_loss = recon_loss + perceptual_loss + vq_info.codebook_loss * self.codebook_weight
 
-            g_loss = recon_loss + perceptual_loss + vq_info.codebook_loss * self.codebook_weight
+                # if self.model_no_ddp(self.g_model).use_semantic_loss:
+                #     g_loss += vq_info.semantic_loss * self.semantic_weight
 
-            # if self.model_no_ddp(self.g_model).use_semantic_loss:
-            #     g_loss += vq_info.semantic_loss * self.semantic_weight
+                if self.curr_iterations > self.gan_starts:
+                    fake_g_pred = self.d_model(pred_y)
 
-            if self.curr_iterations > self.gan_starts:
-                fake_g_pred = self.d_model(pred_y)
+                    adversarial_loss = self.criteria['adversarial'](fake_g_pred, True, is_disc=False)
+                    # adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
+                    #                                             adversarial_loss,
+                    #                                             last_layer=self.g_model.module.generator.blocks[-1].weight,
+                    #                                             disc_weight_max=1.0)
+                    # g_loss += adversarial_loss * adv_weight
+                    g_loss += adversarial_loss
+                self.scaler.scale(g_loss).backward()
 
-                adversarial_loss = self.criteria['adversarial'](fake_g_pred, True, is_disc=False)
-                # adv_weight = self.calculate_adaptive_weight(recon_loss+perceptual_loss,
-                #                                             adversarial_loss,
-                #                                             last_layer=self.g_model.module.generator.blocks[-1].weight,
-                #                                             disc_weight_max=1.0)
-                # g_loss += adversarial_loss * adv_weight
-                g_loss += adversarial_loss
+                # g_loss.backward()
 
-            g_loss.backward()
+                if self.clip_grad:
+                    self.scaler.unscale_(self.g_optimizer)
+                    torch.nn.utils.clip_grad_norm_(self.no_ddp_g_model.parameters(), self.clip_grad)
 
-            if self.clip_grad:
-                torch.nn.utils.clip_grad_norm_(self.model_no_ddp(self.g_model).parameters(), self.clip_grad)
-
-            self.g_optimizer.step()
+                self.scaler.step(self.g_optimizer)
+                self.scaler.update()
+                # self.g_optimizer.step()
             self.g_scheduler.step()
 
             if self.curr_iterations > self.gan_starts:
@@ -147,20 +154,24 @@ class VQGANModel(BasicModel):
                     p.requires_grad = True
 
                 self.d_optimizer.zero_grad()
+                with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
 
-                real_d_pred = self.d_model(y.contiguous().detach())
-                l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
+                    real_d_pred = self.d_model(y.contiguous().detach())
+                    l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
+                    # l_d_real.backward()
+                    self.scaler.scale(l_d_real).backward()
 
-                l_d_real.backward()
+                    fake_d_pred = self.d_model(pred_y.contiguous().detach())
+                    l_d_fake = self.criteria['adversarial'](fake_d_pred, False, is_disc=True)
+                    # l_d_fake.backward()
+                    self.scaler.scale(l_d_fake).backward()
 
-                fake_d_pred = self.d_model(pred_y.contiguous().detach())
-                l_d_fake = self.criteria['adversarial'](fake_d_pred, False, is_disc=True)
-                l_d_fake.backward()
-
-                if self.clip_grad:
-                    torch.nn.utils.clip_grad_norm_(self.model_no_ddp(self.d_model).parameters(), self.clip_grad)
-
-                self.d_optimizer.step()
+                    if self.clip_grad:
+                        self.scaler.unscale_(self.d_optimizer)
+                        torch.nn.utils.clip_grad_norm_(self.no_ddp_d_model.parameters(), self.clip_grad)
+                    self.scaler.step(self.d_optimizer)
+                    self.scaler.update()
+                # self.d_optimizer.step()
                 self.d_scheduler.step()
 
             log_vars['recon_loss'] = recon_loss
