@@ -521,7 +521,8 @@ class FaceCoderNet(nn.Module):
 
         if self.quantizer_type == "nearest":
             self.beta = beta  # 0.25
-            self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+            # self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+            self.quantizer = VectorQuantizer2(self.codebook_size, self.embed_dim, self.beta, legacy=False)
         elif self.quantizer_type == "nearest2":
             self.beta = beta  # 0.25
             self.quantizer = VectorQuantizer2(self.codebook_size, self.embed_dim, self.beta)
