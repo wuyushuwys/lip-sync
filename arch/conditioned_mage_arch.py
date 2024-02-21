@@ -404,7 +404,7 @@ class DoubleConditionedMAGE(nn.Module):
                 gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum()
             return loss, acc
 
-    def forward(self, imgs, gt=None, ref=None, audio=None, generate=False):
+    def forward(self, imgs, gt=None, ref=None, audio=None, generate=False, return_loss=True):
         # encoder
         latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs, gt)
         bsz = latent.size(0)
@@ -416,7 +416,8 @@ class DoubleConditionedMAGE(nn.Module):
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
         # compute prediction_masked_token_loss
-        loss = self.forward_loss(gt_indices, logits, token_all_mask)
+
+        loss = self.forward_loss(gt_indices, logits, token_all_mask) if return_loss else None
         if generate:
             latent_res = self.vqgan.latent_resolution
             vq_emb = self.vqgan_embed_dim

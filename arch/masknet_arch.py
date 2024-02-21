@@ -4,7 +4,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from utils.logging_tool import get_logger
-from .ops import Downsample, ResBlock, normalize
+from .ops import ResBlock
 
 
 class MaskNet(nn.Module):
@@ -18,7 +18,7 @@ class MaskNet(nn.Module):
 
     """
 
-    def __init__(self, gt_resolution, latent_resolution, in_ch, nf, ch_mult, num_res_blocks=1):
+    def __init__(self, gt_resolution, latent_resolution, in_ch, nf, ch_mult, num_embed, num_res_blocks=1):
         super(MaskNet, self).__init__()
         logger = get_logger()
         self.gt_resolution = gt_resolution
@@ -39,23 +39,29 @@ class MaskNet(nn.Module):
                 blocks.append(ResBlock(block_out_ch, block_out_ch))
             block_in_ch = block_out_ch
 
-        blocks.append(nn.Conv2d(block_in_ch, 1, kernel_size=3, stride=1, padding=1))
+        blocks.append(nn.Conv2d(block_in_ch, num_embed, kernel_size=3, stride=1, padding=1))
+        self.last_layer = nn.Conv2d(num_embed, 1, kernel_size=3, stride=1, padding=1)
 
-        logger.info(f"Create Mask Predictor with width {[nf * ch for ch in in_ch_mult]}")
+        logger.info(f"Create Mask Predictor with width {[nf * ch for ch in in_ch_mult]}\t"
+                    f"gt_res:{self.gt_resolution}\t"
+                    f"latent_res:{self.latent_resolution}")
 
         self.blocks = nn.ModuleList(blocks)
 
         self._init_weights()
 
-    def forward(self, x) -> torch.Tensor:
+    def forward(self, x) -> [torch.Tensor, torch.Tensor]:
         assert x.size(-1) == self.gt_resolution, f"got {x.size()}"
 
         for block in self.blocks:
             x = block(x)
 
         assert x.size(-1) == self.latent_resolution, f"got {x.size()}"
+        x_emb = x
+        # flatten the output to match the index in vqgan
+        x = x_emb.flatten(1)
 
-        return x
+        return x, x_emb
 
     def _init_weights(self):
         for m in self.modules():
