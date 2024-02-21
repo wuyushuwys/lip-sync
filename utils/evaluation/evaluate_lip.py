@@ -110,4 +110,4 @@ def save_sample_images(x, g, gt, batch_num, epoch, folder_path):
     save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1 and wandb.run is not None:
         image = wandb.Image(outputs, file_type='jpg')
-        wandb.log({f"{Path(folder_path).stem}": image})
+        wandb.log({f"{Path(folder_path).stem}": image}, commit=False)
