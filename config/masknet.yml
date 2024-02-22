@@ -1,0 +1,55 @@
+manual_seed: 1234
+
+weight: null
+
+#warmup_lr: true
+#warmup_iters: 0.1
+#use_amp: true
+data_spec:
+  max_datasize: 500000
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  num_eval: 200
+  train_size: 256
+  eval_size: 256
+  aug:
+    use_orig: false  # using original resolution ( false will resize to 2*train_size, true will crop 2*train_size)
+    use_flip: true
+    use_rot: true
+    use_random_size: true
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+
+model:
+  gt_resolution: 256
+  latent_resolution: 32
+  in_ch: 3
+  nf: 64
+  ch_mult: [1, 2, 4]
+  num_embed: 256
+
+vq_config_path: config/vqgan.yml
+vq_state_dict: pretrained/vq_model_512_256.pt
+
+
+optim:
+  type: AdamW
+  lr: !!float 1e-4  # adjust by effective bsz as mage
+  weight_decay: 0.05
+  betas: [ 0.9, 0.95 ]
+
+#scheduler:
+# type: MultiStepLR
+# milestones: [ 1 ]
+# gamma: 1
+#
+#scheduler:
+#  type: PolynomialLR
+#  power: 0.9
+
+scheduler:
+ type: CosineAnnealingLR
+ eta_min: 1.0e-5
+
+
+losses: ~

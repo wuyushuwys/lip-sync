@@ -39,8 +39,8 @@ class MaskNet(nn.Module):
                 blocks.append(ResBlock(block_out_ch, block_out_ch))
             block_in_ch = block_out_ch
 
-        blocks.append(nn.Conv2d(block_in_ch, num_embed, kernel_size=3, stride=1, padding=1))
-        self.last_layer = nn.Conv2d(num_embed, 1, kernel_size=3, stride=1, padding=1)
+        # blocks.append(nn.Conv2d(block_in_ch, num_embed, kernel_size=3, stride=1, padding=1))
+        self.last_layer = nn.Conv2d(block_in_ch, 1, kernel_size=3, stride=1, padding=1)
 
         logger.info(f"Create Mask Predictor with width {[nf * ch for ch in in_ch_mult]}\t"
                     f"gt_res:{self.gt_resolution}\t"
@@ -50,18 +50,19 @@ class MaskNet(nn.Module):
 
         self._init_weights()
 
-    def forward(self, x) -> [torch.Tensor, torch.Tensor]:
+    def forward(self, x) -> torch.Tensor:
         assert x.size(-1) == self.gt_resolution, f"got {x.size()}"
 
         for block in self.blocks:
             x = block(x)
 
         assert x.size(-1) == self.latent_resolution, f"got {x.size()}"
-        x_emb = x
-        # flatten the output to match the index in vqgan
-        x = x_emb.flatten(1)
+        # x_emb = x
+        # flatten the output to match shape of min_encoding_indices in vqgan
+        # x = torch.sigmoid(self.last_layer(x).flatten(1))
+        x = self.last_layer(x).flatten(1)
 
-        return x, x_emb
+        return x
 
     def _init_weights(self):
         for m in self.modules():
