@@ -102,18 +102,18 @@ class MaskNetModel(BasicModel):
                 # gt_soft = torch.nn.functional.cosine_similarity(latent_mx.flatten(2), latent_x.flatten(2),
                 #                                                 dim=1) / 2 + 0.5
                 # hard ground truth
-                gt_hard = qmx_indices.eq(qx_indices).float()
+                gt_hard = 1 - qmx_indices.eq(qx_indices).float()
 
-                key_gt = (1 - gt_hard).nonzero(as_tuple=True)
+                key_gt = gt_hard.nonzero(as_tuple=True)
 
             self.optimizer.zero_grad()
 
             masked_indicator = self.model(masked_x)
 
             # loss_soft = torch.nn.functional.mse_loss(masked_indicator, gt_soft)
-            loss_hard = torch.nn.functional.binary_cross_entropy_with_logits(masked_indicator[key_gt],
-                                                                             gt_hard[key_gt])
-            loss_hard += 0.1 * torch.nn.functional.binary_cross_entropy_with_logits(masked_indicator, gt_hard)
+            loss_hard = torch.nn.functional.binary_cross_entropy(masked_indicator[key_gt],
+                                                                 gt_hard[key_gt])
+            loss_hard += 0.5 * torch.nn.functional.binary_cross_entropy(masked_indicator, gt_hard)
 
             loss = loss_hard
 

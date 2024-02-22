@@ -60,7 +60,7 @@ class MaskNet(nn.Module):
         # x_emb = x
         # flatten the output to match shape of min_encoding_indices in vqgan
         # x = torch.sigmoid(self.last_layer(x).flatten(1))
-        x = self.last_layer(x).flatten(1)
+        x = torch.sigmoid(self.last_layer(x).flatten(1))
 
         return x
 

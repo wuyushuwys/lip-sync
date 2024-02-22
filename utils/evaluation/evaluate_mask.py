@@ -73,8 +73,8 @@ def test(dataloader: DataLoader,
         pred_y = model(masked_x)
 
         pred_hard = pred_y.greater(0.5).float()
-        gt_mask_ratio = gt_hard.sum() / gt_hard.numel()
-        pred_mask_ratio = pred_hard.sum() / pred_hard.numel()
+        gt_mask_ratio = 1 - (gt_hard.sum() / gt_hard.numel())
+        pred_mask_ratio = 1 - (pred_hard.sum() / pred_hard.numel())
 
         loss_dict['gt_mr'].update(reduce_all(gt_mask_ratio), bsz)
         loss_dict['pred_mr'].update(reduce_all(pred_mask_ratio), bsz)
@@ -88,7 +88,7 @@ def test(dataloader: DataLoader,
         key_accuracy = gt_hard.eq(pred_hard)[key_gt].sum() / gt_hard[key_gt].numel()
         loss_dict['k_acc'].update(reduce_all(key_accuracy), bsz)
 
-        loss_hard = torch.nn.functional.binary_cross_entropy_with_logits(pred_y, gt_hard)
+        loss_hard = torch.nn.functional.binary_cross_entropy(pred_y, gt_hard)
         loss_dict['hard'].update(reduce_all(loss_hard), bsz)
 
         # loss_soft = torch.nn.functional.mse_loss(pred_y, gt_soft)
