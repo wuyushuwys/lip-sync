@@ -33,9 +33,8 @@ vq_state_dict: pretrained/vq_model_512_256.pt
 
 
 optim:
-  type: AdamW
+  type: Adam
   lr: !!float 1e-4  # adjust by effective bsz as mage
-  weight_decay: 0.05
   betas: [ 0.9, 0.95 ]
 
 #scheduler:
