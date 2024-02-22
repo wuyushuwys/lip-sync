@@ -40,7 +40,10 @@ def test(dataloader: DataLoader,
         hard=AverageMeter(),
         # soft=AverageMeter(),
         acc=AverageMeter(),
-        k_acc=AverageMeter()
+        k_acc=AverageMeter(),
+        gt_mr=AverageMeter(),
+        pred_mr=AverageMeter(),
+        diff_mr=AverageMeter(),
     )
 
     for idx, (x, _) in enumerate(dataloader, start=1):
@@ -70,6 +73,13 @@ def test(dataloader: DataLoader,
         pred_y = model(masked_x)
 
         pred_hard = pred_y.greater(0.5).float()
+        gt_mask_ratio = gt_hard.sum() / gt_hard.numel()
+        pred_mask_ratio = pred_hard.sum() / pred_hard.numel()
+
+        loss_dict['gt_mr'].update(reduce_all(gt_mask_ratio), bsz)
+        loss_dict['pred_mr'].update(reduce_all(pred_mask_ratio), bsz)
+        loss_dict['diff_mr'].update(reduce_all(gt_mask_ratio - pred_mask_ratio), bsz)
+
         # print("pred similar semantic", pred_hard.sum() / pred_hard.numel())
 
         accuracy = gt_hard.eq(pred_hard).sum() / gt_hard.numel()

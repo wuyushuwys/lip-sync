@@ -143,14 +143,14 @@ class MultiScaleEncoder(nn.Module):
         self.blocks = nn.ModuleList()
         self.up_blocks = nn.ModuleList()
         self.max_depth = max_depth
+        self.num_resblock = 2
         res = input_res
         for i in range(max_depth):
             in_ch, out_ch = channel_query_dict[res], channel_query_dict[res // 2]
             tmp_down_block = [
                 nn.Conv2d(in_ch, out_ch, ksz, stride=2, padding=1),
-                ResBlock(out_ch, out_ch, norm_type, act_type),
-                ResBlock(out_ch, out_ch, norm_type, act_type),
             ]
+            tmp_down_block.extend(ResBlock(out_ch, out_ch, norm_type, act_type) for _ in range(self.num_resblock))
             self.blocks.append(nn.Sequential(*tmp_down_block))
             res = res // 2
         self.latent_resolution = res
