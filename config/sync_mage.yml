@@ -30,7 +30,7 @@ audio_spec:
   sample_rate: 16000
 
 model:
-  type: lip_mage_vit_base
+  type: sync_mage_vit_base
   vq_config_path: config/vqgan.yml
   use_audio_reference: false
   use_image_reference: false
