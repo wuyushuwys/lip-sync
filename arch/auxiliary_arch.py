@@ -146,3 +146,37 @@ class LipNet(nn.Module):
         # x = x.reshape(x.shape[0], -1)
         x = self.encoder_fc1(x).squeeze()
         return x
+
+
+class LipAttn(nn.Module):
+
+    def __init__(self, emb_dim=256):
+        super().__init__()
+        self.encoder_conv = nn.Sequential(
+            nn.Conv2d(1, 64, kernel_size=3, stride=2,
+                      padding=1, bias=True),
+
+            nn.BatchNorm2d(64),
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2,
+                      padding=1, bias=True),
+            nn.BatchNorm2d(128),
+            nn.ReLU(),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2,
+                      padding=1, bias=True),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.Conv2d(256, emb_dim, kernel_size=3, stride=2,
+                      padding=1, bias=True),
+            nn.BatchNorm2d(emb_dim),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d(1)
+        )
+
+    def forward(self, x):
+        # x: bsz, seq, emb_dim
+        assert x.dim() == 3
+        attn = x.
+        x = self.encoder_conv(x)
+
+        return x
