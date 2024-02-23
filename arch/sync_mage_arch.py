@@ -10,7 +10,7 @@ from .conditioned_mage_arch import DoubleConditionedMAGE
 
 class SyncMage(DoubleConditionedMAGE):
 
-    def __init__(self, num_embed, **kwargs):
+    def __init__(self, num_embed=1024, **kwargs):
         super(SyncMage, self).__init__(**kwargs)
         for p in self.parameters():
             p.requires_grad = False
