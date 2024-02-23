@@ -33,8 +33,7 @@ class FrameMelDataset(Dataset):
                  data_mode: AnyStr = 'image',
                  audio_cache_path: AnyStr = None,
                  video_cache_path: AnyStr = None,
-                 skip_offset: float = None,
-                 bottom_half: bool = True) -> None:
+                 skip_offset: float = None) -> None:
         super().__init__()
 
         logger = get_logger()
@@ -59,7 +58,7 @@ class FrameMelDataset(Dataset):
         self.mode = mode
         self.data_mode = data_mode
         self.skip_offset = skip_offset
-        self.bottom_half = bottom_half
+        self.bottom_half = args.video_spec.get("bottom_half", True)
 
         if self.mode == utils.mode.TRAIN:
             self.num_samples = self.data_spec.num_samples  # number of samples from each video
@@ -134,6 +133,10 @@ class FrameMelDataset(Dataset):
     def __getitem__(self, index):
         if self.arch == 'syncnet':
             # if self.mode == utils.mode.TRAIN:
+            frame_list, audio_file = self._load_index(index)
+            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+            return img_window, mel, label
+        elif self.arch == 'sync_mage':
             frame_list, audio_file = self._load_index(index)
             img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
             return img_window, mel, label
@@ -215,8 +218,8 @@ class FrameMelDataset(Dataset):
             window.append(img)
         return window
 
-    def _load_lipsync_train_data(self, frame_list, audio_file):
-        false_offset = random.randint(self.video_spec.fps, self.video_spec.fps * 2)  # range for false frame
+    def _load_lipsync_train_data(self, frame_list, audio_file, sync=False):
+        # false_offset = random.randint(self.video_spec.fps, self.video_spec.fps * 2)  # range for false frame
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 3
@@ -242,10 +245,20 @@ class FrameMelDataset(Dataset):
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
-        data = self._load_lipsync_data(idx, true_window=true_window, wrong_window=wrong_window,
-                                       audio_file=audio_file)
 
-        return data
+        x, indiv_mels, mel, gt = self._load_lipsync_data(idx,
+                                                         true_window=true_window,
+                                                         wrong_window=wrong_window,
+                                                         audio_file=audio_file)
+        if sync:
+            if random.random() > 0.5:
+                gt = torch.ones(self.window_size)
+            else:
+                # swap reference image and input image x[ch, t, h, w]
+                x[[0, 1, 2, 3, 4, 5], ...] = x[[3, 4, 5, 0, 1, 2], ...]
+                gt = torch.zeros(self.window_size)
+
+        return x, indiv_mels, mel, gt
 
     def _load_lipsync_data(self, idx, true_window, wrong_window, audio_file):
         assert idx - 2 >= 0

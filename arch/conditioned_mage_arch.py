@@ -1,4 +1,4 @@
-import os.path
+import os
 from functools import partial
 
 import numpy as np
@@ -57,7 +57,6 @@ class DoubleConditionedMAGE(nn.Module):
         logger = get_logger()
         # --------------------------------------------------------------------------
         # VQGAN specifics
-        # replace this part with our face_vqgan specifications
         vq_config = OmegaConf.load(vq_config_path)
         self.vqgan = FaceCoderNet(**vq_config.g_model)
         if os.path.exists(vq_state_dict):
@@ -70,9 +69,9 @@ class DoubleConditionedMAGE(nn.Module):
         self.codebook_size = self.vqgan.codebook_size
         # [0, ..., codebook_size - 1, fake_class_label, mask_token_label]
         vocab_size = self.codebook_size + 1 + 1  # codebook size, 1 for mask token, 1 for fake_label
-        self.fake_class_label = self.codebook_size
+        self.fake_class_label = self.codebook_size  # fake token is said to gather global information among all tokens
         self.mask_token_label = self.codebook_size + 1
-
+        self.encoder_embed_dim = embed_dim
         # froze the pretrained vqgan model
         for param in self.vqgan.parameters():
             param.requires_grad = False
@@ -320,11 +319,6 @@ class DoubleConditionedMAGE(nn.Module):
         x_indices = torch.cat(
             [torch.zeros(x_indices.size(0), 1, device=x_indices.device), x_indices], dim=1)
         x_indices[:, 0] = self.fake_class_label
-
-        # for current test
-        # if gt is not None:
-        #     # token_drop_mask = torch.rand_like(token_all_mask).less_equal(self.mask_ratio_min).float()
-        #     token_drop_mask = torch.zeros_like(token_all_mask)
 
         token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_drop_mask],
                                     dim=1)

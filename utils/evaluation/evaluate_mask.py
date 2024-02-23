@@ -73,8 +73,8 @@ def test(dataloader: DataLoader,
         # gt_soft = torch.nn.functional.cosine_similarity(latent_mx.flatten(2), latent_x.flatten(2), dim=1)
         # gt_soft = torch.nn.functional.cosine_similarity(qx.flatten(2), qmx.flatten(2), dim=1) / 2 + 0.5
         # hard ground truth
-        gt_hard = 1 - qmx_indices.eq(qx_indices).float()
-        key_gt = gt_hard.nonzero(as_tuple=True)
+        gt_hard = 1 - qmx_indices.eq(qx_indices).float()  # 1 indicates not equal
+        key_gt = gt_hard.nonzero(as_tuple=True)  # get all not equal locations
         # print("similar semantic", gt_hard.sum() / gt_hard.numel())
 
         pred_y = model(masked_x)

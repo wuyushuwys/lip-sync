@@ -8,6 +8,8 @@ from utils.logging_tool import get_logger
 class AudioAttNet(nn.Module):
     def __init__(self, dim_aud=76, seq_len=8):
         super(AudioAttNet, self).__init__()
+        logger = get_logger()
+
         self.seq_len = seq_len
         self.dim_aud = dim_aud
         self.attentionConvNet = nn.Sequential(  # b x subspace_dim x seq_len
@@ -29,11 +31,17 @@ class AudioAttNet(nn.Module):
             nn.Softmax(dim=2)
         )
 
+        logger.info(f"build {self.__str__()}")
+
     def forward(self, x):
-        y = x.squeeze(1).permute(0, 2, 1)  # bsz * 1 * 80 * 16 -> bsz * 80 * 16 ->
+        x = x.transpose(-1, -2)  # bsz, 1, seq, emb
+        y = x.squeeze(1).permute(0, 2, 1)  # bsz * 1 * 80 * 16 -> bsz * 80 * 16 -> bsz * 16 * 80
         y = self.attentionConvNet(y)
         y = self.attentionNet(y)
         return torch.matmul(y, x).squeeze(1)
+
+    def __str__(self):
+        return self.__class__.__name__.lower()
 
 
 class AudioNet(nn.Module):
@@ -45,28 +53,28 @@ class AudioNet(nn.Module):
 
     """
 
-    def __init__(self, emb_dim=256, downsample=False):
+    def __init__(self, emb_dim=256, seq_len=16, downsample=False, out_seq=1):
         super(AudioNet, self).__init__()
         logger = get_logger()
 
         self.encoder_conv = nn.Sequential(
             nn.Conv1d(80, 32,
-                      kernel_size=3, stride=2 if downsample else 1,
+                      kernel_size=3, stride=1,
                       padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=32),
             nn.LeakyReLU(0.02, True),
             nn.Conv1d(32, 32,
-                      kernel_size=3, stride=2 if downsample else 1,
+                      kernel_size=3, stride=1,
                       padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=32),
             nn.LeakyReLU(0.02, True),
             nn.Conv1d(32, 64,
-                      kernel_size=3, stride=2 if downsample else 1,
+                      kernel_size=3, stride=1,
                       padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=64),
             nn.LeakyReLU(0.02, True),
             nn.Conv1d(64, 64,
-                      kernel_size=3, stride=2 if downsample else 1,
+                      kernel_size=3, stride=1,
                       padding=1, dilation=1, bias=True),
             nn.BatchNorm1d(num_features=64),
             nn.LeakyReLU(0.02, True),
@@ -76,6 +84,10 @@ class AudioNet(nn.Module):
             nn.LeakyReLU(0.02, True),
             nn.Linear(64, emb_dim),
         )
+
+        self.downsample = downsample
+        if self.downsample:
+            self.squeeze_encode = nn.Conv1d(seq_len, out_seq, kernel_size=3, stride=1, padding=1)
 
         logger.info(f"build {self.__str__()}")
 
@@ -90,6 +102,8 @@ class AudioNet(nn.Module):
         if x.dim() == 4 and x.size(1) == 1:
             x = x.squeeze(1)  # bsz * 1 * 80 * 16 -> bsz * 80 * 16
         x = self.encoder_conv(x).permute(0, 2, 1)
+        if self.downsample:
+            x = self.squeeze_encode(x)
         x = self.encoder_fc1(x)  # bsz * seq_len * num_embed
         return x
 
