@@ -85,12 +85,16 @@ class SyncMageModel(BasicModel):
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
-                a, v = self.model(x_masked, gt=y, ref=None, audio=audio_mel)
+                a, v = self.model(x_masked, gt=x, audio=audio_mel)
 
-            loss = self.criteria['sync_loss'](a, v, y)
-            loss.backward()
+                loss = self.criteria['sync_loss'](a, v, y)
 
-            self.optimizer.step()
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            # loss.backward()
+            #
+            # self.optimizer.step()
             self.scheduler.step()
 
             log_vars['sync_loss'] = loss

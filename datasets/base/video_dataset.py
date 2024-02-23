@@ -138,8 +138,8 @@ class FrameMelDataset(Dataset):
             return img_window, mel, label
         elif self.arch == 'sync_mage':
             frame_list, audio_file = self._load_index(index)
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
-            return img_window, mel, label
+            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file, sync=True)
+            return x, indiv_mels, mel, y
             # else:
             #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
             #     assert len(frame_window) == self.window_size

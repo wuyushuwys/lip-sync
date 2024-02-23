@@ -7,7 +7,7 @@ weight: null
 use_amp: true
 data_spec:
   mode: image
-  num_samples: 2
+  num_samples: 10
   eval_samples: 10
   window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
@@ -32,9 +32,9 @@ audio_spec:
 model:
   type: lip_mage_vit_base
   vq_config_path: config/vqgan.yml
-  use_audio_reference: true
-  use_image_reference: true
-  mage_pretrain_ckpt_path: pretrained/lip_mage_vit_small_pretrained.pt
+  use_audio_reference: false
+  use_image_reference: false
+  mage_pretrain_ckpt_path: pretrained/lip_mage_vit_base_pretrained.pt
   vq_state_dict: pretrained/vq_model_512_256.pt
 
 
