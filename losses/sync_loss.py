@@ -15,10 +15,8 @@ class CosineLoss(nn.Module):
     def forward(self, a, v, y):
         assert a.size() == v.size()
         distance = self.cos_sim(a, v)
-        if distance.dim() != 2:
+        if distance.dim() != y.dim():
             distance = distance.unsqueeze(1)
-        if y.dim() != 2:
-            y = y.unsqueeze(1)
         loss = self.loss(distance, y)
 
         return loss * self.loss_weight
