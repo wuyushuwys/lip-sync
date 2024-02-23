@@ -6,7 +6,7 @@ from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_sync
+from utils.evaluation import evaluate_sync_mage
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from .modules.masking import Masking
@@ -118,13 +118,13 @@ class SyncMageModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        return evaluate_sync.evaluation(model=self.model,
-                                        eval_data_loaders=self.eval_data_loaders,
-                                        epoch=epoch,
-                                        criteria=self.criteria,
-                                        writer=self.writer,
-                                        args=self.args,
-                                        logger=self.logger)
+        return evaluate_sync_mage.evaluation(model=self.model,
+                                             eval_data_loaders=self.eval_data_loaders,
+                                             epoch=epoch,
+                                             criteria=self.criteria,
+                                             writer=self.writer,
+                                             args=self.args,
+                                             logger=self.logger)
 
     def save_model(self, path, best=False):
         if best:
