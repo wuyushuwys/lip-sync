@@ -6,7 +6,7 @@ def arguments_parser(parser):
                         help='path to config file')
 
     parser.add_argument('--arch', default=None, type=str, required=True,
-                        choices=['syncnet', 'lipsync', 'vqgan', 'mage'],
+                        choices=['syncnet', 'lipsync', 'vqgan', 'mage', 'sync_mage'],
                         help='model to train')
 
     # Dataset
