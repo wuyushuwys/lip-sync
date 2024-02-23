@@ -7,7 +7,7 @@ weight: null
 use_amp: true
 data_spec:
   mode: tar
-  num_samples: 10
+  num_samples: 50
   eval_samples: 10
   window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
