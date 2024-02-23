@@ -16,7 +16,7 @@ from utils.train_utils import create_dataloader, create_criteria, create_optim_s
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_model import SyncNetModel
+from models.syncmage_model import SyncMageModel
 from arch.sync_mage_arch import SyncMage
 
 
@@ -59,15 +59,15 @@ def main(args):
 
     best_loss = 1000
 
-    trainer = SyncNetModel(model=model,
-                           optimizer=optimizer,
-                           scheduler=scheduler,
-                           criteria=criteria,
-                           train_data_loader=train_data_loader,
-                           eval_data_loaders=eval_data_loaders,
-                           logger=logger,
-                           args=args,
-                           writer=writer)
+    trainer = SyncMageModel(model=model,
+                            optimizer=optimizer,
+                            scheduler=scheduler,
+                            criteria=criteria,
+                            train_data_loader=train_data_loader,
+                            eval_data_loaders=eval_data_loaders,
+                            logger=logger,
+                            args=args,
+                            writer=writer)
 
     # Load ckpt
     start_epoch = trainer.load_ckpt(args.ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
