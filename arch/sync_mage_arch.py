@@ -32,6 +32,9 @@ class SyncMage(DoubleConditionedMAGE):
 
         assert audio_embed.size() == img_embed.size(), f"{audio_embed.size()}, {img_embed.size()}"
 
+        audio_embed = F.normalize(audio_embed, p=2, dim=1)
+        img_embed = F.normalize(img_embed, p=2, dim=1)
+
         return audio_embed, img_embed
 
 

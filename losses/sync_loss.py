@@ -10,13 +10,14 @@ class CosineLoss(nn.Module):
         super().__init__()
         self.loss_weight = loss_weight
         self.loss = nn.BCELoss()
-        nn.BCEWithLogitsLoss
         self.cos_sim = nn.CosineSimilarity()
 
     def forward(self, a, v, y):
         assert a.size() == v.size()
         distance = self.cos_sim(a, v)
-        loss = self.loss(distance.unsqueeze(1), y)
+        if distance.dim() != y.dim():
+            distance = distance.unsqueeze(1)
+        loss = self.loss(distance, y)
 
         return loss * self.loss_weight
 
