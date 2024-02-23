@@ -1,4 +1,4 @@
-import torch
+from functools import partial
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -32,3 +32,25 @@ class SyncMage(DoubleConditionedMAGE):
         return audio_embed, img_embed
 
 
+def sync_mage_vit_base(**kwargs):
+    model = SyncMage(
+        patch_size=32, embed_dim=768, depth=12, num_heads=12,
+        decoder_embed_dim=768, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+def sync_mage_vit_small(**kwargs):
+    model = SyncMage(
+        patch_size=32, embed_dim=384, depth=12, num_heads=12,
+        decoder_embed_dim=384, decoder_depth=8, decoder_num_heads=12,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
+
+
+def sync_mage_vit_tiny(**kwargs):
+    model = SyncMage(
+        patch_size=32, embed_dim=192, depth=12, num_heads=3,
+        decoder_embed_dim=384, decoder_depth=8, decoder_num_heads=12,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model

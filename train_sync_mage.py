@@ -12,12 +12,12 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler, subdict
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
 from models.syncmage_model import SyncMageModel
-from arch.sync_mage_arch import SyncMage
+import arch.sync_mage_arch as sync_mage_arch
 
 
 def main(args):
@@ -38,7 +38,7 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = SyncMage(**args.model)
+    model = sync_mage_arch.__dict__[args.model.get("type")](**subdict(args.model, 'type'))
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
