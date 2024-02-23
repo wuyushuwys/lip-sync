@@ -176,7 +176,7 @@ class LipAttn(nn.Module):
     def forward(self, x):
         # x: bsz, seq, emb_dim
         assert x.dim() == 3
-        attn = x.
+        # attn = x.
         x = self.encoder_conv(x)
 
         return x
