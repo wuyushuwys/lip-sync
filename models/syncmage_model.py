@@ -124,7 +124,8 @@ class SyncMageModel(BasicModel):
                                              criteria=self.criteria,
                                              writer=self.writer,
                                              args=self.args,
-                                             logger=self.logger)
+                                             logger=self.logger,
+                                             mask=self.mask)
 
     def save_model(self, path, best=False):
         if best:

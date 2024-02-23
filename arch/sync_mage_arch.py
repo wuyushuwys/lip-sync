@@ -1,4 +1,6 @@
 from functools import partial
+
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -21,7 +23,8 @@ class SyncMage(DoubleConditionedMAGE):
     def forward(self, imgs, gt=None, ref=None, audio=None, generate=False, return_loss=True):
         # encode image with pre-trained Transformer encoder
         # print("input", imgs.shape, gt.shape, audio.shape)
-        img_latent, _, _, _ = self.forward_encoder(imgs, gt)
+        with torch.no_grad():
+            img_latent, _, _, _ = self.forward_encoder(imgs, gt)
         # print("image latent", img_latent[:, 0].shape)
         img_embed = self.img_probe(img_latent[:, 0]).squeeze(1)
 
