@@ -20,11 +20,14 @@ class SyncMage(DoubleConditionedMAGE):
 
     def forward(self, imgs, gt=None, ref=None, audio=None, generate=False, return_loss=True):
         # encode image with pre-trained Transformer encoder
+        # print("input", imgs.shape, gt.shape, audio.shape)
         img_latent, _, _, _ = self.forward_encoder(imgs, gt)
+        # print("image latent", img_latent[:, 0].shape)
         img_embed = self.img_probe(img_latent[:, 0]).squeeze(1)
 
         # encode audio with audio_encoder, audio input should be bsz, 1, 80, 16 (only for consistency with wav2lip)
         audio_latent = self.audio_encoder(audio)
+        # print("audio latent", audio_latent.shape)
         audio_embed = self.audio_probe(audio_latent).squeeze(1)
 
         assert audio_embed.size() == img_embed.size(), f"{audio_embed.size()}, {img_embed.size()}"

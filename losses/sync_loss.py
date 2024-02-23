@@ -10,6 +10,7 @@ class CosineLoss(nn.Module):
         super().__init__()
         self.loss_weight = loss_weight
         self.loss = nn.BCELoss()
+        nn.BCEWithLogitsLoss
         self.cos_sim = nn.CosineSimilarity()
 
     def forward(self, a, v, y):

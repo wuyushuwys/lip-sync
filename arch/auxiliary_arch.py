@@ -34,8 +34,8 @@ class AudioAttNet(nn.Module):
         logger.info(f"build {self.__str__()}")
 
     def forward(self, x):
-        x = x.transpose(-1, -2)  # bsz, 1, seq, emb
-        y = x.squeeze(1).permute(0, 2, 1)  # bsz * 1 * 80 * 16 -> bsz * 80 * 16 -> bsz * 16 * 80
+        x = x.transpose(-1, -2).squeeze(1)  # bsz, 1, seq, emb
+        y = x.permute(0, 2, 1)  # bsz * 1 * 80 * 16 -> bsz * 80 * 16 -> bsz * 16 * 80
         y = self.attentionConvNet(y)
         y = self.attentionNet(y)
         return torch.matmul(y, x).squeeze(1)
