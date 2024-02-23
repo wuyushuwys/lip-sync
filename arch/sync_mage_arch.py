@@ -1,5 +1,3 @@
-from typing import override
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -20,7 +18,6 @@ class SyncMage(DoubleConditionedMAGE):
         self.audio_encoder = AudioAttNet(seq_len=16, dim_aud=80)
         self.audio_probe = nn.Linear(80, num_embed)
 
-    @override
     def forward(self, imgs, gt=None, ref=None, audio=None, generate=False, return_loss=True):
         # encode image with pre-trained Transformer encoder
         img_latent, _, _, _ = self.forward_encoder(imgs, gt)
