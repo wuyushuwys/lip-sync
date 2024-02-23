@@ -17,7 +17,7 @@ num_gpus=$(nvidia-smi --list-gpus | wc -l)
 # Experiments
 
 dataset=hdtf
-model=syncnet
+model=sync_mage
 
 now=$(date +'%b%d-%H')
 
@@ -32,7 +32,7 @@ fi
 printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 
 srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_sync_mage.py \
-  --config ${model}.yml \
+  --config sync_mage.yml \
   --dataset hdtf \
   --arch sync_mage \
   --job_dir "${job_dir}" \
