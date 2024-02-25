@@ -1,8 +1,77 @@
-import torch
+from functools import partial
 
+import torch
 from torch import nn
 
 from utils.logging_tool import get_logger
+
+
+class Block(nn.Module):
+    def __init__(self, cin, cout, kernel_size, stride, padding,
+                 residual=False, act='leaky',
+                 norm='bn'):
+        super().__init__()
+        if norm == 'bn':
+            norm = nn.BatchNorm2d
+        elif norm == 'gn':
+            norm = partial(nn.GroupNorm, 32)
+        else:
+            norm = nn.Identity()
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(cin, cout, kernel_size, stride, padding),
+            norm(cout)
+        )
+        self.residual = residual
+        self.act = nn.ReLU(True)
+        if act == 'relu':
+            self.act = nn.ReLU(True)
+        elif act == 'leaky':
+            self.act = nn.LeakyReLU(0.2, inplace=True)
+        else:
+            raise NotImplementedError()
+
+    def forward(self, x):
+        out = self.conv_block(x)
+        if self.residual:
+            out += x
+        return self.act(out)
+
+
+class AudioEncoder(nn.Module):
+
+    def __init__(self, emb_dim=1024):
+        super().__init__()
+
+        self.audio_encoder = nn.Sequential(
+            Block(1, 32, kernel_size=3, stride=1, padding=1),
+            Block(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Block(32, 64, kernel_size=3, stride=(3, 1), padding=1),
+            Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Block(64, 128, kernel_size=3, stride=3, padding=1),
+            Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Block(128, 256, kernel_size=3, stride=(3, 2), padding=1),
+            Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Block(256, 512, kernel_size=3, stride=1, padding=1),
+            Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+
+            Block(512, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
+            Block(1024, emb_dim, kernel_size=1, stride=1, padding=0, act='relu'), )
+
+    def forward(self, x):
+        audio_embedding = self.audio_encoder(x)
+
+        audio_embedding = audio_embedding.view(audio_embedding.size(0), -1)
+
+        return audio_embedding
 
 
 class AudioAttNet(nn.Module):
@@ -153,30 +222,47 @@ class LipAttn(nn.Module):
     def __init__(self, emb_dim=256):
         super().__init__()
         self.encoder_conv = nn.Sequential(
-            nn.Conv2d(1, 64, kernel_size=3, stride=2,
-                      padding=1, bias=True),
-
+            # Block(1, 64, kernel_size=3, stride=(1, 2), padding=1),
+            # Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            # Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            #
+            # Block(64, 128, kernel_size=3, stride=(1, 2), padding=1),
+            # Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            # Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            #
+            # Block(128, 256, kernel_size=3, stride=(1, 4), padding=1),
+            # Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            # Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            #
+            # Block(256, 512, kernel_size=3, stride=(1, 4), padding=1),
+            # Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            # Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            #
+            # Block(512, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
+            # Block(1024, emb_dim, kernel_size=1, stride=1, padding=0, act='relu'),
+            Block(1, 64, kernel_size=3, stride=(1, 2), padding=1),
             nn.BatchNorm2d(64),
-            nn.ReLU(),
-            nn.Conv2d(64, 128, kernel_size=3, stride=2,
-                      padding=1, bias=True),
+            # nn.ReLU(),
+            Block(64, 128, kernel_size=3, stride=(1, 2), padding=1),
             nn.BatchNorm2d(128),
-            nn.ReLU(),
-            nn.Conv2d(128, 256, kernel_size=3, stride=2,
-                      padding=1, bias=True),
+            # nn.ReLU(),
+            Block(128, 256, kernel_size=3, stride=(1, 4), padding=1),
             nn.BatchNorm2d(256),
-            nn.ReLU(),
-            nn.Conv2d(256, emb_dim, kernel_size=3, stride=2,
-                      padding=1, bias=True),
-            nn.BatchNorm2d(emb_dim),
-            nn.ReLU(),
-            nn.AdaptiveAvgPool2d(1)
+            # nn.ReLU(),
+            Block(256, 512, kernel_size=3, stride=(1, 4), padding=1),
+            nn.BatchNorm2d(512),
+            Block(512, emb_dim, kernel_size=3, stride=1, padding=0, act='relu'),
+            # nn.BatchNorm2d(emb_dim),
+            nn.AdaptiveAvgPool2d(1),
+            nn.ReLU(True),
         )
 
     def forward(self, x):
         # x: bsz, seq, emb_dim
-        assert x.dim() == 3
+        # assert x.dim() == 3
         # attn = x.
         x = self.encoder_conv(x)
 
-        return x
+        face_embedding = x.view(x.size(0), -1)
+
+        return face_embedding

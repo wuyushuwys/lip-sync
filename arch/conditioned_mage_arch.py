@@ -43,7 +43,7 @@ class DoubleConditionedMAGE(nn.Module):
     """
 
     def __init__(self, img_size=256, patch_size=16, in_chans=3,
-                 embed_dim=1024, depth=24, num_heads=16,
+                 embed_dim=1024, depth=24, num_heads=16, encoder_pos_embed=False,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
@@ -104,6 +104,10 @@ class DoubleConditionedMAGE(nn.Module):
         logger.info(f"use_audio_reference:{use_audio_reference}")
         logger.info(f"use_image_reference:{use_image_reference}")
         logger.info(f"tokenize_reference:{tokenize_reference}")
+
+        self.encoder_embed = encoder_pos_embed
+        if encoder_pos_embed:
+            self.encoder_pos = PositionalEncoding(d_model=embed_dim)
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
@@ -328,6 +332,8 @@ class DoubleConditionedMAGE(nn.Module):
         # bert embedding
         input_embeddings = self.token_emb(x_indices)
         # print("Input embedding shape:", input_embeddings.shape)
+        if self.encoder_pos_embed:
+            input_embeddings = self.encoder_pos(input_embeddings)
         bsz, seq_len, emb_dim = input_embeddings.shape
 
         # dropping

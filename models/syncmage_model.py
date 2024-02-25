@@ -61,31 +61,33 @@ class SyncMageModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
             total_batches = (epoch - 1) * nb + batch_idx
 
-            x, indiv_mels, mel, y = batch
+            # x, indiv_mels, mel, y = batch
+            x, mel, y = batch
 
             x = x.to(self.local_rank, non_blocking=True)
 
             # REF is the frame from the same video clip with X but not identical
-            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                         torch.split(x, 3, dim=1))
+            # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+            #              torch.split(x, 3, dim=1))
+            x = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
 
             assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
-            indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
-            audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
-
+            # indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
+            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+            mel = mel.to(self.local_rank, non_blocking=True)
             # unused for now
             # mel = mel.to(self.local_rank, non_blocking=True)
 
             y = y.to(self.local_rank, non_blocking=True)
-            y = rearrange(y, 'b t -> (b t)')
+            # y = rearrange(y, 'b t -> (b t)')
 
             x_masked = self.mask(x.clone(), mask_face=False)
 
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
-                a, v = self.model(x_masked, gt=x, audio=audio_mel)
+                a, v = self.model(masked_img=x_masked, unmasked_img=x, audio=mel)
 
                 loss = self.criteria['sync_loss'](a, v, y)
 

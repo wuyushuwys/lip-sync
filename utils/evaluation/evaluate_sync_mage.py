@@ -37,25 +37,26 @@ def test(dataloader: DataLoader,
          mask):
     loss_dict = {"sync_loss": AverageMeter()}
 
-    for x, indiv_mels, mel, y in dataloader:
-
+    # for x, indiv_mels, mel, y in dataloader:
+    for x, mel, y in dataloader:
         x = x.to(args.local_rank, non_blocking=True)
 
         # REF is the frame from the same video clip with X but not identical
-        x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                     torch.split(x, 3, dim=1))
+        # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+        #              torch.split(x, 3, dim=1))
+        x = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
 
         assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
-        indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
-        audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
-
+        # indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
+        # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+        mel = mel.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
 
-        y = rearrange(y, 'b t -> (b t)')
+        # y = rearrange(y, 'b t -> (b t)')
         x_masked = mask(x.clone(), mask_face=False)
 
-        a, v = model(x_masked, gt=x, audio=audio_mel)
+        a, v = model(masked_img=x_masked, unmasked_img=x, audio=mel)
 
         sync_loss = reduce_all(criteria["sync_loss"](a, v, y))
         loss_dict['sync_loss'].update(sync_loss.item(), x.size(0))
