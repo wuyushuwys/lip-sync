@@ -333,7 +333,7 @@ class DoubleConditionedMAGE(nn.Module):
         input_embeddings = self.token_emb(x_indices)
         # print("Input embedding shape:", input_embeddings.shape)
         if self.encoder_pos_embed:
-            input_embeddings = self.encoder_pos(input_embeddings)
+            input_embeddings = input_embeddings + self.encoder_pos(input_embeddings)
         bsz, seq_len, emb_dim = input_embeddings.shape
 
         # dropping
