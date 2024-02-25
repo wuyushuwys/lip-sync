@@ -13,7 +13,7 @@ from .conditioned_mage_arch import DoubleConditionedMAGE
 class SyncMage(DoubleConditionedMAGE):
 
     def __init__(self, num_embed=1024, **kwargs):
-        super(SyncMage, self).__init__(**kwargs, encoder_pos_embed=True)
+        super(SyncMage, self).__init__(**kwargs)
         # freeze all parameters in pretrained vit
         for p in self.parameters():
             p.requires_grad = False
