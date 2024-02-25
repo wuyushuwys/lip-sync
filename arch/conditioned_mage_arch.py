@@ -105,7 +105,7 @@ class DoubleConditionedMAGE(nn.Module):
         logger.info(f"use_image_reference:{use_image_reference}")
         logger.info(f"tokenize_reference:{tokenize_reference}")
 
-        self.encoder_embed = encoder_pos_embed
+        self.encoder_pos_embed = encoder_pos_embed
         if encoder_pos_embed:
             self.encoder_pos = PositionalEncoding(d_model=embed_dim)
 
