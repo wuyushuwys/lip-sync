@@ -5,6 +5,8 @@ from einops import rearrange
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from torchvision.transforms.functional import resize
 from torchvision.ops import masks_to_boxes
 
 from arch.segmentation import BiSeNet
@@ -33,12 +35,13 @@ class Masking(nn.Module):
         #     self.detector.half()
 
     @torch.no_grad()
-    def mask(self, x, mask_face=True, bottom=True):
+    def mask(self, x, mask_face=True, bottom=True, lip_only=False):
         """
         Args:
             x: input image
             mask_face: whether mask face region (True mask out face, False preserve face only)
             bottom: bottom face only mask
+            lip_only: if return reshaped mask_lip
         Returns:
             masks
         """
@@ -75,21 +78,30 @@ class Masking(nn.Module):
                     face_masks[idx, -h:, ...] = 1
                     face_masks[idx, ..., :w] = 1
                     face_masks[idx, ..., -w:] = 1
+            if lip_only:
+                for idx, face_mask in enumerate(face_masks):
+                    try:
+                        x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
+                        x[idx] = F.interpolate((x[idx])[:, y1:y2, x1:x2].unsqueeze(0), [256, 256]).squeeze(0)
+                    except RuntimeError as e:
+                        pass
+                return x
         mask = face_masks.unsqueeze(1)
         if mask_face:
             self.inverse_mask = (1 - mask)
-            return mask
+            return x * (mask)
         else:
             self.inverse_mask = mask
-            return 1 - mask
+            return x * (1 - mask)
 
-    def forward(self, x: torch.Tensor, mask_face=True, bottom=True) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, mask_face=True, bottom=True, lip_only=False) -> torch.Tensor:
         """
 
         Args:
             x: input image
             mask_face: whether mask face region (True mask out face, False preserve face only)
             bottom: bottom face only mask
+            lip_only: if return reshaped mask_lip
         Returns:
             masked image
         """
@@ -99,20 +111,20 @@ class Masking(nn.Module):
             # face [bsz, 6, t, h, w]
             face, ref = x.split(3, dim=1)
             face = rearrange(face, 'b c t h w -> (b t) c h w')
-            face = face * self.mask(face, mask_face, bottom)
+            face = self.mask(face, mask_face, bottom, lip_only)
             face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
             return torch.cat([face, ref], dim=1)
         elif x.dim() == 4:
             if x.size(1) == 6:
                 face, ref = x.split(3, dim=1)
-                face = face * self.mask(face, mask_face, bottom)
+                face = self.mask(face, mask_face, bottom, lip_only)
                 return torch.cat([face, ref], dim=1)
             elif x.size(1) == 3:
-                x = x * self.mask(x, mask_face, bottom)
+                x = self.mask(x, mask_face, bottom, lip_only)
                 return x
             elif x.size(1) == 15:
                 face = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
-                face = face * self.mask(face, mask_face, bottom)
+                face = self.mask(face, mask_face, bottom, lip_only)
                 return rearrange(face, '(b t) c h w -> b (c t) h w', b=bsz)
             else:
                 raise NotImplementedError(f'{x.shape}')

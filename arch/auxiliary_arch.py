@@ -37,8 +37,7 @@ class Block(nn.Module):
 
 
 class AttnBlock(nn.Module):
-    def __init__(self, channels, kernel_size, stride, padding, expand=4,
-                 norm='bn'):
+    def __init__(self, channels, kernel_size, stride, padding, expand=4, norm='bn'):
         super(AttnBlock, self).__init__()
         if norm == 'bn':
             norm = nn.BatchNorm2d
@@ -52,18 +51,18 @@ class AttnBlock(nn.Module):
             norm(channels)
         )
 
-        self.attn = nn.Sequential(
-            nn.Conv2d(channels, 1, 1, 1, 0),
-            # nn.Conv2d(channels * expand, channels, 1, 1, 0),
-            # nn.AdaptiveAvgPool2d(1),
-        )
+        # self.attn = nn.Sequential(
+        #     nn.Conv2d(channels, 1, 1, 1, 0),
+        #     # nn.Conv2d(channels * expand, channels, 1, 1, 0),
+        #     # nn.AdaptiveAvgPool2d(1),
+        # )
 
         self.act = nn.LeakyReLU(0.2, inplace=True)
 
     def forward(self, x):
-        attn = torch.softmax(self.attn(x), dim=1)
+        # attn = torch.softmax(self.attn(x), dim=1)
         out = self.conv_block(x) + x
-        return self.act(out) * attn
+        return self.act(out)
 
 
 class AudioEncoder(nn.Module):

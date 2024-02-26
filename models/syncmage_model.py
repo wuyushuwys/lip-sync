@@ -69,9 +69,9 @@ class SyncMageModel(BasicModel):
             # REF is the frame from the same video clip with X but not identical
             # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
             #              torch.split(x, 3, dim=1))
-            x = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
+            # x = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
 
-            assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
+            # assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
             # indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
             # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')

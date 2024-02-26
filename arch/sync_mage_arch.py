@@ -89,7 +89,7 @@ class SyncMage(nn.Module):
         # audio_embed = self.audio_probe(audio_latent).squeeze(1)
         # audio_embed = self.audio_encoder(preserved_audio)
 
-        img_embed = self.lip_encoder(rearrange(masked_img, '(b t) c h w -> b (t c) h w', t=5))
+        img_embed = self.lip_encoder(masked_img)
 
         audio_embed = self.audio_encoder(audio)
 
@@ -102,6 +102,7 @@ class SyncMage(nn.Module):
 
     def __str__(self):
         return self.__class__.__name__.lower()
+
 
 def sync_mage_vit_base(**kwargs):
     model = SyncMage(
