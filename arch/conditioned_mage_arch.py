@@ -246,8 +246,7 @@ class DoubleConditionedMAGE(nn.Module):
         z_map = self.decoder_embed_mapping(z)
         return z_map
 
-    def forward_encoder(self, x, gt=None):
-        # tokenization
+    def index_generator(self, x, gt=None):
         bsz = x.size(0)
 
         with torch.no_grad():
@@ -262,19 +261,6 @@ class DoubleConditionedMAGE(nn.Module):
                 z_q_gt, _, quantizer_info_gt = self.vqgan.quantize(z_gt)
                 gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
                 token_all_mask = x_indices.not_equal(gt_indices).float()
-                # print(token_all_mask.sum()/token_all_mask.numel())
-                # if self.training:
-                #     while True:
-                #         bsz, seq_len = x_indices.size()
-                #         num_dropped_tokens = int(np.ceil(seq_len * self.mask_ratio_min))
-                #         noise = torch.rand(bsz, seq_len, device=x.device)  # noise in [0, 1]
-                #         noise[token_all_mask.nonzero(as_tuple=True)] = 0
-                #         sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
-                #         cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
-                #         token_drop_mask = noise.less_equal(cutoff_drop).float()
-                #         if token_drop_mask.sum() == bsz * num_dropped_tokens:
-                #             break
-                # else:
                 token_drop_mask = torch.zeros_like(token_all_mask)
             # if no gt then self-supervised learning, in this case x should be a complete image
             else:
@@ -340,6 +326,12 @@ class DoubleConditionedMAGE(nn.Module):
         token_keep_mask = 1 - token_drop_mask
         input_embeddings_after_drop = input_embeddings[token_keep_mask.nonzero(as_tuple=True)].reshape(bsz, -1, emb_dim)
         # print("Input embedding after drop shape:", input_embeddings_after_drop.shape)
+
+        return input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask
+
+    def forward_encoder(self, x, gt=None):
+
+        input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask = self.index_generator(x, gt)
 
         # apply Transformer blocks
         x = input_embeddings_after_drop

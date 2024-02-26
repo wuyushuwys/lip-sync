@@ -7,7 +7,7 @@ weight: null
 use_amp: true
 data_spec:
   mode: tar
-  num_samples: 50
+  num_samples: 100
   eval_samples: 10
   window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
@@ -21,6 +21,7 @@ data_spec:
     mean: [ 0.5, 0.5, 0.5 ]
 
 video_spec:
+  bottom_half: false
   fps: 25
   size: [ 256, 256 ]
 
@@ -39,18 +40,18 @@ model:
 
 optim:
   type: Adam
-  lr: !!float 1.5e-4  # adjust by effective bsz as mage
+  lr: !!float 1e-5  # adjust by effective bsz as mage
   weight_decay: 0.05
   betas: [ 0.9, 0.999 ]
 
-scheduler:
- type: MultiStepLR
- milestones: [ 1 ]
- gamma: 1
-
 #scheduler:
-#  type: PolynomialLR
-#  power: 0.9
+# type: MultiStepLR
+# milestones: [ 1 ]
+# gamma: 1
+
+scheduler:
+  type: PolynomialLR
+  power: 0.9
 
 # scheduler:
 #   type: CosineAnnealingLR

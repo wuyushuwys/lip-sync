@@ -22,7 +22,6 @@ class Block(nn.Module):
             norm(cout)
         )
         self.residual = residual
-        self.act = nn.ReLU(True)
         if act == 'relu':
             self.act = nn.ReLU(True)
         elif act == 'leaky':
@@ -35,6 +34,36 @@ class Block(nn.Module):
         if self.residual:
             out += x
         return self.act(out)
+
+
+class AttnBlock(nn.Module):
+    def __init__(self, channels, kernel_size, stride, padding, expand=4,
+                 norm='bn'):
+        super(AttnBlock, self).__init__()
+        if norm == 'bn':
+            norm = nn.BatchNorm2d
+        elif norm == 'gn':
+            norm = partial(nn.GroupNorm, 32)
+        else:
+            norm = nn.Identity()
+
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size, stride, padding),
+            norm(channels)
+        )
+
+        self.attn = nn.Sequential(
+            nn.Conv2d(channels, 1, 1, 1, 0),
+            # nn.Conv2d(channels * expand, channels, 1, 1, 0),
+            # nn.AdaptiveAvgPool2d(1),
+        )
+
+        self.act = nn.LeakyReLU(0.2, inplace=True)
+
+    def forward(self, x):
+        attn = torch.softmax(self.attn(x), dim=1)
+        out = self.conv_block(x) + x
+        return self.act(out) * attn
 
 
 class AudioEncoder(nn.Module):
@@ -264,5 +293,47 @@ class LipAttn(nn.Module):
         x = self.encoder_conv(x)
 
         face_embedding = x.view(x.size(0), -1)
+
+        return face_embedding
+
+
+class LipEncoder(nn.Module):
+
+    def __init__(self, emb_dim=256):
+        super().__init__()
+
+        self.encoder_conv = nn.Sequential(
+            Block(15, 32, kernel_size=(7, 7), stride=1, padding=3),
+            Block(32, 64, kernel_size=5, stride=2, padding=1),
+            AttnBlock(64, kernel_size=3, stride=1, padding=1),
+            AttnBlock(64, kernel_size=3, stride=1, padding=1),
+
+            Block(64, 128, kernel_size=3, stride=2, padding=1),
+            AttnBlock(128, kernel_size=3, stride=1, padding=1),
+            AttnBlock(128, kernel_size=3, stride=1, padding=1),
+
+            Block(128, 256, kernel_size=3, stride=2, padding=1),
+            AttnBlock(256, kernel_size=3, stride=1, padding=1),
+            AttnBlock(256, kernel_size=3, stride=1, padding=1),
+
+            Block(256, 512, kernel_size=3, stride=2, padding=1),
+            AttnBlock(512, kernel_size=3, stride=1, padding=1),
+            AttnBlock(512, kernel_size=3, stride=1, padding=1),
+
+            Block(512, 1024, kernel_size=3, stride=2, padding=1),
+            AttnBlock(1024, kernel_size=3, stride=1, padding=1),
+            AttnBlock(1024, kernel_size=3, stride=1, padding=1),
+
+            Block(1024, 1024, kernel_size=3, stride=2, padding=1),
+            Block(1024, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
+            Block(1024, emb_dim, kernel_size=1, stride=1, padding=0, act='relu'),
+
+            nn.AdaptiveMaxPool2d(1)
+        )
+
+    def forward(self, x):
+        face_embedding = self.encoder_conv(x)
+
+        face_embedding = face_embedding.view(face_embedding.size(0), -1)
 
         return face_embedding
