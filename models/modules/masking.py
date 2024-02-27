@@ -42,6 +42,7 @@ class Masking(nn.Module):
         Returns:
             masks
         """
+
         with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
                             dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
                             enabled=self.use_amp):
@@ -76,18 +77,23 @@ class Masking(nn.Module):
                     face_masks[idx, ..., :w] = 1
                     face_masks[idx, ..., -w:] = 1
             if lip_only:
+                assert face_masks.size(0) % 5 == 0, f"get shape {face_masks.size()}"
                 for idx, face_mask in enumerate(face_masks):
-                    try:
-                        x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
-                        x[idx] = F.interpolate((x[idx])[:, y1:y2, x1:x2].unsqueeze(0), [256, 256]).squeeze(0)
-                    except RuntimeError as e:
-                        pass
+                    if idx % 5 == 0:
+                        try:
+                            x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
+                            # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
+                            #                                [256, 256])
+                            x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., y1:y2, x1:x2], [256, 256])
+                        except RuntimeError as e:
+                            print(e)
+                            pass
 
                 return F.interpolate(x, [128, 256])
         mask = face_masks.unsqueeze(1)
         if mask_face:
             self.inverse_mask = (1 - mask)
-            return x * (mask)
+            return x * mask
         else:
             self.inverse_mask = mask
             return x * (1 - mask)

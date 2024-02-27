@@ -43,7 +43,7 @@ class DoubleConditionedMAGE(nn.Module):
     """
 
     def __init__(self, img_size=256, patch_size=16, in_chans=3,
-                 embed_dim=1024, depth=24, num_heads=16, encoder_pos_embed=False,
+                 embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
                  mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
@@ -105,9 +105,9 @@ class DoubleConditionedMAGE(nn.Module):
         logger.info(f"use_image_reference:{use_image_reference}")
         logger.info(f"tokenize_reference:{tokenize_reference}")
 
-        self.encoder_pos_embed = encoder_pos_embed
-        if encoder_pos_embed:
-            self.encoder_pos = PositionalEncoding(d_model=embed_dim)
+        # self.encoder_pos_embed = encoder_pos_embed
+        # if encoder_pos_embed:
+        #     self.encoder_pos = PositionalEncoding(d_model=embed_dim)
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
@@ -318,8 +318,8 @@ class DoubleConditionedMAGE(nn.Module):
         # bert embedding
         input_embeddings = self.token_emb(x_indices)
         # print("Input embedding shape:", input_embeddings.shape)
-        if self.encoder_pos_embed:
-            input_embeddings = input_embeddings + self.encoder_pos(input_embeddings)
+        # if self.encoder_pos_embed:
+        #     input_embeddings = input_embeddings + self.encoder_pos(input_embeddings)
         bsz, seq_len, emb_dim = input_embeddings.shape
 
         # dropping
@@ -329,14 +329,18 @@ class DoubleConditionedMAGE(nn.Module):
 
         return input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask
 
-    def forward_encoder(self, x, gt=None):
+    def forward_encoder(self, x, gt=None, return_attn=False):
 
         input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask = self.index_generator(x, gt)
 
         # apply Transformer blocks
         x = input_embeddings_after_drop
-        x = self.transformer_encoder(x)
-        x = self.norm(x)
+        if return_attn:
+            x, attn = self.transformer_encoder(x, return_attn)
+            x = self.norm(x), attn
+        else:
+            x = self.transformer_encoder(x)
+            x = self.norm(x)
         # print("Encoder representation shape:", x.shape)
 
         return x, gt_indices, token_drop_mask, token_all_mask
@@ -420,6 +424,7 @@ class DoubleConditionedMAGE(nn.Module):
             z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
                                                           shape=(bsz, latent_res, latent_res, vq_emb))
             imgs = self.vqgan.decode(z_q)
+
         return loss, imgs, token_all_mask
 
     def __str__(self):
@@ -435,9 +440,13 @@ class TransformerEncoder(nn.Module):
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                   norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x):
-        for blk in self.blocks:
-            x = blk(x)
+    def forward(self, x, return_attn=False):
+        for idx, blk in enumerate(self.blocks, start=1):
+            if return_attn and idx == len(self.blocks):
+                x, attn = blk(x, return_attn)
+                return x, attn
+            else:
+                x = blk(x)
         return x
 
 
