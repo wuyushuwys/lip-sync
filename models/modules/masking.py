@@ -86,8 +86,8 @@ class Masking(nn.Module):
                             #                                [256, 256])
                             x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., y1:y2, x1:x2], [256, 256])
                         except RuntimeError as e:
-                            print(e)
-                            pass
+                            # if error use bottom half
+                            x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [256, 256])
 
                 return F.interpolate(x, [128, 256])
         mask = face_masks.unsqueeze(1)
