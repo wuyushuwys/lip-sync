@@ -86,7 +86,8 @@ class MageModel(BasicModel):
             y = rearrange(y, 'b c t h w -> (b t) c h w')
 
             # mask face
-            x_masked = self.mask(x.clone())
+            with torch.no_grad():
+                x_masked = self.mask(x.clone())
 
             self.optimizer.zero_grad()
 

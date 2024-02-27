@@ -83,7 +83,8 @@ class LipSyncGAN(BasicModel):
             y = y.to(self.local_rank, non_blocking=True)
 
             # mask face
-            x = self.mask(x)
+            with torch.no_grad():
+                x = self.mask(x)
 
             ############################################
             # optimize generator

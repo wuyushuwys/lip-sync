@@ -1,6 +1,7 @@
 import os
 from argparse import Namespace
 
+import torch
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
@@ -41,6 +42,8 @@ class SyncNetModel(BasicModel):
 
         self.no_ddp_model = self.model_no_ddp(model)
 
+        self.mask = Masking(half_precision=True).to(self.local_rank)
+
         # self.ema_model = self.create_ema(model, power=0.75)
 
     def compile_model(self):
@@ -58,6 +61,9 @@ class SyncNetModel(BasicModel):
             x = x.to(self.local_rank, non_blocking=True)
             mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
+
+            with torch.no_grad():
+                x = self.mask(x.clone(), mask_face=False, lip_only=True)
 
             self.optimizer.zero_grad()
 
@@ -96,7 +102,7 @@ class SyncNetModel(BasicModel):
                                         criteria=self.criteria,
                                         writer=self.writer,
                                         args=self.args,
-                                        logger=self.logger)
+                                        logger=self.logger, mask=self.mask)
 
     def save_model(self, path, best=False):
         if best:

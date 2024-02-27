@@ -1,6 +1,6 @@
 import os
 from argparse import Namespace
-
+import torch
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
@@ -60,7 +60,8 @@ class SyncNetModel(BasicModel):
             y = y.to(self.local_rank, non_blocking=True)
 
             # mask face
-            # x = self.mask(x, mask_face=False)
+            with torch.no_grad():
+                x = self.mask(x, mask_face=False)
 
             self.optimizer.zero_grad()
 
@@ -102,9 +103,8 @@ class SyncNetModel(BasicModel):
         if best:
             state_dict_saver(
                 os.path.join(path, f"{self.no_ddp_model}_best.pt"), self.no_ddp_model)
-        else:
-            state_dict_saver(
-                os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
+        state_dict_saver(
+            os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),

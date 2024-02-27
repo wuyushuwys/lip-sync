@@ -17,7 +17,7 @@ from .utils import reduce_all
 
 @torch.no_grad()
 def evaluation(model, eval_data_loaders, epoch, criteria,
-               writer: SummaryWriter, args: argparse.Namespace, logger: Logger):
+               writer: SummaryWriter, args: argparse.Namespace, logger: Logger, mask=None):
     """
     Evaluate Generator in eval datasets
     :param model: Generator model
@@ -33,7 +33,7 @@ def evaluation(model, eval_data_loaders, epoch, criteria,
     model.eval()
     sync_losses = {}
     for eval_data_name, eval_data_loader in eval_data_loaders:
-        loss_dict = test(eval_data_loader, model, criteria, args)
+        loss_dict = test(eval_data_loader, model, criteria, args, mask)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
         sync_losses['eval_data_name'] = loss_dict['sync_loss']
@@ -45,13 +45,16 @@ def evaluation(model, eval_data_loaders, epoch, criteria,
 def test(dataloader: DataLoader,
          model: torch.nn.Module,
          criteria: Dict,
-         args: argparse.Namespace):
+         args: argparse.Namespace, mask=None):
     loss_dict = {"sync_loss": AverageMeter()}
 
     for x, mel, y in dataloader:
         x = x.to(args.local_rank, non_blocking=True)
         mel = mel.to(args.local_rank, non_blocking=True)
         y = y.to(args.local_rank, non_blocking=True)
+
+        if mask:
+            x = mask(x, mask_face=False, lip_only=True)
 
         a, v = model(mel, x)
         sync_loss = reduce_all(criteria["sync_loss"](a, v, y))

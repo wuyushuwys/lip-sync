@@ -1,6 +1,6 @@
 import os
 from argparse import Namespace
-
+import torch
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
@@ -65,7 +65,8 @@ class LipSyncModel(BasicModel):
             y = y.to(self.local_rank, non_blocking=True)
 
             # mask face
-            x = self.mask(x)
+            with torch.no_grad():
+                x = self.mask(x)
 
             self.optimizer.zero_grad()
 

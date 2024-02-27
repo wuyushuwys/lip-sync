@@ -16,8 +16,8 @@ from utils.train_utils import create_dataloader, create_criteria, create_optim_s
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_whole_model import SyncNetModel
-from arch.syncnet_arch import SyncNet, SyncNetWhole
+from models.syncnet_model import SyncNetModel
+from arch.syncnet_arch import SyncNet
 
 
 def main(args):
@@ -57,7 +57,7 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    best_loss = 1000
+    best_loss = float('inf')
 
     trainer = SyncNetModel(model=model,
                            optimizer=optimizer,
@@ -90,10 +90,7 @@ def main(args):
         trainer.training_epoch(epoch=epoch)
         loss = trainer.evaluating_epoch(epoch=epoch)
         # save model weight
-        trainer.save_model(os.path.join(args.job_dir, 'weights'))
-        if best_loss > loss:
-            trainer.save_model(os.path.join(args.job_dir, 'weights'), best=best_loss > loss)
-            best_loss = loss
+        trainer.save_model(os.path.join(args.job_dir, 'weights'), best=best_loss > loss)
         trainer.save_ckpt(os.path.join(args.job_dir, "ckpt"), epoch=epoch)
 
     logger.info(f"Finish Training")

@@ -156,7 +156,8 @@ if __name__ == '__main__':
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
         if args.dynamic_mask:
-            x = mask(x)
+            with torch.no_grad():
+                x = mask(x)
             masked_flag = mask.inverse_mask.cpu()
         with torch.no_grad():
             g = model(indiv_mels.half(), x.half()).clamp(0, 1)

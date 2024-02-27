@@ -31,10 +31,7 @@ class Masking(nn.Module):
         self.detector.eval()
         self.inverse_mask = None
         self.use_amp = half_precision
-        # if half_precision:
-        #     self.detector.half()
 
-    @torch.no_grad()
     def mask(self, x, mask_face=True, bottom=True, lip_only=False):
         """
         Args:
@@ -85,7 +82,8 @@ class Masking(nn.Module):
                         x[idx] = F.interpolate((x[idx])[:, y1:y2, x1:x2].unsqueeze(0), [256, 256]).squeeze(0)
                     except RuntimeError as e:
                         pass
-                return x
+
+                return F.interpolate(x, [128, 256])
         mask = face_masks.unsqueeze(1)
         if mask_face:
             self.inverse_mask = (1 - mask)
@@ -106,6 +104,7 @@ class Masking(nn.Module):
             masked image
         """
         bsz = x.size(0)
+        x = x.clone()
         if x.dim() == 5:
             assert x.size(1) == 6
             # face [bsz, 6, t, h, w]
@@ -123,9 +122,9 @@ class Masking(nn.Module):
                 x = self.mask(x, mask_face, bottom, lip_only)
                 return x
             elif x.size(1) == 15:
-                face = rearrange(x, 'b (c t) h w -> (b t) c h w', c=3)
+                face = rearrange(x, 'b (t c) h w -> (b t) c h w', c=3)
                 face = self.mask(face, mask_face, bottom, lip_only)
-                return rearrange(face, '(b t) c h w -> b (c t) h w', b=bsz)
+                return rearrange(face, '(b t) c h w -> b (t c) h w', b=bsz)
             else:
                 raise NotImplementedError(f'{x.shape}')
         else:
