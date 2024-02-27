@@ -1,35 +1,33 @@
 manual_seed: 1234
 
-data_spec:
-  mode: 'h5'  # h5 or image
-  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
-  verbose: False  # might be super-slow for large scale datasets
-  window_size: 5
+weight: ~
 
+warmup_lr: true
+warmup_iters: 0.1
+data_spec:
+  mode: tar
+  num_samples: 1000
+  eval_samples: 10
+  window_size: 5
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  train_size: 256
+  eval_size: 256
   aug:
-    rotate:
-      degrees: 5
-      center: [ 128, 128 ]
-    sharpness:
-      sharpness_factor: 2
-      p: 0.1
     flip:
-      p: 0.1
-    contrast:
-      p: 0.1
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
 
 
 video_spec:
+  bottom_half: false
   fps: 25
   size: [ 256, 256 ]
 
 audio_spec:
   mel_step_size: 16
   sample_rate: 16000
-
-
-num_samples: 1000
-eval_samples: 50
 
 optim:
   type: Adam
