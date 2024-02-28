@@ -112,9 +112,8 @@ class SyncNetModel(BasicModel):
             self.logger.info('Save best model weights')
             state_dict_saver(
                 os.path.join(path, f"{self.no_ddp_model}_best.pt"), self.no_ddp_model)
-        else:
-            state_dict_saver(
-                os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
+        state_dict_saver(
+            os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):
         ckpt_saver(os.path.join(path, "latest.pt"),
