@@ -44,7 +44,8 @@ class SyncNetModel(BasicModel):
 
         self.mask = Masking(half_precision=True).to(self.local_rank)
 
-        # self.ema_model = self.create_ema(model, power=0.75)
+        self.cur_loss = None
+        self.best_loss = float('inf')
 
     def compile_model(self):
         self.compile(self.model)
@@ -96,15 +97,17 @@ class SyncNetModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        return evaluate_sync.evaluation(model=self.model,
-                                        eval_data_loaders=self.eval_data_loaders,
-                                        epoch=epoch,
-                                        criteria=self.criteria,
-                                        writer=self.writer,
-                                        args=self.args,
-                                        logger=self.logger, mask=self.mask)
+        self.cur_loss = evaluate_sync.evaluation(model=self.model,
+                                                 eval_data_loaders=self.eval_data_loaders,
+                                                 epoch=epoch,
+                                                 criteria=self.criteria,
+                                                 writer=self.writer,
+                                                 args=self.args,
+                                                 logger=self.logger, mask=self.mask)
 
     def save_model(self, path, best=False):
+        best = self.cur_loss < self.best_loss
+
         if best:
             self.logger.info('Save best model weights')
             state_dict_saver(
