@@ -82,14 +82,14 @@ class Masking(nn.Module):
                     if idx % 5 == 0:
                         try:
                             x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
-                            # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
-                            #                                [256, 256])
-                            x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., y1:y2, x1:x2], [256, 256])
+                            # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2], [256, 256])
+                            x[idx:idx + 5, :, :128, :] = F.interpolate((x[idx:idx + 5])[..., y1:y2, x1:x2], [128, 256])
                         except RuntimeError as e:
                             # if error use bottom half
                             x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [256, 256])
 
-                return F.interpolate(x, [128, 256])
+                # return F.interpolate(x, [128, 256])
+                return x[:, :, :128, ]
         mask = face_masks.unsqueeze(1)
         if mask_face:
             self.inverse_mask = (1 - mask)

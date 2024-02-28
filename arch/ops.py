@@ -141,7 +141,7 @@ class Shape(nn.Module):
 
 class Conv2d(nn.Module):
     def __init__(self, cin, cout, kernel_size, stride, padding, batch_norm=True, residual=False, act='leaky',
-                 norm='gn'):
+                 norm='bn', dropout=0.1):
         super().__init__()
         if norm == 'bn':
             norm = nn.BatchNorm2d
@@ -151,7 +151,7 @@ class Conv2d(nn.Module):
             nn.Conv2d(cin, cout, kernel_size, stride, padding),
             norm(cout) if batch_norm else nn.Identity()
         )
-        self.drop = nn.Dropout(p=0.1)
+        self.drop = nn.Dropout(p=dropout)
         self.residual = residual
         self.act = nn.ReLU(True)
         if act == 'relu':
@@ -164,7 +164,7 @@ class Conv2d(nn.Module):
     def forward(self, x):
         out = self.drop(self.conv_block(x))
         if self.residual:
-            out += x
+            out += self.drop(x)
         return self.act(out)
 
 
