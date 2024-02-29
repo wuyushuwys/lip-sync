@@ -20,7 +20,9 @@ class CompileMode(Enum):
 
 class BasicModel(ABC):
 
-    def __init__(self, total_iterations=None, *args, **kwargs):
+    def __init__(self, opt, total_iterations=None, *args, **kwargs):
+        self.logger = get_logger()
+        self.opt = opt
         self.eta_timer = TimeMeter(total_iterations=total_iterations)
         pass
 

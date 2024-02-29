@@ -1,5 +1,4 @@
 import os
-from argparse import Namespace
 
 import torch
 
@@ -8,7 +7,7 @@ from omegaconf import OmegaConf
 import common
 from arch.fema_vqgan_arch import FaceCoderNet
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_mask
+from .evaluation import evaluate_mask
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from .modules.masking import Masking
@@ -18,23 +17,20 @@ from .basic_model import BasicModel
 class MaskNetModel(BasicModel):
 
     def __init__(self,
+                 opt,
                  model,
                  optimizer,
                  scheduler,
                  criteria,
                  train_data_loader,
                  eval_data_loaders,
-                 logger,
-                 args: Namespace,
                  writer=None
                  ) -> None:
-        super().__init__(total_iterations=args.total_iterations)
+        super().__init__(opt, total_iterations=opt.total_iterations)
 
-        self.logger = logger
-        self.args = args
         self.writer = writer
 
-        self.local_rank = args.local_rank
+        self.local_rank = opt.local_rank
 
         self.model = model
         self.optimizer = optimizer
@@ -44,13 +40,13 @@ class MaskNetModel(BasicModel):
         self.eval_data_loaders = eval_data_loaders
 
         # load vqgan
-        logger.info(f"Create vqvae from {args.vq_config_path}")
-        vq_config = OmegaConf.load(args.vq_config_path)
+        logger.info(f"Create vqvae from {opt.vq_config_path}")
+        vq_config = OmegaConf.load(opt.vq_config_path)
 
         self.vqgan = FaceCoderNet(**vq_config.g_model).to(self.local_rank)
-        assert os.path.exists(args.vq_state_dict), args.vq_state_dict
-        self.vqgan.load_state_dict(torch.load(args.vq_state_dict, map_location='cpu'))
-        logger.info(f"Load vqvae weight from {args.vq_state_dict}")
+        assert os.path.exists(opt.vq_state_dict), opt.vq_state_dict
+        self.vqgan.load_state_dict(torch.load(opt.vq_state_dict, map_location='cpu'))
+        logger.info(f"Load vqvae weight from {opt.vq_state_dict}")
         self.vqgan.eval()
         for p in self.vqgan.parameters():
             p.requires_grad = False
@@ -133,14 +129,14 @@ class MaskNetModel(BasicModel):
             self.eta_timer.update()
             losses_meter.update(log_vars, x.size(0))
 
-            if batch_idx % self.args.log_steps == 0:
+            if batch_idx % self.opt.log_steps == 0:
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
-                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
+                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
 
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         evaluate_mask.evaluation(model=self.model,
@@ -148,12 +144,12 @@ class MaskNetModel(BasicModel):
                                  epoch=epoch,
                                  criteria=self.criteria,
                                  writer=self.writer,
-                                 args=self.args,
+                                 args=self.opt,
                                  logger=self.logger,
                                  mask=self.mask,
                                  vqgan=self.vqgan)
 
-    def save_model(self, path, *args):
+    def save_model(self, path, *opt):
         state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
     def save_ckpt(self, path, epoch):

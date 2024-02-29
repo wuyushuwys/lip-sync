@@ -1,10 +1,9 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-import math
 
 from .ops import Conv2dTranspose, Conv2d, nonorm_Conv2d
-from utils.evaluation import evaluate_lip
+from models.evaluation import evaluate_lip
 
 
 class Wav2Lip(nn.Module):

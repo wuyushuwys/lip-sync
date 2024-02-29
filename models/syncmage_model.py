@@ -1,12 +1,10 @@
 import os
-from argparse import Namespace
 
 import torch
-from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_sync_mage
+from .evaluation import evaluate_sync_mage
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from .modules.masking import Masking
@@ -16,23 +14,20 @@ from .basic_model import BasicModel
 class SyncMageModel(BasicModel):
 
     def __init__(self,
+                 opt,
                  model,
                  optimizer,
                  scheduler,
                  criteria,
                  train_data_loader,
                  eval_data_loaders,
-                 logger,
-                 args: Namespace,
                  writer=None
                  ) -> None:
-        super().__init__(total_iterations=args.total_iterations)
+        super().__init__(opt, total_iterations=opt.total_iterations)
 
-        self.logger = logger
-        self.args = args
         self.writer = writer
 
-        self.local_rank = args.local_rank
+        self.local_rank = opt.local_rank
 
         self.model = model
         self.optimizer = optimizer
@@ -45,7 +40,7 @@ class SyncMageModel(BasicModel):
 
         self.mask = Masking(half_precision=True, norm=False).to(self.local_rank)
 
-        self.use_amp = args.get('use_amp', False)
+        self.use_amp = opt.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
         # self.ema_model = self.create_ema(model, power=0.75)
@@ -97,13 +92,13 @@ class SyncMageModel(BasicModel):
             self.eta_timer.update()
             losses_meter.update(log_vars, x.size(0))
 
-            if batch_idx % self.args.log_steps == 0:
+            if batch_idx % self.opt.log_steps == 0:
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
-                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
+                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         return evaluate_sync_mage.evaluation(model=self.model,
@@ -111,7 +106,7 @@ class SyncMageModel(BasicModel):
                                              epoch=epoch,
                                              criteria=self.criteria,
                                              writer=self.writer,
-                                             args=self.args,
+                                             args=self.opt,
                                              logger=self.logger,
                                              mask=self.mask)
 

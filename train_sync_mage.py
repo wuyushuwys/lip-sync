@@ -21,7 +21,8 @@ import arch.sync_mage_arch as sync_mage_arch
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
@@ -59,14 +60,13 @@ def main(args):
 
     best_loss = 1000
 
-    trainer = SyncMageModel(model=model,
+    trainer = SyncMageModel(opt=args,
+                            model=model,
                             optimizer=optimizer,
                             scheduler=scheduler,
                             criteria=criteria,
                             train_data_loader=train_data_loader,
                             eval_data_loaders=eval_data_loaders,
-                            logger=logger,
-                            args=args,
                             writer=writer)
 
     # Load ckpt
@@ -109,8 +109,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

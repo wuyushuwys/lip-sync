@@ -16,15 +16,14 @@ from utils.train_utils import create_dataloader, create_criteria, create_optim_s
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-# from arch.codeformer_vqgan_arch import VQAutoEncoder, VQGANDiscriminator
-# from arch.adacode_arch import AdaCodeSRNet
 from arch.fema_vqgan_arch import FeMaSRNet, FaceCoderNet
 from arch.discriminator_arch import UNetDiscriminatorSN
 from models.vqgan_model import VQGANModel
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
@@ -40,9 +39,6 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    # g_model = VQAutoEncoder(**args.g_model)
-    # d_model = VQGANDiscriminator(**args.d_model)
-    # g_model = AdaCodeSRNet(**args.g_model)
     g_model = FaceCoderNet(**args.g_model)
     d_model = UNetDiscriminatorSN(**args.d_model)
 
@@ -68,7 +64,8 @@ def main(args):
     [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
                                                                                     args=args,
                                                                                     num_batches=len(train_data_loader))
-    trainer = VQGANModel(g_model=g_model,
+    trainer = VQGANModel(opt=args,
+                         g_model=g_model,
                          g_optimizer=g_optimizer,
                          g_scheduler=g_scheduler,
                          d_model=d_model,
@@ -77,8 +74,6 @@ def main(args):
                          criteria=criteria,
                          train_data_loader=train_data_loader,
                          eval_data_loaders=eval_data_loaders,
-                         logger=logger,
-                         args=args,
                          writer=writer)
 
     # Load ckpt
@@ -125,8 +120,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

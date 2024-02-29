@@ -21,7 +21,8 @@ from models.mage_pretrain_model import MageModel
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
@@ -39,7 +40,6 @@ def main(args):
     logger.info(f"Create Model")
 
     model = conditioned_mage_arch.__dict__[args.model.get("type")](**subdict(args.model, 'type'))
-    # model = lip_mage_vit_small(**args.model)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
@@ -61,14 +61,13 @@ def main(args):
     [optimizer], [scheduler] = create_optim_scheduler(model,
                                                       args=args,
                                                       num_batches=len(train_data_loader))
-    trainer = MageModel(model=model,
+    trainer = MageModel(opt=args,
+                        model=model,
                         optimizer=optimizer,
                         scheduler=scheduler,
                         criteria=criteria,
                         train_data_loader=train_data_loader,
                         eval_data_loaders=eval_data_loaders,
-                        logger=logger,
-                        args=args,
                         writer=writer)
 
     # Load ckpt
@@ -113,8 +112,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

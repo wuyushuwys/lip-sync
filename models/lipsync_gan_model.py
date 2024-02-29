@@ -1,5 +1,4 @@
 import os
-from argparse import Namespace
 
 import torch
 from einops import rearrange
@@ -7,7 +6,7 @@ from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from utils.evaluation import evaluate_lip
+from .evaluation import evaluate_lip
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from .modules.masking import Masking
@@ -19,6 +18,7 @@ face_rearrange = lambda x: rearrange(x, 'b c t h w -> (b t) c h w')
 class LipSyncGAN(BasicModel):
 
     def __init__(self,
+                 opt,
                  g_model,
                  g_optimizer,
                  g_scheduler,
@@ -28,17 +28,13 @@ class LipSyncGAN(BasicModel):
                  criteria,
                  train_data_loader,
                  eval_data_loaders,
-                 logger,
-                 args: Namespace,
                  writer=None
                  ) -> None:
-        super().__init__(total_iterations=args.total_iterations)
+        super().__init__(opt, total_iterations=opt.total_iterations)
 
-        self.logger = logger
-        self.args = args
         self.writer = writer
 
-        self.local_rank = args.local_rank
+        self.local_rank = opt.local_rank
 
         self.g_model = g_model
         self.g_optimizer = g_optimizer
@@ -160,14 +156,14 @@ class LipSyncGAN(BasicModel):
             self.eta_timer.update()
             losses_meter.update(log_vars, x.size(0))
 
-            if batch_idx % self.args.log_steps == 0:
+            if batch_idx % self.opt.log_steps == 0:
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
-                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
+                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
 
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         sync_loss = evaluate_lip.evaluation(model=self.g_model,
@@ -175,13 +171,13 @@ class LipSyncGAN(BasicModel):
                                             epoch=epoch,
                                             criteria=self.criteria,
                                             writer=self.writer,
-                                            args=self.args,
+                                            args=self.opt,
                                             logger=self.logger,
                                             mask=self.mask)
         if sync_loss < 0.75:
             self.criteria['sync_loss'].loss_weight = 0.03
 
-    def save_model(self, path, *args):
+    def save_model(self, path, *opt):
 
         state_dict_saver(os.path.join(path, f"{self.no_ddp_g_model}.pt"), self.no_ddp_g_model)
         state_dict_saver(os.path.join(path, f"{self.no_ddp_d_model}.pt"), self.no_ddp_d_model)

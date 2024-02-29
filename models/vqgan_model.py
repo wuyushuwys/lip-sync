@@ -1,6 +1,4 @@
 import os
-import time
-from argparse import Namespace
 import wandb
 
 import torch
@@ -8,7 +6,7 @@ import torch
 import common
 
 from utils import master_only, state_dict_saver, ckpt_saver, tb_writer, loss_printer
-from utils.evaluation import evaluate_vq
+from .evaluation import evaluate_vq
 
 from .basic_model import BasicModel
 
@@ -16,6 +14,7 @@ from .basic_model import BasicModel
 class VQGANModel(BasicModel):
 
     def __init__(self,
+                 opt,
                  g_model,
                  g_optimizer,
                  g_scheduler,
@@ -25,17 +24,13 @@ class VQGANModel(BasicModel):
                  criteria,
                  train_data_loader,
                  eval_data_loaders,
-                 logger,
-                 args: Namespace,
                  writer=None
                  ) -> None:
-        super().__init__(total_iterations=args.total_iterations)
+        super().__init__(opt=opt, total_iterations=opt.total_iterations)
 
-        self.logger = logger
-        self.args = args
         self.writer = writer
 
-        self.local_rank = args.local_rank
+        self.local_rank = opt.local_rank
 
         self.g_model = g_model
         self.g_optimizer = g_optimizer
@@ -56,14 +51,14 @@ class VQGANModel(BasicModel):
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
         self.curr_iterations = 0
-        self.gan_starts = int(args.total_iterations * args.gan_starts)
-        self.codebook_weight = args.losses.codebook_loss.loss_weight
-        self.semantic_weight = args.losses.semantic_loss.loss_weight if 'semantic_loss' in args.losses.keys() else None
-        self.logger.info(f"Total iterations {args.total_iterations}, GAN starts at {self.gan_starts}")
+        self.gan_starts = int(opt.total_iterations * opt.gan_starts)
+        self.codebook_weight = opt.losses.codebook_loss.loss_weight
+        self.semantic_weight = opt.losses.semantic_loss.loss_weight if 'semantic_loss' in opt.losses.keys() else None
+        self.logger.info(f"Total iterations {opt.total_iterations}, GAN starts at {self.gan_starts}")
 
-        self.clip_grad = args.get('clip_grad', False)
+        self.clip_grad = opt.get('clip_grad', False)
 
-        self.use_amp = args.get('use_amp', False)
+        self.use_amp = opt.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
     def compile_model(self):
@@ -198,14 +193,14 @@ class VQGANModel(BasicModel):
             self.eta_timer.update()
             losses_meter.update(log_vars, x.size(0))
 
-            if batch_idx % self.args.log_steps == 0:
+            if batch_idx % self.opt.log_steps == 0:
                 tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
-                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.args.epochs} " \
+                s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
 
-        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.args.epochs} finished. Loss: {losses_meter.avg}")
+        self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
         self.log_codebook()
@@ -214,7 +209,7 @@ class VQGANModel(BasicModel):
                                epoch=epoch,
                                criteria=self.criteria,
                                writer=self.writer,
-                               args=self.args,
+                               args=self.opt,
                                logger=self.logger)
 
     @master_only
@@ -224,7 +219,7 @@ class VQGANModel(BasicModel):
             image = wandb.Image(codebook, caption=f"num_code-{num_code}", file_type='jpg')
             wandb.log({"Codebook": image})
 
-    def save_model(self, path, *args):
+    def save_model(self, path, *opt):
 
         state_dict_saver(os.path.join(path, f"{self.no_ddp_g_model}.pt"), self.no_ddp_g_model)
         state_dict_saver(os.path.join(path, f"{self.no_ddp_d_model}.pt"), self.no_ddp_d_model)

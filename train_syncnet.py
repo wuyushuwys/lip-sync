@@ -21,7 +21,8 @@ from arch.syncnet_arch import SyncNet
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
@@ -50,6 +51,7 @@ def main(args):
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = DDP(model.to(device), device_ids=[device], output_device=device)
     else:
         model.to(device)
@@ -57,14 +59,13 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    trainer = SyncNetModel(model=model,
+    trainer = SyncNetModel(opt=args,
+                           model=model,
                            optimizer=optimizer,
                            scheduler=scheduler,
                            criteria=criteria,
                            train_data_loader=train_data_loader,
                            eval_data_loaders=eval_data_loaders,
-                           logger=logger,
-                           args=args,
                            writer=writer)
 
     # Load ckpt
@@ -104,8 +105,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)
