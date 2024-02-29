@@ -14,18 +14,27 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, pad=0.02, half_precision=True, norm=True):
+    def __init__(self, size=256, pad=0, half_precision=True, norm=True, lip_ratio=2):
         """
         Masking toolkit for half-face masking
         Args:
             size: mask image size
+            pad: pad ratio from image boundary
             half_precision: whether using half-precision inference
+            norm: scale image from [0, 1] to [-1 ,1]
+            lip_ratio: ratio for lip width:height
         """
         super().__init__()
         self.detector = BiSeNet(n_classes=19, norm=norm)
         assert 0 <= pad < 0.5, f"mask pad should between [0, 0.5], but got {pad}"
         self.pad = pad  # pad mask for better boundary effect.
+        self.size = size
         self.half_precision = half_precision
+
+        # when lip_only return
+        self.lip_w = size
+        self.lip_h = size // lip_ratio
+
         ckpt_path = Path(__file__).parent / f"weights/face_parsing_{size}.pth"
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.detector.eval()
@@ -65,17 +74,17 @@ class Masking(nn.Module):
                     except RuntimeError as e:
                         nose_bbox.append(None)
 
-            h = int(face_masks.size(1) * self.pad)
-            w = int(face_masks.size(2) * self.pad)
+            pad_h = int(face_masks.size(1) * self.pad)
+            pad_w = int(face_masks.size(2) * self.pad)
             for idx, bbox in enumerate(nose_bbox):
                 if bbox is None:
                     face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
                 else:
                     x1, y1, x2, y2 = bbox
                     face_masks[idx, :y2, ...] = 1
-                    face_masks[idx, -h:, ...] = 1
-                    face_masks[idx, ..., :w] = 1
-                    face_masks[idx, ..., -w:] = 1
+                    face_masks[idx, -pad_h:, ...] = 1
+                    face_masks[idx, ..., :pad_w] = 1
+                    face_masks[idx, ..., -pad_w:] = 1
             if lip_only:
                 assert face_masks.size(0) % 5 == 0, f"get shape {face_masks.size()}"
                 for idx, face_mask in enumerate(face_masks):
@@ -83,13 +92,14 @@ class Masking(nn.Module):
                         try:
                             x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
                             # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2], [256, 256])
-                            x[idx:idx + 5, :, :128, :] = F.interpolate((x[idx:idx + 5])[..., y1:y2, x1:x2], [128, 256])
+                            x[idx:idx + 5, :, :self.lip_h] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
+                                                                           [self.lip_h, self.lip_w])
                         except RuntimeError as e:
-                            # if error use bottom half
-                            x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [256, 256])
-
+                            # if error use bottom half then we don't need to reshape
+                            # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [self.size, self.size])
+                            pass
                 # return F.interpolate(x, [128, 256])
-                return x[:, :, :128, ]
+                return x[:, :, :self.lip_h]
         mask = face_masks.unsqueeze(1)
         if mask_face:
             self.inverse_mask = (1 - mask)
