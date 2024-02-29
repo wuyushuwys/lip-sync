@@ -104,6 +104,7 @@ class SyncNetModel(BasicModel):
     def save_model(self, path, best=False):
 
         if self.cur_loss < self.best_loss:
+            self.best_loss = self.cur_loss
             self.logger.info('Save best model weights')
             state_dict_saver(
                 os.path.join(path, f"{self.no_ddp_model}_best.pt"), self.no_ddp_model)
