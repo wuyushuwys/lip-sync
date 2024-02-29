@@ -59,7 +59,6 @@ def test(dataloader: DataLoader,
          args: argparse.Namespace,
          mask=None):
     loss_dict = {k: AverageMeter() for k in criteria.keys()}
-    # although mage does not optimize pixel level loss, we still evaluate these metrics
     loss_dict["SSIM"] = AverageMeter()
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
