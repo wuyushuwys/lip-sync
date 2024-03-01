@@ -29,7 +29,7 @@ from utils.init_utils import get_dist_info
 from collections import OrderedDict
 
 
-class FixSizeOrderedDict(OrderedDict):
+class FixSizeTarDict(OrderedDict):
     def __init__(self, *args, max=0, **kwargs):
         self._max = max
         super().__init__(*args, **kwargs)
@@ -38,7 +38,8 @@ class FixSizeOrderedDict(OrderedDict):
         OrderedDict.__setitem__(self, key, value)
         if self._max > 0:
             if len(self) > self._max:
-                self.popitem(False)
+                k, tar_file = self.popitem(False)
+                tar_file.close()
 
 
 class FrameMelDataset(Dataset):
@@ -97,7 +98,7 @@ class FrameMelDataset(Dataset):
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
         if self.data_mode == 'tar':
-            self.tar_files = FixSizeOrderedDict(max_length=5000)
+            self.tar_files = FixSizeTarDict(max_length=1000)
             self.tarfile_worker_tree = {k: {} for k in self.root_key}
 
         if video_cache_path:
