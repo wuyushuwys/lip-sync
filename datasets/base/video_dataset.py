@@ -98,7 +98,7 @@ class FrameMelDataset(Dataset):
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
         if self.data_mode == 'tar':
-            self.tar_files = dict() # FixSizeTarDict(max_length=1000)
+            self.tar_files = dict()  # FixSizeTarDict(max_length=1000)
             self.tarfile_worker_tree = {k: {} for k in self.root_key}
 
         if video_cache_path:
@@ -196,22 +196,20 @@ class FrameMelDataset(Dataset):
             return read_image(fname)
         elif self.data_mode == 'h5':
             if self.video_cache:
-                return torch.from_numpy(np.ascontiguousarray(self.video_cache.get(fname)))
+                cache_data = torch.from_numpy(np.ascontiguousarray(self.video_cache.get(fname)))
             else:
                 root, key = os.path.split(fname)
-                return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+                cache_data = torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+            if cache_data.dim() == 1:
+                return decode_image(cache_data)
+            return cache_data
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)
-            # if self.num_samples > 1:
             if root not in self.tar_files:
                 self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r', bufsize=0)
             tar_file = self.tar_files[root]
             img_bytes = tar_file.extractfile(key)
             return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
-            # else:
-            #     with tarfile.open(os.path.join(root, 'data.tar'), mode='r') as tar_file:
-            #         img_bytes = tar_file.extractfile(key)
-            #         return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
         else:
             raise NotImplementedError()
 
