@@ -101,7 +101,7 @@ class Masking(nn.Module):
                             # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [self.size, self.size])
                             pass
                 # return F.interpolate(x, [128, 256])
-                return x[:, :, self.lip_h:]
+                return x[:, :, self.lip_h:].contiguous()
 
         mask = face_masks.unsqueeze(1)
         self.inverse_mask = (1 - mask) if mask_face else mask
