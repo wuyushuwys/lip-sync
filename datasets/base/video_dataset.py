@@ -26,6 +26,33 @@ from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
 
+from collections import deque
+
+
+class DequeDict(deque):
+    def __init__(self, max_length):
+        super(DequeDict, self).__init__(maxlen=max_length)
+
+    def __setitem__(self, key, value):
+        # Override __setitem__ to add key-value pair
+        # and remove the oldest item if the maximum length is reached
+        super(DequeDict, self).__setitem__((key, value))
+
+    def __getitem__(self, key):
+        # Override __getitem__ to provide dictionary-like behavior
+        # Search for the key and return its corresponding value
+        for k, v in self:
+            if k == key:
+                return v
+        raise KeyError(f"Key not found: {key}")
+
+    def get(self, key, default=None):
+        # Override get method to provide a default value if key is not found
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
 
 class FrameMelDataset(Dataset):
 
@@ -83,7 +110,7 @@ class FrameMelDataset(Dataset):
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
         if self.data_mode == 'tar':
-            self.tar_files = {}
+            self.tar_files = DequeDict(max_length=5000)
             self.tarfile_worker_tree = {k: {} for k in self.root_key}
 
         if video_cache_path:
@@ -140,12 +167,12 @@ class FrameMelDataset(Dataset):
         #     frame_list, audio_file = self._load_index(index)
         #     x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file, sync=True)
         #     return x, indiv_mels, mel, y
-            # else:
-            #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-            #     assert len(frame_window) == self.window_size
-            #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
-            #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-            #     return img_window, mel, label
+        # else:
+        #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
+        #     assert len(frame_window) == self.window_size
+        #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
+        #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
+        #     return img_window, mel, label
         elif self.arch in ['lipsync', 'mage']:
             """
             x: (ch, T, H, W)
@@ -187,16 +214,16 @@ class FrameMelDataset(Dataset):
                 return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)
-            if self.num_samples > 1:
-                if root not in self.tar_files:
-                    self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
-                tar_file = self.tar_files[root]
-                img_bytes = tar_file.extractfile(key)
-                return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
-            else:
-                with tarfile.open(os.path.join(root, 'data.tar'), mode='r') as tar_file:
-                    img_bytes = tar_file.extractfile(key)
-                    return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
+            # if self.num_samples > 1:
+            if root not in self.tar_files:
+                self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
+            tar_file = self.tar_files[root]
+            img_bytes = tar_file.extractfile(key)
+            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
+            # else:
+            #     with tarfile.open(os.path.join(root, 'data.tar'), mode='r') as tar_file:
+            #         img_bytes = tar_file.extractfile(key)
+            #         return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
         else:
             raise NotImplementedError()
 
