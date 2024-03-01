@@ -26,32 +26,19 @@ from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
 
-from collections import deque
+from collections import OrderedDict
 
 
-class DequeDict(deque):
-    def __init__(self, max_length):
-        super(DequeDict, self).__init__(maxlen=max_length)
+class FixSizeOrderedDict(OrderedDict):
+    def __init__(self, *args, max=0, **kwargs):
+        self._max = max
+        super().__init__(*args, **kwargs)
 
     def __setitem__(self, key, value):
-        # Override __setitem__ to add key-value pair
-        # and remove the oldest item if the maximum length is reached
-        super(DequeDict, self).__setitem__((key, value))
-
-    def __getitem__(self, key):
-        # Override __getitem__ to provide dictionary-like behavior
-        # Search for the key and return its corresponding value
-        for k, v in self:
-            if k == key:
-                return v
-        raise KeyError(f"Key not found: {key}")
-
-    def get(self, key, default=None):
-        # Override get method to provide a default value if key is not found
-        try:
-            return self[key]
-        except KeyError:
-            return default
+        OrderedDict.__setitem__(self, key, value)
+        if self._max > 0:
+            if len(self) > self._max:
+                self.popitem(False)
 
 
 class FrameMelDataset(Dataset):
@@ -110,7 +97,7 @@ class FrameMelDataset(Dataset):
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
         if self.data_mode == 'tar':
-            self.tar_files = DequeDict(max_length=5000)
+            self.tar_files = FixSizeOrderedDict(max_length=5000)
             self.tarfile_worker_tree = {k: {} for k in self.root_key}
 
         if video_cache_path:
