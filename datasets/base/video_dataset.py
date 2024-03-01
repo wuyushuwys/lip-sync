@@ -187,16 +187,16 @@ class FrameMelDataset(Dataset):
                 return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)
-            # worker = get_worker_info()
-            # worker = worker.id if worker else None
-            # if worker not in self.tarfile_worker_tree[root]:
-            #     self.tarfile_worker_tree[root][worker] = tarfile.open(os.path.join(root, 'data.tar'), mode='r|*')
-            # img_bytes = self.tarfile_worker_tree[root][worker].extractfile(key)
-            if root not in self.tar_files:
-                self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
-            tar_file = self.tar_files[root]
-            img_bytes = tar_file.extractfile(key)
-            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
+            if self.num_samples > 1:
+                if root not in self.tar_files:
+                    self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r')
+                tar_file = self.tar_files[root]
+                img_bytes = tar_file.extractfile(key)
+                return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
+            else:
+                with tarfile.open(os.path.join(root, 'data.tar'), mode='r') as tar_file:
+                    img_bytes = tar_file.extractfile(key)
+                    return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
         else:
             raise NotImplementedError()
 
