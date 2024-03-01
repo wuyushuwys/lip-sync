@@ -16,8 +16,6 @@ from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 
-from .utils import reduce_all
-
 
 @torch.no_grad()
 def evaluation(model, eval_data_loaders, epoch, criteria,

@@ -12,11 +12,10 @@ from torchvision.utils import save_image, make_grid
 import wandb
 
 from common.meters import AverageMeter
+from utils.helpers import reduce_all
 from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
-
-from .utils import reduce_all
 
 
 @torch.no_grad()

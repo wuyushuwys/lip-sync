@@ -9,10 +9,9 @@ from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 
 from common.meters import AverageMeter
+from utils.helpers import reduce_all
 from utils.logger_utils import eval_tb_writer
 from logging import Logger
-
-from .utils import reduce_all
 
 
 @torch.no_grad()

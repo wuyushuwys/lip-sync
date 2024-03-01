@@ -14,12 +14,11 @@ from einops import rearrange
 import wandb
 
 from common.meters import AverageMeter
-from utils.helpers import compute_per_image
+from utils.helpers import compute_per_image, reduce_all
 from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 
-from .utils import reduce_all
 from .metrics import calculate_psnr_pt
 
 psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=0))
@@ -85,12 +84,12 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
         y = rearrange(y, 'b c t h w -> (b t) c h w')
 
-        x_masked = mask(x.clone())
-
+        # x_masked = mask(x.clone())
+        x_orig, _ = model.module.vqgan(x)
         g = model(x, ref)
 
         # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
-        x_masked = (x_masked + 1) / 2
+        x = (x_orig + 1) / 2
         g = (g + 1) / 2
         y = (y + 1) / 2
 
@@ -106,7 +105,7 @@ def test(dataloader: DataLoader,
         loss_dict['PSNR'].update(reduce_all(psnr(g, y).mean()), bsz)
         loss_dict['PSNR_y'].update(reduce_all(psnr_y(g, y).mean()), bsz)
 
-        save_sample_images(x_masked, g, y, idx, epoch, img_folder)
+        save_sample_images(x, g, y, idx, epoch, img_folder)
 
     return loss_dict
 

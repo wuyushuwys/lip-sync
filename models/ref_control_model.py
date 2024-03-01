@@ -83,15 +83,15 @@ class RefControlModel(BasicModel):
             y = rearrange(y, 'b c t h w -> (b t) c h w')
 
             # mask face
-            with torch.no_grad():
-                x_masked = self.mask(x.clone())
+            # with torch.no_grad():
+            #     x_masked = self.mask(x.clone())
 
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
                 g = self.model(x, ref)
 
-                pixel_loss = self.criteria['pixel_loss'](g, y)
+                pixel_loss = self.criteria['recon_loss'](g, y)
                 perceptual_loss = self.criteria['perceptual_loss'](g, y)
                 loss = pixel_loss + perceptual_loss
 

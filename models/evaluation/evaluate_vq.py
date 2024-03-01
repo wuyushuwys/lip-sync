@@ -13,13 +13,12 @@ from torchvision.utils import save_image, make_grid
 from pytorch_msssim import SSIM, MS_SSIM
 
 from common.meters import AverageMeter
-from utils.helpers import compute_per_image
+from utils.helpers import compute_per_image, reduce_all
 from utils.init_utils import master_only
 from utils.logger_utils import eval_tb_writer
 from logging import Logger
 from losses import LPIPSLoss
 
-from .utils import reduce_all
 from .metrics import calculate_psnr_pt
 
 psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=4))

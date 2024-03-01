@@ -562,7 +562,8 @@ class FaceCoderNet(nn.Module):
         x = self.after_quant(z_q)
         for idx, decoder_layer in enumerate(self.decoder_group):
             if control_latent is not None:
-                x = x + control_latent[idx]
+                # x = x + control_latent[idx]
+                x = control_latent[idx](dec_feat=x)
             x = decoder_layer(x)
         x = self.out_conv(x)
         return x

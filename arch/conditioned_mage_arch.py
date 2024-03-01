@@ -16,6 +16,7 @@ from utils.logging_tool import get_logger
 
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
+from .ref_control_net_arch import RefControlNet
 from .auxiliary_arch import AudioNet
 from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
@@ -52,7 +53,8 @@ class DoubleConditionedMAGE(nn.Module):
                  mage_pretrain_ckpt_path=None,
                  use_audio_reference=True,
                  use_image_reference=True,
-                 tokenize_reference=False):
+                 tokenize_reference=False,
+                 ref_control=False, ref_controller_state_dict=None):
         super().__init__()
         logger = get_logger()
         # --------------------------------------------------------------------------
@@ -75,6 +77,13 @@ class DoubleConditionedMAGE(nn.Module):
         # froze the pretrained vqgan model
         for param in self.vqgan.parameters():
             param.requires_grad = False
+
+        self.ref_control = ref_control
+        if ref_control:
+            self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
+                                                vq_state_dict=vq_state_dict)
+            self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
+            logger.info(f"Enable reference control: {ref_control}")
 
         logger.info(f"Use Flash Attention: {use_fused_attn()}")
         logger.info(f"MAGE_encoder_related_embeddingindex: "
@@ -423,7 +432,11 @@ class DoubleConditionedMAGE(nn.Module):
                     1 - token_all_mask[:, 1:, None])
             z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
                                                           shape=(bsz, latent_res, latent_res, vq_emb))
-            imgs = self.vqgan.decode(z_q)
+            if self.ref_control:
+                control_latent = self.ref_controller.control_signal(ref)
+                imgs = self.vqgan.decode(z_q, control_latent=control_latent)
+            else:
+                imgs = self.vqgan.decode(z_q)
 
         return loss, imgs, token_all_mask
 

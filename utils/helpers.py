@@ -1,4 +1,5 @@
 import functools
+import torch.distributed as dist
 from inspect import isfunction
 from einops import rearrange
 
@@ -11,6 +12,15 @@ def default(val, d):
     if exists(val):
         return val
     return d() if isfunction(d) else d
+
+
+def reduce_all(x):
+    if dist.is_initialized():
+        world_size = dist.get_world_size()
+        dist.all_reduce(x, op=dist.ReduceOp.SUM)
+        x = x / world_size
+
+    return x
 
 
 def compute_per_image(func):

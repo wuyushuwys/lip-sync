@@ -8,27 +8,27 @@ scale_lr: true
 gan_starts: 0
 #clip_grad: 5
 data_spec:
-  max_datasize: 100000
+  mode: image
+  num_samples: 2
+  eval_samples: 10
+  window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
-  num_eval: 200
   train_size: 256
   eval_size: 256
   aug:
-    use_orig: false  # using original resolution ( false will resize to 2*train_size, true will crop 2*train_size)
-    use_flip: true
-    use_rot: true
-    use_random_size: true
+    flip:
+      p: 0.5
   normalize:
     std: [ 0.5, 0.5, 0.5 ]
     mean: [ 0.5, 0.5, 0.5 ]
 
-#g_model:
-#  img_size: 256
-#  nf: 64
-#  ch_mult: [ 1, 2, 2, 4, 4, 8 ]
-#  quantizer: nearest
-#  codebook_size: 1024
-#  image_norm: false
+video_spec:
+  fps: 25
+  size: [ 256, 256 ]
+
+audio_spec:
+  mel_step_size: 16
+  sample_rate: 16000
 
 #d_model:
 #  nc: 3
@@ -81,12 +81,6 @@ losses:
   #    norm_img: true
   #    criterion: 'l1'
   #    perceptual_weight: 1
-#
-#  codebook_loss:
-#    loss_weight: 1
-#
-#  semantic_loss:
-#    loss_weight: 0.1
 
 #  adversarial:
 #    type: GANLoss

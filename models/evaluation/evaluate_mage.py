@@ -14,12 +14,11 @@ from einops import rearrange
 import wandb
 
 from common.meters import AverageMeter
-from utils.helpers import compute_per_image
+from utils.helpers import compute_per_image, reduce_all
 from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 
-from .utils import reduce_all
 from .metrics import calculate_psnr_pt
 
 psnr = compute_per_image(partial(calculate_psnr_pt, crop_border=0))

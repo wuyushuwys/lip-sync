@@ -6,7 +6,7 @@ import cv2
 import os
 import shutil
 import numpy as np
-
+import datetime
 from tqdm import tqdm
 
 import torch
@@ -17,6 +17,7 @@ from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset
 from arch.conditioned_mage_arch import lip_mage_vit_base
+from arch.ref_control_net_arch import RefControlNet
 from models.modules.masking import Masking
 from utils import audio
 
@@ -120,7 +121,9 @@ if __name__ == '__main__':
 
     # h, w = 720, 1280
     # h, w = 1080, 1920
-    mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
+    wav = audio.load_wav(path=args.audio, sr=SAMPLE_RATE)[:SAMPLE_RATE*10]
+    print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
+    mel = audio.melspectrogram(wav).T
 
     dataset = GenerateDataset(TMP_FOLDER,
                               mel,
@@ -136,15 +139,17 @@ if __name__ == '__main__':
     coords = dataset.coords
     landmarks = dataset.landmarks
     inv_affine_matrices = dataset.inv_affine_matrices
-    # win_size = dataset.window_size
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    mask_module = Masking(half_precision=True).to(device)
+    mask_module = Masking(half_precision=True, norm=False).to(device)
     model = lip_mage_vit_base(vq_config_path="config/vqgan.yml", use_audio_reference=True,
                               use_image_reference=True,
                               mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
-                              vq_state_dict="pretrained/vq_model_512_256.pt")
-    # model = Wav2Lip()
-    model.load_state_dict(torch.load(args.ckpt))
+                              vq_state_dict="pretrained/vq_model_512_256.pt",
+                              ref_control=True,
+                              ref_controller_state_dict='runs/train_refc_hdtf/weights/refcontrolnet.pt')
+    # model = RefControlNet(vq_config_path="config/vqgan.yml", vq_state_dict="pretrained/vq_model_512_256.pt")
+
+    model.load_state_dict(torch.load(args.ckpt), strict=False)
     model.to(device)
     model.eval()
 
@@ -152,7 +157,7 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(TMP_FOLDER, 'sync_frames'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'diff'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'compare'), exist_ok=True)
-    h, w = 256, 256
+    # h, w = 256, 256
     process = (
         ffmpeg
         .input('pipe:', format='rawvideo',
@@ -160,7 +165,7 @@ if __name__ == '__main__':
                s='{}x{}'.format(w, h),
                r=FPS,
                thread_queue_size=1024)
-        .output(ffmpeg.input(args.audio, channel_layout="stereo"),
+        .output(ffmpeg.input(args.audio, channel_layout="mono"),
                 args.output,
                 pix_fmt="yuv420p",
                 vcodec="libx264",
@@ -182,17 +187,18 @@ if __name__ == '__main__':
         bsz = x.size(0)
         with torch.no_grad():
             x_masked = mask_module(x)
-        masked_flag = mask_module.inverse_mask.cpu()
+        masked_flag = mask_module.inverse_mask
         with torch.no_grad():
             with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
                                 dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
                                 enabled=True):
-                g, _ = model.vqgan(x)
-                # (loss, acc), g, token_all_mask = model(x_masked,
-                #                                        gt=x,
-                #                                        ref=x,
-                #                                        audio=indiv_mels,
-                #                                        generate=True)
+                # g, _ = model.vqgan(x)
+                # g = model(x, x)
+                (loss, acc), g, token_all_mask = model(x_masked,
+                                                       gt=x,
+                                                       ref=x,
+                                                       audio=indiv_mels,
+                                                       generate=True)
             g = g.to(torch.float32).clamp(-1, 1) / 2 + 0.5
 
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
@@ -201,27 +207,29 @@ if __name__ == '__main__':
             landmark = landmarks[name]
             inverse_matrix = inv_affine_matrices[name]
             frame = frame.flip(-1).numpy()
-
             restored_face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
-            # inv_restored = cv2.warpAffine(restored_face, inverse_matrix, (w, h))
+            inv_restored = cv2.warpAffine(restored_face, inverse_matrix, (w, h))
             # mask = np.ones([SIZE, SIZE], dtype=np.float32)
-            # inv_mask = cv2.warpAffine(mask, inverse_matrix, (w, h))
-            # inv_mask_erosion = cv2.erode(inv_mask, np.ones((2, 2), np.uint8))
-            # pasted_face = inv_mask_erosion[:, :, None] * inv_restored
-            # total_face_area = np.sum(inv_mask_erosion)  # // 3
-            # w_edge = int(total_face_area ** 0.5) // 20
-            # erosion_radius = w_edge * 2
-            # inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
-            # blur_size = w_edge * 2
-            # inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
-            # inv_soft_mask = inv_soft_mask[:, :, None]
-            # frame = inv_soft_mask * pasted_face + (1 - inv_soft_mask) * frame
+            mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
+            inv_mask = cv2.warpAffine(mask, inverse_matrix, (w, h))
+            inv_mask_erosion = cv2.erode(inv_mask, np.ones((2, 2), np.uint8))
+            pasted_face = inv_mask_erosion[:, :, None] * inv_restored
+            total_face_area = np.sum(inv_mask_erosion)  # // 3
+            w_edge = int(total_face_area ** 0.5) // 20
+            erosion_radius = w_edge * 2
+            inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
+            blur_size = w_edge * 2
+            inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
+            inv_soft_mask = inv_soft_mask[:, :, None]
+            frame = inv_soft_mask * pasted_face + (1 - inv_soft_mask) * frame
             # frame = inv_mask * pasted_face + (1 - inv_mask) * frame
 
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.jpg"), np.flip(restored_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
-            process.stdin.write(restored_face.astype(np.uint8).tobytes())
+            # process.stdin.write(restored_face.astype(np.uint8).tobytes())
+            process.stdin.write(frame.astype(np.uint8).tobytes())
+            # exit()
 
     process.stdin.close()
     process.wait()

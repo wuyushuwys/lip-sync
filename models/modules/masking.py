@@ -82,9 +82,11 @@ class Masking(nn.Module):
                 else:
                     x1, y1, x2, y2 = bbox
                     face_masks[idx, :y2, ...] = 1
-                    face_masks[idx, -pad_h:, ...] = 1
-                    face_masks[idx, ..., :pad_w] = 1
-                    face_masks[idx, ..., -pad_w:] = 1
+                    if pad_h != 0:
+                        face_masks[idx, -pad_h:, ...] = 1
+                    if pad_w != 0:
+                        face_masks[idx, ..., :pad_w] = 1
+                        face_masks[idx, ..., -pad_w:] = 1
             if lip_only:
                 assert face_masks.size(0) % 5 == 0, f"get shape {face_masks.size()}"
                 for idx, face_mask in enumerate(face_masks):
@@ -92,21 +94,19 @@ class Masking(nn.Module):
                         try:
                             x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
                             # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2], [256, 256])
-                            x[idx:idx + 5, :, :self.lip_h] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
+                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
                                                                            [self.lip_h, self.lip_w])
                         except RuntimeError as e:
                             # if error use bottom half then we don't need to reshape
                             # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [self.size, self.size])
                             pass
                 # return F.interpolate(x, [128, 256])
-                return x[:, :, :self.lip_h]
+                return x[:, :, self.lip_h:]
+
         mask = face_masks.unsqueeze(1)
-        if mask_face:
-            self.inverse_mask = (1 - mask)
-            return x * mask
-        else:
-            self.inverse_mask = mask
-            return x * (1 - mask)
+        self.inverse_mask = (1 - mask) if mask_face else mask
+
+        return x * mask if mask_face else x * (1 - mask)
 
     def forward(self, x: torch.Tensor, mask_face=True, bottom=True, lip_only=False) -> torch.Tensor:
         """
