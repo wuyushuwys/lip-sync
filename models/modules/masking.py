@@ -14,7 +14,7 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, pad=0, half_precision=True, norm=True, lip_ratio=2):
+    def __init__(self, size=256, pad=0, half_precision=True, norm=True, lip_ratio=2, half_face=True):
         """
         Masking toolkit for half-face masking
         Args:
@@ -34,6 +34,7 @@ class Masking(nn.Module):
         # when lip_only return
         self.lip_w = size
         self.lip_h = size // lip_ratio
+        self.half_face = half_face
 
         ckpt_path = Path(__file__).parent / f"weights/face_parsing_{size}.pth"
         self.detector.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
@@ -62,31 +63,51 @@ class Masking(nn.Module):
 
         face_masks = torch.where(flag, torch.zeros_like(mask), 1)
         if bottom:
-            bound_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
+            if not self.half_face:
+                bound_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
 
-            try:
-                bound_bbox = masks_to_boxes(bound_masks).int().tolist()
-            except RuntimeError as e:
-                bound_bbox = []
-                for bound_mask in bound_masks:
-                    try:
-                        bound_bbox.append(masks_to_boxes(bound_mask.unsqueeze(0)).int().tolist()[0])
-                    except RuntimeError as e:
-                        bound_bbox.append(None)
+                try:
+                    bound_bbox = masks_to_boxes(bound_masks).int().tolist()
+                except RuntimeError as e:
+                    bound_bbox = []
+                    for bound_mask in bound_masks:
+                        try:
+                            bound_bbox.append(masks_to_boxes(bound_mask.unsqueeze(0)).int().tolist()[0])
+                        except RuntimeError as e:
+                            bound_bbox.append(None)
 
-            pad_h = int(face_masks.size(1) * self.pad)
-            pad_w = int(face_masks.size(2) * self.pad)
-            for idx, bbox in enumerate(bound_bbox):
-                if bbox is None:
-                    face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
-                else:
-                    x1, y1, x2, y2 = bbox
-                    face_masks[idx, :y2, ...] = 1
-                    if pad_h != 0:
-                        face_masks[idx, -pad_h:, ...] = 1
-                    if pad_w != 0:
-                        face_masks[idx, ..., :pad_w] = 1
-                        face_masks[idx, ..., -pad_w:] = 1
+                pad_h = int(face_masks.size(1) * self.pad)
+                pad_w = int(face_masks.size(2) * self.pad)
+                for idx, bbox in enumerate(bound_bbox):
+                    if bbox is None:
+                        face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
+                    else:
+                        x1, y1, x2, y2 = bbox
+                        face_masks[idx, :y2, ...] = 1
+                        if pad_h != 0:
+                            face_masks[idx, -pad_h:, ...] = 1
+                        if pad_w != 0:
+                            face_masks[idx, ..., :pad_w] = 1
+                            face_masks[idx, ..., -pad_w:] = 1
+            else:
+                try:
+                    face_bbox = masks_to_boxes((1 - face_masks)).int().tolist()
+                except RuntimeError as e:
+                    face_bbox = []
+                    for face_mask in face_masks:
+                        try:
+                            face_bbox.append(masks_to_boxes((1 - face_mask).unsqueeze(0)).int().tolist()[0])
+                        except RuntimeError as e:
+                            face_bbox.append(None)
+
+                for idx, bbox in enumerate(face_bbox):
+                    if bbox is None:
+                        face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
+                    else:
+                        x1, y1, x2, y2 = bbox
+                        print(x1, y1, x2, y2)
+                        face_masks[idx, :y1 + (y2 - y1) // 2, ...] = 1
+
             if lip_only:
                 assert face_masks.size(0) % 5 == 0, f"get shape {face_masks.size()}"
                 for idx, face_mask in enumerate(face_masks):
@@ -96,8 +117,9 @@ class Masking(nn.Module):
                             # x[idx:idx + 5] = F.interpolate(
                             #     (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
                             #     [self.lip_h, self.lip_w])
-                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
-                                                                           [self.lip_h, self.lip_w])
+                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate(
+                                (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
+                                [self.lip_h, self.lip_w])
                             # x[idx:idx + 5, :, self.lip_h:] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
                             #                                                [self.lip_h, self.lip_w])
                         except RuntimeError as e:
