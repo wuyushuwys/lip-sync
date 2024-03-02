@@ -38,7 +38,8 @@ class SyncMageModel(BasicModel):
 
         self.no_ddp_model = self.model_no_ddp(model)
 
-        self.mask = Masking(half_precision=True, norm=False).to(self.local_rank)
+        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
+        self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.use_amp = opt.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)

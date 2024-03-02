@@ -38,7 +38,8 @@ class MageModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.mask = Masking(half_precision=True, norm=False).to(self.local_rank)
+        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
+        self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.use_amp = opt.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)

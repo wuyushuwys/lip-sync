@@ -51,7 +51,8 @@ class LipSyncGAN(BasicModel):
         self.no_ddp_g_model = self.model_no_ddp(g_model)
         self.no_ddp_d_model = self.model_no_ddp(d_model)
 
-        self.mask = Masking(half_precision=True).to(self.local_rank)
+        mask_kwargs = opt.get("mask", dict(half_precision=True))
+        self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)

@@ -35,7 +35,8 @@ class LipSyncModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.mask = Masking(half_precision=True).to(self.local_rank)
+        mask_kwargs = opt.get("mask", dict(half_precision=True))
+        self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.no_ddp_model = self.model_no_ddp(model)
         # self.ema_model = self.create_ema(model, power=0.75)
