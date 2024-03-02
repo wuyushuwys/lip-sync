@@ -116,11 +116,11 @@ class Masking(nn.Module):
                             # x[idx:idx + 5] = F.interpolate(
                             #     (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
                             #     [self.lip_h, self.lip_w])
-                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate(
-                                (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
-                                [self.lip_h, self.lip_w])
-                            # x[idx:idx + 5, :, self.lip_h:] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
-                            #                                                [self.lip_h, self.lip_w])
+                            # x[idx:idx + 5, :, self.lip_h:] = F.interpolate(
+                            #     (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
+                            #     [self.lip_h, self.lip_w])
+                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
+                                                                           [self.lip_h, self.lip_w])
                         except RuntimeError as e:
                             # if error use bottom half then we don't need to reshape
                             # x[idx:idx + 5] = F.interpolate((x[idx:idx + 5])[..., 128:, :], [self.size, self.size])
