@@ -62,21 +62,21 @@ class Masking(nn.Module):
 
         face_masks = torch.where(flag, torch.zeros_like(mask), 1)
         if bottom:
-            nose_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
+            bound_masks = torch.where(mask == 10, torch.ones_like(mask), 0)
 
             try:
-                nose_bbox = masks_to_boxes(nose_masks).int().tolist()
+                bound_bbox = masks_to_boxes(bound_masks).int().tolist()
             except RuntimeError as e:
-                nose_bbox = []
-                for nose_mask in nose_masks:
+                bound_bbox = []
+                for bound_mask in bound_masks:
                     try:
-                        nose_bbox.append(masks_to_boxes(nose_mask.unsqueeze(0)).int().tolist()[0])
+                        bound_bbox.append(masks_to_boxes(bound_mask.unsqueeze(0)).int().tolist()[0])
                     except RuntimeError as e:
-                        nose_bbox.append(None)
+                        bound_bbox.append(None)
 
             pad_h = int(face_masks.size(1) * self.pad)
             pad_w = int(face_masks.size(2) * self.pad)
-            for idx, bbox in enumerate(nose_bbox):
+            for idx, bbox in enumerate(bound_bbox):
                 if bbox is None:
                     face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
                 else:
@@ -92,10 +92,12 @@ class Masking(nn.Module):
                 for idx, face_mask in enumerate(face_masks):
                     if idx % 5 == 0:
                         try:
-                            x1, y1, x2, y2 = masks_to_boxes(1 - face_mask.unsqueeze(0)).int().tolist()[0]
-                            x[idx:idx + 5] = F.interpolate(
-                                (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
-                                [self.lip_h, self.lip_w])
+                            x1, y1, x2, y2 = masks_to_boxes(1 - face_mask[None, ...]).int().tolist()[0]
+                            # x[idx:idx + 5] = F.interpolate(
+                            #     (x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
+                            #     [self.lip_h, self.lip_w])
+                            x[idx:idx + 5, :, self.lip_h:] = F.interpolate((x[idx:idx + 5] * (1 - face_masks[idx:idx + 5, None]))[..., y1:y2, x1:x2],
+                                                                           [self.lip_h, self.lip_w])
                             # x[idx:idx + 5, :, self.lip_h:] = F.interpolate(x[idx:idx + 5][..., y1:y2, x1:x2],
                             #                                                [self.lip_h, self.lip_w])
                         except RuntimeError as e:
