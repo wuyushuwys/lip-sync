@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict):
+    def __init__(self, vq_config_path, vq_state_dict, bilevel=False):
         super().__init__()
         logger = get_logger()
         # load face vq_model
@@ -32,22 +32,22 @@ class RefControlNet(nn.Module):
         for p in self.vqgan.parameters():
             p.requires_grad = False
 
+        self.bilevel = bilevel
         # we only use encoder to encode reference image
-
         self.controller = nn.ModuleList()
         for ch in self.vqgan.multiscale_encoder.latent_out_ch[::-1]:
             # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
-            self.controller.append(MeanShiftFuseBlock(ch, ch))
+            self.controller.append(AdaConvBlock(ch, ch, self.bilevel))
 
-        # self._zero_init()
+        self._zero_init()
 
-    # def _zero_init(self):
-    #     for m in self.controller.modules():
-    #         if isinstance(m, nn.Conv2d):
-    #             nn.init.zeros_(m.weight.data)
-    #             nn.init.zeros_(m.bias.data)
-    #         else:
-    #             NotImplementedError(f"{m} does not support yet.")
+    def _zero_init(self):
+        for m in self.controller.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.zeros_(m.weight.data)
+                nn.init.zeros_(m.bias.data)
+            else:
+                NotImplementedError(f"{m} does not support yet.")
 
     def forward(self, x, ref):
         # encode original image
@@ -65,7 +65,9 @@ class RefControlNet(nn.Module):
         # encode reference image
         multiscale_latent = self.vqgan.multiscale_encoder(ref, return_latent=True)[::-1]
         # generate control signal
-        control_latent = [partial(m, enc_feat=latent) for m, latent in zip(self.controller, multiscale_latent)]
+        control_latent = []
+        for m, latent in zip(self.controller, multiscale_latent):
+            control_latent.append(partial(m, enc_feat=latent))
         # control_latent = [m(latent) for m, latent in zip(self.controller, multiscale_latent)]
 
         return control_latent
@@ -74,26 +76,41 @@ class RefControlNet(nn.Module):
         return self.__class__.__name__.lower()
 
 
-class MeanShiftFuseBlock(nn.Module):
+class AdaConvBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=3):
+    def __init__(self, in_channels, out_channels, kernel_size=3, bilevel=False):
         super().__init__()
+        self.bilevel = bilevel
         self.fuse_encoder = nn.Sequential(
             ResBlock(2 * in_channels, 2 * in_channels),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(2 * in_channels, out_channels, kernel_size=1)
+            nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         )
 
         self.mean_var = nn.Sequential(
-            nn.Conv2d(in_channels, 2 * out_channels, kernel_size=1),
+            nn.Conv2d(out_channels, 2 * out_channels, kernel_size=1),
             nn.LeakyReLU(0.2, True),
             nn.Conv2d(2 * out_channels, 2 * out_channels,
                       kernel_size=kernel_size, padding=kernel_size // 2),
         )
 
+        if self.bilevel:
+            self.up_mean_var = nn.Sequential(
+                nn.Upsample(2),
+                ResBlock(out_channels, out_channels),
+                nn.LeakyReLU(0.2, True),
+                nn.Conv2d(out_channels, 2 * out_channels, kernel_size=1),
+                nn.LeakyReLU(0.2, True),
+                nn.Conv2d(2 * out_channels, 2 * out_channels, kernel_size=kernel_size, padding=kernel_size // 2),
+            )
+
     def forward(self, enc_feat, dec_feat):
         assert enc_feat.size() == dec_feat.size()
         fused_feat = self.fuse_encoder(torch.cat([enc_feat, dec_feat], dim=1))
-        mean, var = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
+        shift, scale = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
 
-        return dec_feat + (dec_feat + mean) * var
+        if self.bilevel:
+            up_shift, up_scale = torch.chunk(self.up_mean_var(fused_feat), chunks=2, dim=1)
+            return dec_feat + (dec_feat + shift) * scale, (up_shift, up_scale)
+        else:
+            return dec_feat + (dec_feat + shift) * scale
