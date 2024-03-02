@@ -105,7 +105,6 @@ class Masking(nn.Module):
                         face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
                     else:
                         x1, y1, x2, y2 = bbox
-                        print(x1, y1, x2, y2)
                         face_masks[idx, :y1 + (y2 - y1) // 2, ...] = 1
 
             if lip_only:
