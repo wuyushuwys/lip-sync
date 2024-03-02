@@ -83,7 +83,7 @@ class Masking(nn.Module):
                         face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
                     else:
                         x1, y1, x2, y2 = bbox
-                        face_masks[idx, :y1, ...] = 1
+                        face_masks[idx, :y2, ...] = 1   # bottom of nose (or other object)
                         if pad_h != 0:
                             face_masks[idx, -pad_h:, ...] = 1
                         if pad_w != 0:
