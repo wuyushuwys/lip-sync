@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 from arch.syncnet_arch import SyncNet
-
+from models.modules.masking import Masking
 
 class CosineLoss(nn.Module):
 
@@ -25,21 +25,28 @@ class CosineLoss(nn.Module):
 
 class SyncLoss(nn.Module):
 
-    def __init__(self, ckpt_path, loss_weight=1, window_size=5):
+    def __init__(self, ckpt_path, loss_weight=1, window_size=5, adaptive=True):
         super().__init__()
 
         self.expert_model = SyncNet()
         self.expert_model.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.loss_weight = loss_weight
         self.window_size = window_size
+        self.adaptive = adaptive
+
+        if self.adaptive:
+            self.mask = Masking(half_precision=True, half_face=True, norm=False)
 
         self.criterion = CosineLoss()
 
         self.expert_model.eval()
 
     def forward(self, mel: torch.Tensor, pred_y: torch.Tensor, val=False):
-        pred_y = pred_y[..., pred_y.size(3) // 2:, :]
-        pred_y = torch.cat(pred_y.unbind(dim=2), dim=1)
+        if self.adaptive:
+            pred_y = self.mask(pred_y, lip_only=True)
+        else:
+            pred_y = pred_y[..., pred_y.size(3) // 2:, :]
+            pred_y = torch.cat(pred_y.unbind(dim=2), dim=1)
         # B, 3 * T, H//2, W
         a, v = self.expert_model(mel, pred_y)
         label = torch.ones(pred_y.size(0), 1).to(mel.device)
