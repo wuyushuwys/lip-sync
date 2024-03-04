@@ -38,13 +38,13 @@ class RefControlNet(nn.Module):
             # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
             self.controller.append(AdaConvBlock(ch, ch))
 
-        # self._zero_init()
+        self._zero_init()
 
     def _zero_init(self):
         for m in self.controller.modules():
             if isinstance(m, nn.Conv2d):
-                nn.init.zeros_(m.weight.data)
-                nn.init.zeros_(m.bias.data)
+                nn.init.constant_(m.weight, 0)
+                nn.init.constant_(m.bias, 0)
             else:
                 NotImplementedError(f"{m} does not support yet.")
 
