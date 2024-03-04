@@ -79,7 +79,7 @@ class VQGANModel(BasicModel):
         self.g_model.train()
         self.d_model.train()
         nb = len(self.train_data_loader)
-        log_vars = {"@g_loss": None, '@lr': None}
+        log_vars = {}
 
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 

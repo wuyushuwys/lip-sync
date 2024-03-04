@@ -54,7 +54,7 @@ class MageModel(BasicModel):
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
-        log_vars = {'@loss': None, '@lr': None}
+        log_vars = {}
         start_time = time.monotonic()
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
