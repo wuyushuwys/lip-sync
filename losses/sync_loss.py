@@ -45,7 +45,7 @@ class SyncLoss(nn.Module):
 
     def forward(self, mel: torch.Tensor, pred_y: torch.Tensor, mask=None):
         if mask is not None:
-            pred_y = self.mask(pred_y, mask_face=False, lip_only=True)
+            pred_y = mask(pred_y, mask_face=False, lip_only=True)
         else:
             pred_y = pred_y[..., pred_y.size(3) // 2:, :]
         # pred_y = rearrange(pred_y, 'b c t h w -> (b t) c h w')
