@@ -48,7 +48,7 @@ class SyncLoss(nn.Module):
             pred_y = self.mask(pred_y, lip_only=True)
         else:
             pred_y = pred_y[..., pred_y.size(3) // 2:, :]
-        pred_y = rearrange(pred_y, 'b c t h w -> (b t) c h w')
+        # pred_y = rearrange(pred_y, 'b c t h w -> (b t) c h w')
         pred_y = torch.cat(pred_y.unbind(dim=2), dim=1)
         # B, 3 * T, H//2, W
         a, v = self.expert_model(mel, pred_y)
