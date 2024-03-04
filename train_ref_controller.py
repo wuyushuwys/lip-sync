@@ -19,12 +19,15 @@ from utils.logging_tool import get_logger
 from arch.ref_control_net_arch import RefControlNet
 from arch.discriminator_arch import UNetDiscriminatorSN
 from models.ref_control_model import RefControlModel
+from models.ref_control_gan_model import RefControlGANModel
 
 
 def main(args):
     # create logger
     logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
+
+    use_gan = args.get('use_gan', False)
 
     # init wandb
     if args.rank == 0 and args.get("use_wandb", True):
@@ -40,12 +43,13 @@ def main(args):
     # Create generator
     logger.info(f"Create Model")
     g_model = RefControlNet(**args.g_model)
-    d_model = UNetDiscriminatorSN(**args.d_model)
-
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
     logger.info(f"G-Model {g_model} :[Trainable Parameters: {trainable_params}]")
-    trainable_params = sum(p.numel() for p in d_model.parameters() if p.requires_grad)
-    logger.info(f"D-Model {d_model} :[Trainable Parameters: {trainable_params}]")
+
+    if use_gan:
+        d_model = UNetDiscriminatorSN(**args.d_model)
+        trainable_params = sum(p.numel() for p in d_model.parameters() if p.requires_grad)
+        logger.info(f"D-Model {d_model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
     logger.info(f"Load loss function")
@@ -55,36 +59,57 @@ def main(args):
     if args.distributed:
         logger.info("Distributed Training")
         g_model = DDP(g_model.to(device), device_ids=[device], output_device=device)
-        d_model = DDP(d_model.to(device), device_ids=[device], output_device=device)
+        if use_gan:
+            d_model = DDP(d_model.to(device), device_ids=[device], output_device=device)
     else:
         g_model.to(device)
-        d_model.to(device)
+        if use_gan:
+            d_model.to(device)
 
     # create optimizers and schedulers
-    [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
-                                                                                    args=args,
-                                                                                    num_batches=len(train_data_loader))
+    if use_gan:
+        [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
+                                                                                        args=args,
+                                                                                        num_batches=len(
+                                                                                            train_data_loader))
+        trainer = RefControlGANModel(opt=args,
+                                     g_model=g_model,
+                                     g_optimizer=g_optimizer,
+                                     g_scheduler=g_scheduler,
+                                     d_model=d_model,
+                                     d_optimizer=d_optimizer,
+                                     d_scheduler=d_scheduler,
+                                     criteria=criteria,
+                                     train_data_loader=train_data_loader,
+                                     eval_data_loaders=eval_data_loaders,
+                                     writer=writer)
+        # Load ckpt
+        start_epoch = trainer.load_ckpt(args.ckpt,
+                                        g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
+                                        d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
 
-    trainer = RefControlModel(opt=args,
-                              g_model=g_model,
-                              g_optimizer=g_optimizer,
-                              g_scheduler=g_scheduler,
-                              d_model=d_model,
-                              d_optimizer=d_optimizer,
-                              d_scheduler=d_scheduler,
-                              criteria=criteria,
-                              train_data_loader=train_data_loader,
-                              eval_data_loaders=eval_data_loaders,
-                              writer=writer)
+        # Load state_dict
+        trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
+        trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
 
-    # Load ckpt
-    start_epoch = trainer.load_ckpt(args.ckpt,
-                                    g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler,
-                                    d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
+    else:
+        [g_optimizer], [g_scheduler] = create_optim_scheduler(g_model,
+                                                              args=args,
+                                                              num_batches=len(train_data_loader))
+        trainer = RefControlModel(opt=args,
+                                  g_model=g_model,
+                                  g_optimizer=g_optimizer,
+                                  g_scheduler=g_scheduler,
+                                  criteria=criteria,
+                                  train_data_loader=train_data_loader,
+                                  eval_data_loaders=eval_data_loaders,
+                                  writer=writer)
+        # Load ckpt
+        start_epoch = trainer.load_ckpt(args.ckpt,
+                                        g_model=g_model, g_optimizer=g_optimizer, g_scheduler=g_scheduler)
 
-    # Load state_dict
-    trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
-    trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
+        # Load state_dict
+        trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
 
     # optimize model graph
     trainer.compile_model()
