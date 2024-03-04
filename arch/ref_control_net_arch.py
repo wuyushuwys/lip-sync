@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict, bilevel=False):
+    def __init__(self, vq_config_path, vq_state_dict):
         super().__init__()
         logger = get_logger()
         # load face vq_model
@@ -32,14 +32,13 @@ class RefControlNet(nn.Module):
         for p in self.vqgan.parameters():
             p.requires_grad = False
 
-        self.bilevel = bilevel
         # we only use encoder to encode reference image
         self.controller = nn.ModuleList()
         for ch in self.vqgan.multiscale_encoder.latent_out_ch[::-1]:
             # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
-            self.controller.append(AdaConvBlock(ch, ch, self.bilevel))
+            self.controller.append(AdaConvBlock(ch, ch))
 
-        self._zero_init()
+        # self._zero_init()
 
     def _zero_init(self):
         for m in self.controller.modules():
@@ -78,9 +77,8 @@ class RefControlNet(nn.Module):
 
 class AdaConvBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, bilevel=False):
+    def __init__(self, in_channels, out_channels, kernel_size=3):
         super().__init__()
-        self.bilevel = bilevel
         self.fuse_encoder = nn.Sequential(
             ResBlock(2 * in_channels, 2 * in_channels),
             nn.LeakyReLU(0.2, True),
@@ -94,23 +92,9 @@ class AdaConvBlock(nn.Module):
                       kernel_size=kernel_size, padding=kernel_size // 2),
         )
 
-        if self.bilevel:
-            self.up_mean_var = nn.Sequential(
-                nn.Upsample(2),
-                ResBlock(out_channels, out_channels),
-                nn.LeakyReLU(0.2, True),
-                nn.Conv2d(out_channels, 2 * out_channels, kernel_size=1),
-                nn.LeakyReLU(0.2, True),
-                nn.Conv2d(2 * out_channels, 2 * out_channels, kernel_size=kernel_size, padding=kernel_size // 2),
-            )
-
     def forward(self, enc_feat, dec_feat):
         assert enc_feat.size() == dec_feat.size()
         fused_feat = self.fuse_encoder(torch.cat([enc_feat, dec_feat], dim=1))
         shift, scale = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
 
-        if self.bilevel:
-            up_shift, up_scale = torch.chunk(self.up_mean_var(fused_feat), chunks=2, dim=1)
-            return dec_feat + (dec_feat + shift) * scale, (up_shift, up_scale)
-        else:
-            return dec_feat + (dec_feat + shift) * scale
+        return dec_feat + (dec_feat + shift) * scale
