@@ -39,7 +39,8 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = Wav2Lip()
+    kwargs_model = args.get("model", dict(norm='bn', sigmoid=False))
+    model = Wav2Lip(**kwargs_model)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")

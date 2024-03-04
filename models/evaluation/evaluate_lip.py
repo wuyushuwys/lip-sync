@@ -92,9 +92,9 @@ def test(dataloader: DataLoader,
         pred_y = pred_y / 2 + 0.5
         y = y / 2 + 0.5
 
-        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
+        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         loss_dict['PSNR'].update(reduce_all(psnr(pred_y, y).mean()), bsz)
         loss_dict['SSIM'].update(reduce_all(ssim(pred_y, y)), bsz)
 
@@ -103,8 +103,8 @@ def test(dataloader: DataLoader,
 
 @master_only
 def save_sample_images(x, g, gt, batch_num, epoch, folder_path):
-    refs, inps = torch.split(x, 3, dim=1)
-    outputs = torch.cat([refs, inps, g, gt], dim=-1).unbind(2)
+    inps, refs = torch.split(x, 3, dim=1)
+    outputs = torch.cat([inps, refs, g, gt], dim=-1).unbind(2)
     outputs = torch.cat(outputs, dim=-2)
 
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))

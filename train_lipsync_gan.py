@@ -39,7 +39,8 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    g_model = Wav2Lip()
+    kwargs_model = args.get("model", dict(norm='bn', sigmoid=False))
+    g_model = Wav2Lip(**kwargs_model)
     d_model = UNetDiscriminatorSN()
 
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
