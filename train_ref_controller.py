@@ -39,7 +39,7 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    g_model = RefControlNet(**args.model)
+    g_model = RefControlNet(**args.g_model)
     d_model = UNetDiscriminatorSN(**args.d_model)
 
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
