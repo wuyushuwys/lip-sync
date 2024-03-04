@@ -38,8 +38,12 @@ class LipSyncModel(BasicModel):
         mask_kwargs = opt.get("mask", dict(half_precision=True))
         self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
+        self.use_amp = opt.get('use_amp', False)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
         self.no_ddp_model = self.model_no_ddp(model)
         # self.ema_model = self.create_ema(model, power=0.75)
+
 
     def compile_model(self):
         self.compile(self.model)
@@ -66,22 +70,24 @@ class LipSyncModel(BasicModel):
                 x = self.mask(x)
 
             self.optimizer.zero_grad()
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
 
-            pred_y = self.model(indiv_mels, x)
+                pred_y = self.model(indiv_mels, x)
 
-            sync_weight = self.criteria['sync_loss'].loss_weight
-            sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+                sync_weight = self.criteria['sync_loss'].loss_weight
+                sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
 
-            recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
+                recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
-            perceptual_loss = self.criteria['perceptual_loss'](pred_y,
-                                                               y) if 'perceptual_loss' in self.criteria.keys() else 0
+                perceptual_loss = self.criteria['perceptual_loss'](pred_y,
+                                                                   y) if 'perceptual_loss' in self.criteria.keys() else 0
 
-            loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
+                loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 
-            loss.backward()
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
 
-            self.optimizer.step()
+            self.scaler.update()
             self.scheduler.step()
 
             log_vars['sync_loss'] = sync_loss

@@ -44,6 +44,9 @@ class SyncNetModel(BasicModel):
         self.cur_loss = None
         self.best_loss = float('inf')
 
+        self.use_amp = opt.get('use_amp', False)
+        self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
+
     def compile_model(self):
         self.compile(self.model)
 
@@ -64,13 +67,14 @@ class SyncNetModel(BasicModel):
                 x = self.mask(x.clone(), mask_face=False, lip_only=True)
 
             self.optimizer.zero_grad()
+            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                a, v = self.model(mel, x)
 
-            a, v = self.model(mel, x)
+                loss = self.criteria['sync_loss'](a, v, y)
+                self.scaler.scale(loss).backward()
+                self.scaler.step(self.optimizer)
 
-            loss = self.criteria['sync_loss'](a, v, y)
-            loss.backward()
-
-            self.optimizer.step()
+            self.scaler.update()
             self.scheduler.step()
 
             log_vars['sync_loss'] = loss

@@ -108,7 +108,8 @@ class RefControlModel(BasicModel):
                     torch.nn.utils.clip_grad_norm_(self.no_ddp_g_model.parameters(), self.clip_grad, foreach=True)
 
                 self.scaler.step(self.g_optimizer)
-                self.scaler.update()
+
+            self.scaler.update()
             self.g_scheduler.step()
 
             log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
