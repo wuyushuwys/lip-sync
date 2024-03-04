@@ -88,6 +88,10 @@ def test(dataloader: DataLoader,
             perceptual_loss = reduce_all(criteria['perceptual_loss'](pred_y, y, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
+        x = x / 2 + 0.5
+        pred_y = pred_y / 2 + 0.5
+        y = y / 2 + 0.5
+
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(pred_y, y)), bsz)
         save_sample_images(x, pred_y, y, idx, epoch=epoch, folder_path=img_folder)
 
