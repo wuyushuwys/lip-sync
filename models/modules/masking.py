@@ -23,6 +23,7 @@ class Masking(nn.Module):
             half_precision: whether using half-precision inference
             norm: scale image from [0, 1] to [-1 ,1]
             lip_ratio: ratio for lip width:height
+            half_face: whether half face
         """
         super().__init__()
         self.detector = BiSeNet(n_classes=19, norm=norm)

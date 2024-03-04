@@ -27,25 +27,25 @@ class CosineLoss(nn.Module):
 
 class SyncLoss(nn.Module):
 
-    def __init__(self, ckpt_path, loss_weight=1, window_size=5, adaptive=True):
+    def __init__(self, ckpt_path, loss_weight=1, window_size=5):
         super().__init__()
 
         self.expert_model = SyncNet()
         self.expert_model.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.loss_weight = loss_weight
         self.window_size = window_size
-        self.adaptive = adaptive
+        # self.adaptive = adaptive
 
-        if self.adaptive:
-            self.mask = Masking(half_precision=True, half_face=True, norm=False)
+        # if self.adaptive:
+        #     self.mask = Masking(half_precision=True, half_face=True, norm=False)
 
         self.criterion = CosineLoss()
 
         self.expert_model.eval()
 
-    def forward(self, mel: torch.Tensor, pred_y: torch.Tensor, val=False):
-        if self.adaptive:
-            pred_y = self.mask(pred_y, lip_only=True)
+    def forward(self, mel: torch.Tensor, pred_y: torch.Tensor, mask=None):
+        if mask is not None:
+            pred_y = self.mask(pred_y, mask_face=False, lip_only=True)
         else:
             pred_y = pred_y[..., pred_y.size(3) // 2:, :]
         # pred_y = rearrange(pred_y, 'b c t h w -> (b t) c h w')

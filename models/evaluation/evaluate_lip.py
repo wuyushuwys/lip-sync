@@ -78,7 +78,7 @@ def test(dataloader: DataLoader,
 
         pred_y = model(indiv_mels, x)
 
-        sync_loss = reduce_all(criteria['sync_loss'](mel, pred_y))
+        sync_loss = reduce_all(criteria['sync_loss'](mel, pred_y, mask=mask))
         loss_dict['sync_loss'].update(sync_loss.item(), bsz)
 
         recon_loss = reduce_all(criteria['recon_loss'](pred_y, y, val=True))
