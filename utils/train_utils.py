@@ -180,6 +180,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     optimizer_list = []
     scheduler_list = []
     if isinstance(args.optim, ListConfig):
+        logger.info(f'Create {len(optim_dict)} individual optim for {len(model_list)} models')
         for model, optim, optim_args in zip(model_list, optim_module, optim_dict):
             # todo: modify if needed
 
@@ -195,6 +196,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
             optimizer_list.append(optimizer)
             scheduler_list.append(scheduler)
     else:
+        logger.info(f'Create single optim for {len(model_list)} models')
         for model in model_list:
             # todo: modify if needed
             if optim_dict.get('weight_decay', False):
