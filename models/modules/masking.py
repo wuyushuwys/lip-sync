@@ -147,13 +147,17 @@ class Masking(nn.Module):
         bsz = x.size(0)
         x = x.clone()
         if x.dim() == 5:
-            assert x.size(1) == 6
-            # face [bsz, 6, t, h, w]
-            face, ref = x.split(3, dim=1)
-            face = rearrange(face, 'b c t h w -> (b t) c h w')
-            face = self.mask(face, mask_face, bottom, lip_only)
-            face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
-            return torch.cat([face, ref], dim=1)
+            if x.size(1) == 6:
+                # face [bsz, 6, t, h, w]
+                face, ref = x.split(3, dim=1)
+                face = rearrange(face, 'b c t h w -> (b t) c h w')
+                face = self.mask(face, mask_face, bottom, lip_only)
+                face = rearrange(face, '(b t) c h w -> b c t h w ', b=bsz)
+                return torch.cat([face, ref], dim=1)
+            else:
+                x = rearrange(x, 'b c t h w -> (b t) c h w')
+                x = self.mask(x, mask_face, bottom, lip_only)
+                return rearrange(x, '(b t) c h w -> b c t h w ', b=bsz)
         elif x.dim() == 4:
             if x.size(1) == 6:
                 face, ref = x.split(3, dim=1)
@@ -169,4 +173,4 @@ class Masking(nn.Module):
             else:
                 raise NotImplementedError(f'{x.shape}')
         else:
-            raise NotImplementedError(f'{x.dim()}')
+            raise NotImplementedError(f'{x.shape()}')
