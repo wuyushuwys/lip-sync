@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_modulate'):
+    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_modulate', zero_init=False):
         super().__init__()
         logger = get_logger()
         # load face vq_model
@@ -38,15 +38,22 @@ class RefControlNet(nn.Module):
             # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
             self.controller.append(AdaConvBlock(ch, ch, modulate_type=modulate_type))
 
-        self._zero_init()
+        if zero_init:
+            self._zero_init()
+        else:
+            self._weight_init()
 
     def _zero_init(self):
         for m in self.controller.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.constant_(m.weight, 0)
                 nn.init.constant_(m.bias, 0)
-            else:
-                NotImplementedError(f"{m} does not support yet.")
+
+    def _weight_init(self):
+        for m in self.controller.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, 0)
+                nn.init.constant_(m.bias, 0)
 
     def forward(self, x, ref):
         # encode original image
