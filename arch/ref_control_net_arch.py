@@ -97,7 +97,7 @@ class AdaConvBlock(nn.Module):
             nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         )
 
-        self.mean_var = nn.Sequential(
+        self.ada_modulation = nn.Sequential(
             nn.Conv2d(out_channels, 2 * out_channels, kernel_size=1),
             nn.LeakyReLU(0.2, True),
             nn.Conv2d(2 * out_channels, 2 * out_channels,
@@ -107,7 +107,7 @@ class AdaConvBlock(nn.Module):
     def forward(self, enc_feat, dec_feat):
         assert enc_feat.size() == dec_feat.size()
         fused_feat = self.fuse_encoder(torch.cat([enc_feat, dec_feat], dim=1))
-        shift, scale = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
+        shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=2, dim=1)
 
         return ada_modulate(dec_feat, shift, scale)
         # return dec_feat + (dec_feat + shift) * scale
