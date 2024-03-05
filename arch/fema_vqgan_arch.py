@@ -183,23 +183,10 @@ class DecoderBlock(nn.Module):
             ResBlock(out_channel, out_channel, norm_type, act_type),
         ]
 
-        self.block = nn.ModuleList(self.block)
+        self.block = nn.Sequential(*self.block)
 
-    def forward(self, x, up_condition=None):
-        # up_sample
-        x = self.block[0](x)  # condition already inserted to x
-        # first_conv
-        x = self.block[1](x)
-        # res_block_1
-        # insert up_sample condition
-        if up_condition is not None:
-            up_shift, up_scale = up_condition
-            assert x.size() == up_shift.size(), f"{x.size()} != {up_shift.size()}"
-            x = x + (x + up_shift) * up_scale
-        x = self.block[2](x)
-        # res_block_2
-        x = self.block[3](x)
-        return x
+    def forward(self, x):
+        return self.block(x)
 
 
 class FeMaSRNet(nn.Module):
@@ -575,15 +562,8 @@ class FaceCoderNet(nn.Module):
         x = self.after_quant(z_q)
         for idx, decoder_layer in enumerate(self.decoder_group):
             if control_latent is not None:
-                # x = x + control_latent[idx]
-                scaled_x = control_latent[idx](dec_feat=x)
-                if torch.is_tensor(scaled_x):
-                    x, up_condition = scaled_x, None
-                else:
-                    x, up_condition = scaled_x
-            else:
-                up_condition=None
-            x = decoder_layer(x, up_condition=up_condition)
+                x = control_latent[idx](dec_feat=x)
+            x = decoder_layer(x)
         x = self.out_conv(x)
         return x
 
