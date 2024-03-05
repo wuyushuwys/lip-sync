@@ -21,7 +21,7 @@ class CompileMode(Enum):
 class BasicModel(ABC):
 
     def __init__(self, opt, total_iterations=None, *args, **kwargs):
-        self.logger = get_logger()
+        self.logger = get_logger(opt.job_dir)
         self.opt = opt
         self.eta_timer = TimeMeter(total_iterations=total_iterations)
         pass
