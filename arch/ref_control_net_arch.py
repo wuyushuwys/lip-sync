@@ -122,7 +122,7 @@ class AdaConvBlock(nn.Module):
             return ada_modulate(dec_feat, shift, scale)
         elif self.modulate_type == 'ada_gated_modulate':
             shift, scale, gated = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_gated_modulation(dec_feat, shift, scale, gated)
+            return ada_gated_modulate(dec_feat, shift, scale, gated)
         elif self.modulate_type == 'ada_residual_modulate':
             shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
             return ada_residual_modulate(dec_feat, shift, scale)
