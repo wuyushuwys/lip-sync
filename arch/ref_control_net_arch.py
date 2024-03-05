@@ -75,8 +75,16 @@ class RefControlNet(nn.Module):
         return self.__class__.__name__.lower()
 
 
-def modulate(x, shift, scale):
+def ada_modulate(x, shift, scale):
     return x * (1 + scale) + shift
+
+
+def ada_gated_modulation(x, shift, scale, gate):
+    return x + gate * (x * (1 + scale) + shift)
+
+
+def ada_residual_modulate(x, shift, scale):
+    return x + (x + shift) * scale
 
 
 class AdaConvBlock(nn.Module):
@@ -103,5 +111,3 @@ class AdaConvBlock(nn.Module):
 
         return modulate(dec_feat, shift, scale)
         # return dec_feat + (dec_feat + shift) * scale
-
-
