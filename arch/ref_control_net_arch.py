@@ -102,3 +102,6 @@ class AdaConvBlock(nn.Module):
         shift, scale = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
 
         return modulate(dec_feat, shift, scale)
+        # return dec_feat + (dec_feat + shift) * scale
+
+
