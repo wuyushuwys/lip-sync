@@ -99,7 +99,9 @@ class AdaConvBlock(nn.Module):
 
         self.modulate_type = modulate_type
 
-        assert modulate_type in ['ada_modulate', 'ada_gated_modulate', 'ada_residual_modulate']
+        assert modulate_type in ['ada_modulate',
+                                 'ada_gated_modulate',
+                                 'ada_residual_modulate'], f"Not supported {modulate_type}"
 
         if modulate_type == 'ada_gated_modulate':
             self.num_split = 3
