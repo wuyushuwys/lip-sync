@@ -94,7 +94,7 @@ class AdaConvBlock(nn.Module):
         self.fuse_encoder = nn.Sequential(
             ResBlock(2 * in_channels, 2 * in_channels),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, stride=1, padding=1)
+            nn.Conv2d(2 * in_channels, out_channels, kernel_size=1)
         )
 
         self.modulate_type = modulate_type
