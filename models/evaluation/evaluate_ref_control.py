@@ -93,8 +93,9 @@ def test(dataloader: DataLoader,
         g = (g + 1) / 2
         y = (y + 1) / 2
 
-        recon_loss = reduce_all(criteria['recon_loss'](g, y, val=True))
-        loss_dict['recon_loss'].update(recon_loss.item(), bsz)
+        if 'recon_loss' in criteria.keys():
+            recon_loss = reduce_all(criteria['recon_loss'](g, y, val=True))
+            loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
         if 'perceptual_loss' in criteria.keys():
             perceptual_loss = reduce_all(criteria['perceptual_loss'](g, y, normalize=True, val=True))
