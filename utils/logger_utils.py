@@ -17,38 +17,42 @@ __all__ = ["attr_extractor", "loss_printer", "tb_writer", "profile_model"]
 
 @master_only
 def attr_extractor(obj):
-    # attrs = list(filter(lambda x: not x.startswith('_'), dir(obj)))  # Remove default and help attributes
-    # attr_dict = dict()
-    # info_len = 40
     total_len = 80
     string = f"\n{'INFO':{'*'}{'^'}{total_len}s}\n"
-    # str_head = '** '
-    #
-    # def attrs2dict(attr):
-    #     for k, v in attr.items():
-    #         if isinstance(v, omegaconf.dictconfig.DictConfig) and 'type' in v:
-    #             k = f"{k}[{v.pop('type')}]"
-    #         attr_dict[k] = v
-    #
-    # for name in attrs:
-    #     attr = getattr(obj, name)
-    #     if name == "losses":
-    #         if isinstance(attr, omegaconf.dictconfig.DictConfig):
-    #             attrs2dict(attr)
-    #     else:
-    #         if isinstance(attr, omegaconf.dictconfig.DictConfig) and 'type' in attr:
-    #             name = f"{name}[{attr.pop('type')}]"
-    #         attr_dict[name] = attr
-    #
-    # for k, v in attr_dict.items():
-    #     if isinstance(v, Logger):
-    #         v = v.name
-    #     v_str = str(v)
-    #     string += f"{str_head}{f'{k}:':{''}{'<'}{info_len}s}{v_str}\n"
-    #
-    # string += f"{'':{'*'}{'^'}{total_len}s}\n"
-    string += pprint.pformat(omegaconf.OmegaConf.to_object(obj))
-    string += f"\n{'':{'*'}{'^'}{total_len}s}\n"
+
+    # customize version
+    attrs = list(filter(lambda x: not x.startswith('_'), dir(obj)))  # Remove default and help attributes
+    attr_dict = dict()
+    info_len = 40
+    str_head = '** '
+
+    def attrs2dict(attr):
+        for k, v in attr.items():
+            if isinstance(v, omegaconf.dictconfig.DictConfig) and 'type' in v:
+                k = f"{k}[{v.pop('type')}]"
+            attr_dict[k] = v
+
+    for name in attrs:
+        attr = getattr(obj, name)
+        if name == "losses":
+            if isinstance(attr, omegaconf.dictconfig.DictConfig):
+                attrs2dict(attr)
+        else:
+            if isinstance(attr, omegaconf.dictconfig.DictConfig) and 'type' in attr:
+                name = f"{name}[{attr.pop('type')}]"
+            attr_dict[name] = attr
+
+    for k, v in attr_dict.items():
+        if isinstance(v, Logger):
+            v = v.name
+        v_str = str(v)
+        string += f"{str_head}{f'{k}:':{''}{'<'}{info_len}s}{v_str}\n"
+
+    string += f"{'':{'*'}{'^'}{total_len}s}\n"
+
+    # pprint version
+    # string += pprint.pformat(omegaconf.OmegaConf.to_object(obj))
+    # string += f"\n{'':{'*'}{'^'}{total_len}s}\n"
     return string
 
 
