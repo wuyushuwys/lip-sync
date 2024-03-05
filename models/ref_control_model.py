@@ -97,9 +97,17 @@ class RefControlModel(BasicModel):
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
                 g = self.g_model(x, ref)
 
-                pixel_loss = self.criteria['recon_loss'](g, y)
-                perceptual_loss = self.criteria['perceptual_loss'](g, y)
-                loss = pixel_loss + perceptual_loss
+                loss = 0
+                if 'recon_loss' in self.criteria.keys():
+                    pixel_loss = self.criteria['recon_loss'](g, y)
+                    loss += pixel_loss
+                else:
+                    pixel_loss = 0
+                if 'perceptual_loss' in self.criteria.keys():
+                    perceptual_loss = self.criteria['perceptual_loss'](g, y)
+                    loss += perceptual_loss
+                else:
+                    perceptual_loss = 0
 
                 self.scaler.scale(loss).backward()
 
