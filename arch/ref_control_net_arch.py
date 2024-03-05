@@ -75,6 +75,10 @@ class RefControlNet(nn.Module):
         return self.__class__.__name__.lower()
 
 
+def modulate(x, shift, scale):
+    return x * (1 + scale) + shift
+
+
 class AdaConvBlock(nn.Module):
 
     def __init__(self, in_channels, out_channels, kernel_size=3):
@@ -97,4 +101,4 @@ class AdaConvBlock(nn.Module):
         fused_feat = self.fuse_encoder(torch.cat([enc_feat, dec_feat], dim=1))
         shift, scale = torch.chunk(self.mean_var(fused_feat), chunks=2, dim=1)
 
-        return dec_feat + (dec_feat + shift) * scale
+        return modulate(dec_feat, shift, scale)
