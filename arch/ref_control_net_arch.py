@@ -35,24 +35,15 @@ class RefControlNet(nn.Module):
         # we only use encoder to encode reference image
         self.controller = nn.ModuleList()
         for ch in self.vqgan.multiscale_encoder.latent_out_ch[::-1]:
-            # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
             self.controller.append(AdaConvBlock(ch, ch, modulate_type=modulate_type))
 
         if zero_init:
             self._zero_init()
-        else:
-            self._weight_init()
 
     def _zero_init(self):
         for m in self.controller.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.constant_(m.weight, 0)
-                nn.init.constant_(m.bias, 0)
-
-    def _weight_init(self):
-        for m in self.controller.modules():
-            if isinstance(m, nn.Conv2d):
-                nn.init.kaiming_normal_(m.weight, 0)
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x, ref):
