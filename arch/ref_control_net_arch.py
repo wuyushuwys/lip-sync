@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict):
+    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_modulate'):
         super().__init__()
         logger = get_logger()
         # load face vq_model
@@ -36,7 +36,7 @@ class RefControlNet(nn.Module):
         self.controller = nn.ModuleList()
         for ch in self.vqgan.multiscale_encoder.latent_out_ch[::-1]:
             # self.controller.append(nn.Conv2d(ch, ch, 1, 1, 0), )
-            self.controller.append(AdaConvBlock(ch, ch))
+            self.controller.append(AdaConvBlock(ch, ch, modulate_type=modulate_type))
 
         self._zero_init()
 
@@ -89,7 +89,7 @@ def ada_residual_modulate(x, shift, scale):
 
 class AdaConvBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=3):
+    def __init__(self, in_channels, out_channels, kernel_size=3, modulate_type='ada_modulate'):
         super().__init__()
         self.fuse_encoder = nn.Sequential(
             ResBlock(2 * in_channels, 2 * in_channels),
@@ -97,17 +97,34 @@ class AdaConvBlock(nn.Module):
             nn.Conv2d(2 * in_channels, out_channels, kernel_size=3, stride=1, padding=1)
         )
 
+        self.modulate_type = modulate_type
+
+        assert modulate_type in ['ada_modulate', 'ada_gated_modulation', 'ada_residual_modulate']
+
+        if modulate_type == 'ada_gated_modulation':
+            self.num_split = 3
+        else:
+            self.num_split = 2
+
         self.ada_modulation = nn.Sequential(
-            nn.Conv2d(out_channels, 2 * out_channels, kernel_size=1),
+            nn.Conv2d(out_channels, self.num_split * out_channels, kernel_size=1),
             nn.LeakyReLU(0.2, True),
-            nn.Conv2d(2 * out_channels, 2 * out_channels,
+            nn.Conv2d(self.num_split * out_channels, self.num_split * out_channels,
                       kernel_size=kernel_size, padding=kernel_size // 2),
         )
 
     def forward(self, enc_feat, dec_feat):
         assert enc_feat.size() == dec_feat.size()
         fused_feat = self.fuse_encoder(torch.cat([enc_feat, dec_feat], dim=1))
-        shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=2, dim=1)
 
-        return ada_modulate(dec_feat, shift, scale)
-        # return dec_feat + (dec_feat + shift) * scale
+        if self.modulate_type == 'ada_modulate':
+            shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
+            return ada_modulate(dec_feat, shift, scale)
+        elif self.modulate_type == 'ada_gated_modulation':
+            shift, scale, gated = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
+            return ada_gated_modulation(dec_feat, shift, scale, gated)
+        elif self.modulate_type == 'ada_residual_modulate':
+            shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
+            return ada_residual_modulate(dec_feat, shift, scale)
+        else:
+            NotImplementedError(f'{self.modulate_type} not implemented')
