@@ -79,7 +79,7 @@ def ada_modulate(x, shift, scale):
     return x * (1 + scale) + shift
 
 
-def ada_gated_modulation(x, shift, scale, gate):
+def ada_gated_modulate(x, shift, scale, gate):
     return x + gate * (x * (1 + scale) + shift)
 
 
@@ -99,9 +99,9 @@ class AdaConvBlock(nn.Module):
 
         self.modulate_type = modulate_type
 
-        assert modulate_type in ['ada_modulate', 'ada_gated_modulation', 'ada_residual_modulate']
+        assert modulate_type in ['ada_modulate', 'ada_gated_modulate', 'ada_residual_modulate']
 
-        if modulate_type == 'ada_gated_modulation':
+        if modulate_type == 'ada_gated_modulate':
             self.num_split = 3
         else:
             self.num_split = 2
@@ -120,7 +120,7 @@ class AdaConvBlock(nn.Module):
         if self.modulate_type == 'ada_modulate':
             shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
             return ada_modulate(dec_feat, shift, scale)
-        elif self.modulate_type == 'ada_gated_modulation':
+        elif self.modulate_type == 'ada_gated_modulate':
             shift, scale, gated = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
             return ada_gated_modulation(dec_feat, shift, scale, gated)
         elif self.modulate_type == 'ada_residual_modulate':
