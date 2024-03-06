@@ -134,7 +134,7 @@ class FrameMelDataset(Dataset):
         if self.arch == 'syncnet' or self.arch == 'sync_mage':
             # if self.mode == utils.mode.TRAIN:
             frame_list, audio_file = self._load_index(index)
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file, index=index)
             return img_window, mel, label
         # elif self.arch == 'sync_mage':
         #     frame_list, audio_file = self._load_index(index)
@@ -305,16 +305,31 @@ class FrameMelDataset(Dataset):
 
         return x, indiv_mels, mel, y
 
-    def _load_sync_train_data(self, frame_list, audio_file):
+    def _load_sync_train_data(self, frame_list, audio_file, index=None):
         if self.skip_offset:
             skip_start = int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size - 1)
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 0
                 skip_end = len(frame_list) - self.window_size - 1
-            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
         else:
-            idx, false_idx = random.sample(range(len(frame_list) - self.window_size - 1), 2)
+            skip_start = 0
+            skip_end = len(frame_list) - self.window_size - 1
+
+        if self.mode == utils.mode.TRAIN:
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+        # fix data in evaluation (need more testing to verify correctness)
+        else:
+            interval = max((skip_end - skip_start) // self.num_samples, 1)
+            if interval > 1:
+                offset = (index % self.num_samples) * interval
+            else:
+                offset = (index % self.num_samples) // (skip_end - skip_start)
+            idx = skip_start + offset
+            false_idx = random.randint(skip_start, skip_end)
+            while idx == false_idx:
+                false_idx = random.randint(skip_start, skip_end)
+
         img_window = self._load_frame_window(frame_list, idx)
 
         return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
