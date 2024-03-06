@@ -132,20 +132,9 @@ class FrameMelDataset(Dataset):
 
     def __getitem__(self, index):
         if self.arch == 'syncnet' or self.arch == 'sync_mage':
-            # if self.mode == utils.mode.TRAIN:
             frame_list, audio_file = self._load_index(index)
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file, index=index)
+            img_window, mel, label = self._load_sync_data(frame_list, audio_file, index=index)
             return img_window, mel, label
-        # elif self.arch == 'sync_mage':
-        #     frame_list, audio_file = self._load_index(index)
-        #     x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file, sync=True)
-        #     return x, indiv_mels, mel, y
-        # else:
-        #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-        #     assert len(frame_window) == self.window_size
-        #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
-        #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-        #     return img_window, mel, label
         elif self.arch in ['lipsync', 'mage']:
             """
             x: (ch, T, H, W)
@@ -154,9 +143,7 @@ class FrameMelDataset(Dataset):
             y: (ch, T, H, W)
             """
             frame_list, audio_file = self._load_index(index)
-            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file, index=index)
-            if self.data_spec.get('singular', False):
-                return x[:, 2], indiv_mels[2], mel, y[:, 2]
+            x, indiv_mels, mel, y = self._load_lipsync_data(frame_list, audio_file, index=index)
             return x, indiv_mels, mel, y
         else:
             raise NotImplementedError(f"{self.arch} is not implemented")
@@ -219,7 +206,7 @@ class FrameMelDataset(Dataset):
             window.append(img)
         return window
 
-    def _load_lipsync_train_data(self, frame_list, audio_file, sync=False, index=None):
+    def _load_lipsync_data(self, frame_list, audio_file, sync=False, index=None):
 
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
@@ -247,10 +234,10 @@ class FrameMelDataset(Dataset):
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
 
-        x, indiv_mels, mel, gt = self._load_lipsync_data(idx=idx,
-                                                         true_window=true_window,
-                                                         wrong_window=wrong_window,
-                                                         audio_file=audio_file)
+        x, indiv_mels, mel, gt = self._gather_lipsync_data(idx=idx,
+                                                           true_window=true_window,
+                                                           wrong_window=wrong_window,
+                                                           audio_file=audio_file)
         if sync:
             if random.random() > 0.5:
                 gt = torch.ones(self.window_size)
@@ -261,7 +248,7 @@ class FrameMelDataset(Dataset):
 
         return x, indiv_mels, mel, gt
 
-    def _load_lipsync_data(self, idx, true_window, wrong_window, audio_file):
+    def _gather_lipsync_data(self, idx, true_window, wrong_window, audio_file):
         assert idx - 2 >= 0
         audio_mel = self._load_audio_melspec(audio_file)
         mel = self._crop_audio_window(audio_mel.copy(), idx)
@@ -305,7 +292,7 @@ class FrameMelDataset(Dataset):
 
         return x, indiv_mels, mel, y
 
-    def _load_sync_train_data(self, frame_list, audio_file, index=None):
+    def _load_sync_data(self, frame_list, audio_file, index=None):
         if self.skip_offset:
             skip_start = int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size - 1)
