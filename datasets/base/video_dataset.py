@@ -127,22 +127,20 @@ class FrameMelDataset(Dataset):
             logger.info(f"{self}: Loading audio from file")
 
         transforms = []
-        if self.data_spec.get('aug', False):
-            aug_spec = self.data_spec.aug
-            if aug_spec.get('rotate', False):
-                transforms.append(RandomRotation(**aug_spec.rotate,
-                                                 interpolation=InterpolationMode.BILINEAR,
-                                                 fill=1))
-            if aug_spec.get('flip', False):
-                transforms.append(RandomHorizontalFlip(**aug_spec.flip))
+        if self.mode == utils.mode.TRAIN:
+            if self.data_spec.get('aug', False):
+                aug_spec = self.data_spec.aug
+                if aug_spec.get('rotate', False):
+                    transforms.append(RandomRotation(**aug_spec.rotate,
+                                                     interpolation=InterpolationMode.BILINEAR,
+                                                     fill=1))
+                if aug_spec.get('flip', False):
+                    transforms.append(RandomHorizontalFlip(**aug_spec.flip))
         if self.data_spec.get('normalize', False):
             transforms.append(Normalize(**self.data_spec.normalize))
         self.transform = Compose(transforms)
 
     def __len__(self):
-        # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
-        #     return len(self.eval_filelist) // self.window_size - 1
-        # else:
         return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
@@ -169,7 +167,7 @@ class FrameMelDataset(Dataset):
             y: (ch, T, H, W)
             """
             frame_list, audio_file = self._load_index(index)
-            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
+            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file, index=index)
             if self.data_spec.get('singular', False):
                 return x[:, 2], indiv_mels[2], mel, y[:, 2]
             return x, indiv_mels, mel, y
@@ -231,35 +229,35 @@ class FrameMelDataset(Dataset):
             window.append(img)
         return window
 
-    def _load_lipsync_train_data(self, frame_list, audio_file, sync=False):
-        # false_offset = random.randint(self.video_spec.fps, self.video_spec.fps * 2)  # range for false frame
+    def _load_lipsync_train_data(self, frame_list, audio_file, sync=False, index=None):
+
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 3
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 2
                 skip_end = len(frame_list) - self.window_size - 3
-            # idx = random.sample(range(skip_start, skip_end), 1)
-            # idx = random.choice(range(skip_start, skip_end))
-            # if idx + false_offset < len(frame_list) - self.window_size:
-            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            # else:
-            #     false_idx = idx + false_offset
-
         else:
             skip_start = 2
             skip_end = len(frame_list) - self.window_size - 3
-            # idx = random.sample(range(skip_start, skip_end), 1)
-            # idx = random.choice(range(skip_start, skip_end))
-            # if idx + false_offset < len(frame_list) - self.window_size:
+        if self.mode == utils.mode.TRAIN:
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            # else:
-            #     false_idx = idx + false_offset
+        # fix data in evaluation (need more testing to verify correctness)
+        else:
+            interval = max((skip_end - skip_start) // self.num_samples, 1)
+            if interval > 1:
+                offset = (index % self.num_samples) * interval
+            else:
+                offset = (index % self.num_samples) // (skip_end - skip_start)
+            idx = skip_start + offset
+            false_idx = random.randint(skip_start, skip_end)
+            while idx == false_idx:
+                false_idx = random.randint(skip_start, skip_end)
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
 
-        x, indiv_mels, mel, gt = self._load_lipsync_data(idx,
+        x, indiv_mels, mel, gt = self._load_lipsync_data(idx=idx,
                                                          true_window=true_window,
                                                          wrong_window=wrong_window,
                                                          audio_file=audio_file)

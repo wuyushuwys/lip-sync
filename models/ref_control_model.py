@@ -14,6 +14,7 @@ from .modules.masking import Masking
 from .basic_model import BasicModel
 
 
+torch.optim.Adam
 class RefControlModel(BasicModel):
 
     def __init__(self,
