@@ -48,7 +48,7 @@ class SyncLoss(nn.Module):
         pred_y = torch.cat(pred_y.unbind(dim=2), dim=1)
         # B, 3 * T, H//2, W
         a, v = self.expert_model(mel, pred_y)
-        label = torch.ones(pred_y.size(0), 1).to(mel.device)
+        label = torch.ones(pred_y.size(0), 1, device=mel.device)
         return self.criterion(a, v, label)
 
 
