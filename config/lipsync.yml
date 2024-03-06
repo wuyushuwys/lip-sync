@@ -7,18 +7,12 @@ data_spec:
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
-
   aug:
-    rotate:
-      degrees: 10
-      center: [ 128, 128 ]
-    sharpness:
-      sharpness_factor: 2
-      p: 0.1
     flip:
-      p: 0.3
-    contrast:
-      p: 0.1
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
 
 
 video_spec:

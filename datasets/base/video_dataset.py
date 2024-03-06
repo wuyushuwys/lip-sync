@@ -26,21 +26,6 @@ from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
 
-from collections import OrderedDict
-
-
-class FixSizeTarDict(OrderedDict):
-    def __init__(self, *args, max=0, **kwargs):
-        self._max = max
-        super().__init__(*args, **kwargs)
-
-    def __setitem__(self, key, value):
-        OrderedDict.__setitem__(self, key, value)
-        if self._max > 0:
-            if len(self) > self._max:
-                k, tar_file = self.popitem(False)
-                tar_file.close()
-
 
 class FrameMelDataset(Dataset):
 
@@ -48,7 +33,8 @@ class FrameMelDataset(Dataset):
                  data_mode: AnyStr = 'image',
                  audio_cache_path: AnyStr = None,
                  video_cache_path: AnyStr = None,
-                 skip_offset: float = None) -> None:
+                 skip_offset: float = None,
+                 crop: list = None) -> None:
         super().__init__()
 
         logger = get_logger()
@@ -73,6 +59,7 @@ class FrameMelDataset(Dataset):
         self.mode = mode
         self.data_mode = data_mode
         self.skip_offset = skip_offset
+        self.crop = crop
         self.bottom_half = args.video_spec.get("bottom_half", True)
 
         if self.mode == utils.mode.TRAIN:
@@ -199,7 +186,10 @@ class FrameMelDataset(Dataset):
                 root, key = os.path.split(fname)
                 cache_data = torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
             if cache_data.dim() == 1:
-                return decode_image(cache_data)
+                cache_data = decode_image(cache_data)
+            if self.crop is not None:
+                y1, y2, x1, x2 = self.crop
+                cache_data = cache_data[y1:y2, x1:x2]
             return cache_data
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)

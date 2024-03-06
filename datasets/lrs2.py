@@ -31,7 +31,8 @@ class LRS2(FrameMelDataset):
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
         super(LRS2, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
-                                   audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
+                                   audio_cache_path=audio_cache_path, video_cache_path=video_cache_path,
+                                   crop=[0, 140, 10, 150])
 
     def __str__(self):
         return self.__class__.__name__.lower()
