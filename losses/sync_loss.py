@@ -34,10 +34,6 @@ class SyncLoss(nn.Module):
         self.expert_model.load_state_dict(torch.load(ckpt_path, map_location='cpu'))
         self.loss_weight = loss_weight
         self.window_size = window_size
-        # self.adaptive = adaptive
-
-        # if self.adaptive:
-        #     self.mask = Masking(half_precision=True, half_face=True, norm=False)
 
         self.criterion = CosineLoss()
 
