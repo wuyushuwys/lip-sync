@@ -3,7 +3,8 @@ import torch.nn as nn
 
 __all__ = [
     "PixelLoss",
-    "CharbonnierLoss"
+    "CharbonnierLoss",
+    "WeightedPixelLoss",
 ]
 
 
