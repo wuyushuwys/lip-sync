@@ -77,6 +77,7 @@ class WeightedPixelLoss(nn.Module):
     def forward(self, x, gt, weight=None, val=False):
         pixel_loss = self.criterion(x, gt)
         if weight is not None:
+            assert pixel_loss.shape == weight.shape, f'{pixel_loss.shape} not equal to {weight.shape}'
             pixel_loss = torch.mean(pixel_loss * weight)
         else:
             pixel_loss = torch.mean(pixel_loss)
