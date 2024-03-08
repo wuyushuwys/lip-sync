@@ -6,6 +6,7 @@ from einops import rearrange
 from arch.syncnet_arch import SyncNet
 from models.modules.masking import Masking
 
+
 class CosineLoss(nn.Module):
 
     def __init__(self, loss_weight=1):
@@ -50,7 +51,6 @@ class SyncLoss(nn.Module):
         a, v = self.expert_model(mel, pred_y)
         label = torch.ones(pred_y.size(0), 1, device=mel.device)
         return self.criterion(a, v, label)
-
 
 # class MageSyncLoss(nn.Module):
 #

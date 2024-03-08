@@ -45,6 +45,7 @@ class SyncNetModel(BasicModel):
         self.best_loss = float('inf')
 
         self.use_amp = opt.get('use_amp', False)
+        self.adaptive = not opt.data_spec.get('bottom_half', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
     def compile_model(self):
@@ -64,7 +65,7 @@ class SyncNetModel(BasicModel):
             y = y.to(self.local_rank, non_blocking=True)
 
             with torch.no_grad():
-                x = self.mask(x.clone(), mask_face=False, lip_only=True)
+                x = self.mask(x.clone(), mask_face=False, lip_only=self.adaptive)
 
             self.optimizer.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
