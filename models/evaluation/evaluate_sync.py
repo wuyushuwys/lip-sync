@@ -54,7 +54,8 @@ def test(dataloader: DataLoader,
         y = y.to(args.local_rank, non_blocking=True)
 
         if mask:
-            x = mask(x, mask_face=False, lip_only=adaptive)
+            if adaptive:
+                x = mask(x, mask_face=False, lip_only=adaptive)
 
         a, v = model(mel, x)
         sync_loss = reduce_all(criteria["sync_loss"](a, v, y))

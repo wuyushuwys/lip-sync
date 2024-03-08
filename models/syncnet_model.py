@@ -65,7 +65,8 @@ class SyncNetModel(BasicModel):
             y = y.to(self.local_rank, non_blocking=True)
 
             with torch.no_grad():
-                x = self.mask(x.clone(), mask_face=False, lip_only=self.adaptive)
+                if self.adaptive:
+                    x = self.mask(x.clone(), mask_face=False, lip_only=self.adaptive)
 
             self.optimizer.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
