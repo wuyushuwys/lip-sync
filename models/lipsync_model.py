@@ -1,5 +1,6 @@
 import os
 import torch
+from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
@@ -44,7 +45,6 @@ class LipSyncModel(BasicModel):
         self.no_ddp_model = self.model_no_ddp(model)
         # self.ema_model = self.create_ema(model, power=0.75)
 
-
     def compile_model(self):
         self.compile(self.model)
 
@@ -77,7 +77,11 @@ class LipSyncModel(BasicModel):
                 sync_weight = self.criteria['sync_loss'].loss_weight
                 sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
 
-                recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
+                weight_mask = self.mask.inverse_mask
+                weight_mask[weight_mask == 0] = 0.5
+                weight_mask = rearrange(weight_mask, '(b t) c h w -> b c t h w ', b=pred_y.size(0))
+                recon_loss = self.criteria['recon_loss'](pred_y, y, weight_mask) if 'recon_loss' in self.criteria.keys() else 0
+                # recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
                 perceptual_loss = self.criteria['perceptual_loss'](pred_y,
                                                                    y) if 'perceptual_loss' in self.criteria.keys() else 0

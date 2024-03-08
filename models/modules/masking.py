@@ -14,7 +14,7 @@ from arch.segmentation import BiSeNet
 
 class Masking(nn.Module):
 
-    def __init__(self, size=256, pad=0, half_precision=True, norm=True, lip_ratio=2, half_face=True):
+    def __init__(self, size=256, pad=0, half_precision=True, norm=True, lip_ratio=2, half_face=False):
         """
         Masking toolkit for half-face masking
         Args:
