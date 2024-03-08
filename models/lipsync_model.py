@@ -40,6 +40,7 @@ class LipSyncModel(BasicModel):
         self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.use_amp = opt.get('use_amp', False)
+        self.use_mask = opt.get('use_mask', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
         self.no_ddp_model = self.model_no_ddp(model)
@@ -75,7 +76,8 @@ class LipSyncModel(BasicModel):
                 pred_y = self.model(indiv_mels, x)
 
                 sync_weight = self.criteria['sync_loss'].loss_weight
-                sync_loss = self.criteria['sync_loss'](mel, pred_y, self.mask) if sync_weight != 0 else 0
+                sync_loss = self.criteria['sync_loss'](mel, pred_y,
+                                                       mask=self.mask if self.use_mask else None) if sync_weight != 0 else 0
 
                 recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
