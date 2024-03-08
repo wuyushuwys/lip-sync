@@ -80,7 +80,7 @@ class LipSyncModel(BasicModel):
                 weight_mask = self.mask.inverse_mask
                 weight_mask[weight_mask == 0] = 0.5
                 weight_mask = rearrange(weight_mask, '(b t) c h w -> b c t h w ', b=pred_y.size(0))
-                recon_loss = self.criteria['recon_loss'](pred_y, y, weight_mask) if 'recon_loss' in self.criteria.keys() else 0
+                recon_loss = self.criteria['recon_loss'](pred_y, y, weight=weight_mask) if 'recon_loss' in self.criteria.keys() else 0
                 # recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
                 perceptual_loss = self.criteria['perceptual_loss'](pred_y,
