@@ -362,7 +362,7 @@ class FrameMelDataset(Dataset):
                 t, c, h, w = img_window.size()
                 img_window = img_window.reshape(t * c, h, w)
                 if self.bottom_half:
-                    img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+                    img_window = img_window[..., h // 2:, :].contiguous()
         else:
             img_window = torch.cat(img_window, dim=0) / 255
             if self.bottom_half:
