@@ -217,9 +217,8 @@ class FrameMelDataset(Dataset):
         else:
             skip_start = 2
             skip_end = len(frame_list) - self.window_size - 3
-        if self.mode == utils.mode.TRAIN:
+        if self.mode == utils.mode.TRAIN or self.data_spec.get("random_eval", False):
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-        # fix data in evaluation (need more testing to verify correctness)
         else:
             interval = max((skip_end - skip_start) // self.num_samples, 1)
             if interval > 1:
@@ -303,7 +302,7 @@ class FrameMelDataset(Dataset):
             skip_start = 0
             skip_end = len(frame_list) - self.window_size - 1
 
-        if self.mode == utils.mode.TRAIN:
+        if self.mode == utils.mode.TRAIN or self.data_spec.get("random_eval", False):
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
         # fix data in evaluation (need more testing to verify correctness)
         else:
