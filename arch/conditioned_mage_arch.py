@@ -307,8 +307,8 @@ class DoubleConditionedMAGE(nn.Module):
 
                     if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
                         break
-                    # else:
-                    #     print("Rerandom the noise!")
+                    else:
+                        print("Rerandom the noise!")
 
         # print(mask_rate, num_dropped_tokens, num_masked_tokens, token_drop_mask.sum(dim=1), token_all_mask.sum(dim=1))
         x_indices[token_all_mask.nonzero(as_tuple=True)] = self.mask_token_label

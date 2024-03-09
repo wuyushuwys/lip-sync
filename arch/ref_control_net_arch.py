@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_modulate', zero_init=False):
+    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_gated_modulate', zero_init=False):
         super().__init__()
         logger = get_logger()
         # load face vq_model

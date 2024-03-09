@@ -99,7 +99,7 @@ class Wav2Lip(nn.Module):
         self.output_block = nn.Sequential(
             Conv2d(80, 32, kernel_size=3, stride=1, padding=1, norm=norm),
             nn.Conv2d(32, 3, kernel_size=1, stride=1, padding=0),
-            nn.Sigmoid() if sigmoid else nn.Identity()
+            nn.Sigmoid() if sigmoid else nn.Tanh()
         )
 
         self._init_weights()
