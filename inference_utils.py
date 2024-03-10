@@ -72,11 +72,14 @@ class GenerateDataset(Dataset):
         with open(os.path.join(folder, 'meta.txt'), 'r') as f:
             lines = f.readlines()
             for line in lines:
-                name, bbox, lm, inv_affine = line.rstrip('\n').split(' ')
+                if landmark:
+                    name, bbox, lm, inv_affine = line.rstrip('\n').split(' ')
+                    self.landmarks[name] = np.split(np.fromstring(lm, dtype=np.float32, sep=','), 5, axis=0)
+                    self.inv_affine_matrices[name] = np.array(
+                        np.split(np.fromstring(inv_affine, dtype=np.float32, sep=','), 2, axis=0))
+                else:
+                    name, bbox = line.rstrip('\n').split(' ')
                 self.coords[name] = list(map(lambda v: eval(v), bbox.split(',')))
-                self.landmarks[name] = np.split(np.fromstring(lm, dtype=np.float32, sep=','), 5, axis=0)
-                self.inv_affine_matrices[name] = np.array(np.split(np.fromstring(inv_affine, dtype=np.float32, sep=','), 2,
-                                                          axis=0))
 
                 # print(np.fromstring(lm, dtype=np.float32, sep=',').reshape(5, 2))
         # self.mel_spec = mel_spec

@@ -14,7 +14,6 @@ from .modules.masking import Masking
 from .basic_model import BasicModel
 
 
-torch.optim.Adam
 class RefControlModel(BasicModel):
 
     def __init__(self,
@@ -67,8 +66,6 @@ class RefControlModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
             total_batches = (epoch - 1) * nb + batch_idx
-
-            self.curr_iterations = total_batches
 
             x, indiv_mels, mel, y = batch
 

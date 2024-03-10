@@ -21,7 +21,7 @@ from models.modules.masking import Masking
 from utils import audio
 
 EXT = 'jpg'
-TMP_FOLDER = 'tmp'
+TMP_FOLDER = 'tmp_pad'
 SAMPLE_RATE = 16000
 FPS = 25
 
@@ -88,9 +88,17 @@ def face_crop():
                     if args.smooth:
                         bbox_ema.update(np.array(bbox))
                         x1, y1, x2, y2 = bbox_ema.avg_value.astype(int).tolist()
-                        bbox = x1, y1, x2, y2
                     else:
                         x1, y1, x2, y2 = bbox
+                    hh = y2 - y1
+                    hw = x2 - x1
+                    h_pad = 0.1
+                    w_pad = 0.25
+                    x1 = int(x1 - w_pad * hw) if x1 - w_pad * hw >=0 else 0
+                    y1 = int(y1 - h_pad * hh) if y1 - h_pad * hh >= 0 else 0
+                    x2 = int(x2 + w_pad * hw)
+                    y2 = int(y2 + h_pad * hw)
+                    bbox = x1, y1, x2, y2
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
                     f.write(meta_line(name, *bbox))
@@ -182,7 +190,7 @@ if __name__ == '__main__':
                 inv_soft_mask = inv_soft_mask[:, :, None]
                 face = (inv_soft_mask * pasted_face + (1 - inv_soft_mask) * ori_face).astype(np.uint8)
                 # face = (face * face_mask + ori_face * (1 - face_mask)).astype(np.uint8)
-            #     face = (face * face_mask).astype(np.uint8)
+                # face = (face * face_mask).astype(np.uint8)
             if args.verbose:
                 g = face.copy()
                 ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))
@@ -192,10 +200,10 @@ if __name__ == '__main__':
                 cv2.imwrite(f'{TMP_FOLDER}/diff/{frame_idx:06d}.jpg', np.abs(diff).astype(np.uint8))
                 cv2.imwrite(f'{TMP_FOLDER}/compare/{frame_idx:06d}.jpg', concat.astype(np.uint8))
             # w_offset = int(48 / 256 * (x2 - x1))
-            h_offset = int(64 / 256 * (y2 - y1))
+            # h_offset = int(64 / 256 * (y2 - y1))
             resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
             # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
-            frame[y1 + h_offset:y2, x1:x2] = resize_face[h_offset:, ...]
+            frame[y1:y2, x1:x2] = resize_face
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
