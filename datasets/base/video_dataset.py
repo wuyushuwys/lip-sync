@@ -298,11 +298,11 @@ class FrameMelDataset(Dataset):
             skip_start = int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size - 1)
             if skip_end - skip_start < self.window_size + 1:
-                skip_start = 0
-                skip_end = len(frame_list) - self.window_size - 1
+                skip_start = 2
+                skip_end = len(frame_list) - self.window_size - 3
         else:
-            skip_start = 0
-            skip_end = len(frame_list) - self.window_size - 1
+            skip_start = 2
+            skip_end = len(frame_list) - self.window_size - 3
 
         if self.mode == utils.mode.TRAIN or self.data_spec.get("random_eval", False):
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
