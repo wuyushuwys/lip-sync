@@ -34,7 +34,8 @@ class FrameMelDataset(Dataset):
                  audio_cache_path: AnyStr = None,
                  video_cache_path: AnyStr = None,
                  skip_offset: float = None,
-                 crop: list = None) -> None:
+                 crop: list = None,
+                 extent_factor: int = None) -> None:
         super().__init__()
 
         logger = get_logger()
@@ -66,7 +67,8 @@ class FrameMelDataset(Dataset):
             self.num_samples = self.data_spec.num_samples  # number of samples from each video
         elif self.mode == utils.mode.EVAL:
             self.num_samples = self.data_spec.eval_samples  # number of samples from each video
-
+        if extent_factor:
+            self.num_samples = int(self.num_samples * extent_factor)
         # if self.model == 'syncnet':
         #     # Indexing eval list
         #     if self.mode == utils.mode.EVAL:
