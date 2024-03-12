@@ -93,8 +93,6 @@ class MageModel(BasicModel):
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
-            # loss.backward()
-            # self.optimizer.step()
             self.scheduler.step()
 
             log_vars['@lr'] = self.scheduler.get_last_lr()[0]

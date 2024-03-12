@@ -162,8 +162,9 @@ class CrossAttention(nn.Module):
 class CrossBlock(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, modulation=False):
         super(CrossBlock, self).__init__()
+        self.modulation = modulation
         self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         # self attention module
@@ -180,23 +181,52 @@ class CrossBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-    def forward(self, x, x_key, x_query, return_attention=False):
+        if modulation:
+            # todo: check modulation for cross_attn
+            self.adaLN = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(dim, 6 * dim, bias=True)
+            )
+
+    def forward(self, x, x_key, x_query, cond=None, return_attention=False):
         if return_attention:
             _, attn = self.attn(self.norm1(x), return_attention)
             _, attn = self.cross_attn(self.norm1(x), x_key, x_query, return_attention)
             return attn
         else:
-            # self-attention
-            y = self.attn(self.norm1(x), return_attention)
-            x = x + self.drop_path(y)
+            if self.modulation:
+                shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN(cond).chunk(6, dim=1)
 
-            # cross-attention with lq
-            y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
-            x = x + self.drop_path(y)
+                # modulate self-attention
+                y = gate_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa),
+                                                      return_attention)
+                x = x + self.drop_path(y)
 
-            # mlp forward
-            x = x + self.drop_path(self.mlp(self.norm3(x)))
+                # cross-attention with reference
+                y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
+                x = x + self.drop_path(y)
+
+                # modulate mlp forward
+                x = x + gate_mlp.unsqueeze(1) * self.drop_path(self.mlp(self.modulate(x=self.norm3(x),
+                                                                                      shift=shift_mlp,
+                                                                                      scale=scale_mlp)))
+
+            else:
+                # self-attention
+                y = self.attn(self.norm1(x), return_attention)
+                x = x + self.drop_path(y)
+
+                # cross-attention with reference
+                y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
+                x = x + self.drop_path(y)
+
+                # mlp forward
+                x = x + self.drop_path(self.mlp(self.norm3(x)))
             return x
+
+    @staticmethod
+    def modulate(x, shift, scale):
+        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
 
 
 class Block(nn.Module):

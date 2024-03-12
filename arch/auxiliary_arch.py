@@ -85,14 +85,11 @@ class AudioEncoder(nn.Module):
 
             Block(128, 256, kernel_size=3, stride=(3, 2), padding=1),
             Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
-            Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
 
             Block(256, 512, kernel_size=3, stride=1, padding=1),
             Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
-            Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
 
-            Block(512, 1024, kernel_size=3, stride=1, padding=0, act='relu'),
-            Block(1024, emb_dim, kernel_size=1, stride=1, padding=0, act='relu'), )
+            Block(512, emb_dim, kernel_size=1, stride=1, padding=0))
 
     def forward(self, x):
         audio_embedding = self.audio_encoder(x)

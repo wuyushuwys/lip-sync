@@ -17,7 +17,7 @@ from utils.logging_tool import get_logger
 from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .ref_control_net_arch import RefControlNet
-from .auxiliary_arch import AudioNet
+from .auxiliary_arch import AudioNet, AudioEncoder
 from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
 
@@ -58,14 +58,32 @@ class DoubleConditionedMAGE(nn.Module):
         super().__init__()
         logger = get_logger()
         # --------------------------------------------------------------------------
-        # VQGAN specifics
-        vq_config = OmegaConf.load(vq_config_path)
-        self.vqgan = FaceCoderNet(**vq_config.g_model)
-        if os.path.exists(vq_state_dict):
-            self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
-            logger.info(f"Load vq model weight from {vq_state_dict}")
+        # VQGAN with reference control specifics
+        self.ref_control = ref_control
+        if ref_control:
+            self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
+                                                vq_state_dict=vq_state_dict)
+            self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
+            logger.info(f"Enable reference control: {ref_control}")
+            setattr(self, 'vqgan', self.ref_controller.vqgan)
+
+            # froze the pretrained ref_controller model
+            for p in self.ref_controller.parameters():
+                p.requires_grad = False
+
         else:
-            raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
+            # VQGAN specifics
+            vq_config = OmegaConf.load(vq_config_path)
+            self.vqgan = FaceCoderNet(**vq_config.g_model)
+            if os.path.exists(vq_state_dict):
+                self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
+                logger.info(f"Load vq model weight from {vq_state_dict}")
+            else:
+                raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
+
+            # froze the pretrained vqgan model
+            for p in self.vqgan.parameters():
+                p.requires_grad = False
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
@@ -74,16 +92,6 @@ class DoubleConditionedMAGE(nn.Module):
         self.fake_class_label = self.codebook_size  # fake token is said to gather global information among all tokens
         self.mask_token_label = self.codebook_size + 1
         self.encoder_embed_dim = embed_dim
-        # froze the pretrained vqgan model
-        for param in self.vqgan.parameters():
-            param.requires_grad = False
-
-        self.ref_control = ref_control
-        if ref_control:
-            self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
-                                                vq_state_dict=vq_state_dict)
-            self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
-            logger.info(f"Enable reference control: {ref_control}")
 
         logger.info(f"Use Flash Attention: {use_fused_attn()}")
         logger.info(f"MAGE_encoder_related_embeddingindex: "
@@ -95,7 +103,7 @@ class DoubleConditionedMAGE(nn.Module):
         # create audio encoder based on decoder_embed_dim
         self.use_audio_reference = use_audio_reference
         if use_audio_reference:
-            self.audio_net = AudioNet(emb_dim=decoder_embed_dim)
+            self.audio_net = AudioEncoder(emb_dim=decoder_embed_dim)
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
@@ -105,18 +113,14 @@ class DoubleConditionedMAGE(nn.Module):
             else:
                 self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
-        if use_image_reference or use_audio_reference:
-            self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
+        # if use_image_reference or use_audio_reference:
+        #     self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
 
         self.tokenize_reference = tokenize_reference
 
         logger.info(f"use_audio_reference:{use_audio_reference}")
         logger.info(f"use_image_reference:{use_image_reference}")
         logger.info(f"tokenize_reference:{tokenize_reference}")
-
-        # self.encoder_pos_embed = encoder_pos_embed
-        # if encoder_pos_embed:
-        #     self.encoder_pos = PositionalEncoding(d_model=embed_dim)
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
@@ -162,10 +166,13 @@ class DoubleConditionedMAGE(nn.Module):
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
-        self.transformer_decoder = TransformerDecoder(decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
-                                                      mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
-                                                      norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-                                                      cross_attn=self.use_image_reference or self.use_audio_reference)
+        self.transformer_decoder = TransformerDecoder(
+            decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
+            mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
+            norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
+            cross_attn=self.use_image_reference,  # add image reference information in cross attention
+            modulation=self.use_audio_reference,  # add audio reference information in modulation
+        )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
         # self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)  # decoder to patch
@@ -373,18 +380,22 @@ class DoubleConditionedMAGE(nn.Module):
         # add pos embed
         x = x_after_pad + self.decoder_pos_embed_learned
 
-        if self.use_audio_reference and self.use_image_reference:
-            assert audio_emb.size(-1) == ref_emb.size(-1)
-            ref = torch.cat([audio_emb, ref_emb], dim=1)
-            ref += self.cross_embed(ref)
-        elif self.use_audio_reference:
-            ref = audio_emb + self.cross_embed(audio_emb)
-        elif self.use_image_reference:
-            ref = ref_emb + self.cross_embed(ref_emb)
+        # if self.use_audio_reference and self.use_image_reference:
+        #     assert audio_emb.size(-1) == ref_emb.size(-1)
+        #     ref = torch.cat([audio_emb, ref_emb], dim=1)
+        # elif self.use_audio_reference:
+        #     ref = audio_emb
+        # elif self.use_image_reference:
+        #     ref = ref_emb
+        # else:
+        #     ref = x
+        # ref += self.cross_embed(ref)
+        if self.use_image_reference:
+            ref = ref_emb
         else:
             ref = x
         # apply Transformer blocks
-        x = self.transformer_decoder(x, ref, ref)
+        x = self.transformer_decoder(x, key=ref, value=ref, cond=audio_emb if self.use_audio_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -466,18 +477,18 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
         super().__init__()
-        module = CrossBlock if cross_attn else Block
+        module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
         self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, query):
+    def forward(self, x, key, query, cond=None):
         assert key.size() == query.size()
         for blk in self.decoder_blocks:
-            x = blk(x, key, query) if self.cross_attn else blk(x)
+            x = blk(x, key, query, cond) if self.cross_attn else blk(x)
         return x
 
 
