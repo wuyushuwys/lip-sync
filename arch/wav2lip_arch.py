@@ -7,7 +7,7 @@ from models.evaluation import evaluate_lip
 
 
 class Wav2Lip(nn.Module):
-    def __init__(self, norm='bn', sigmoid=False):
+    def __init__(self, norm='bn', sigmoid=False, finetune=False):
         super(Wav2Lip, self).__init__()
 
         self.face_encoder_blocks = nn.ModuleList([
@@ -103,6 +103,13 @@ class Wav2Lip(nn.Module):
         )
 
         self._init_weights()
+
+        if finetune:
+            for p in self.parameters():
+                p.requires_grad = False
+            for p in self.output_block.parameters():
+                p.requires_grad = True
+
 
     def forward(self, audio_sequences, face_sequences):
         # face_sequences = 2 * face_sequences - 1  # shift data range from [0, 1] to [-1, 1]
