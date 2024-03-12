@@ -428,7 +428,7 @@ class DoubleConditionedMAGE(nn.Module):
         # generate ref_emb and audio_emb when use_image/audio_reference
         ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
         audio_emb = self.audio_net(audio) if self.use_audio_reference else None
-        assert audio_emb.size(-1) == self.decoder_embed
+
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
