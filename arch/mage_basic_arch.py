@@ -188,10 +188,10 @@ class CrossBlock(nn.Module):
                 nn.Linear(dim, 6 * dim, bias=True)
             )
 
-    def forward(self, x, x_key, x_query, cond=None, return_attention=False):
+    def forward(self, x, x_key, x_value, cond=None, return_attention=False):
         if return_attention:
             _, attn = self.attn(self.norm1(x), return_attention)
-            _, attn = self.cross_attn(self.norm1(x), x_key, x_query, return_attention)
+            _, attn = self.cross_attn(self.norm1(x), x_key, x_value, return_attention)
             return attn
         else:
             if self.modulation:
@@ -203,7 +203,7 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
+                y = self.cross_attn(self.norm2(x), x_key, x_value, return_attention)
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward

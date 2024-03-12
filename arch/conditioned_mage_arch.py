@@ -485,10 +485,10 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, query, cond=None):
-        assert key.size() == query.size()
+    def forward(self, x, key, value, cond=None):
+        assert key.size() == value.size()
         for blk in self.decoder_blocks:
-            x = blk(x, key, query, cond) if self.cross_attn else blk(x)
+            x = blk(x, key, value, cond) if self.cross_attn else blk(x)
         return x
 
 
