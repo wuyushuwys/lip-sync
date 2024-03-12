@@ -187,6 +187,10 @@ class CrossBlock(nn.Module):
                 nn.SiLU(),
                 nn.Linear(dim, 6 * dim, bias=True)
             )
+            for m in self.adaLN.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.constant_(m.weight, 0)
+                    torch.nn.init.constant_(m.bias, 0)
 
     def forward(self, x, x_key, x_value, cond=None, return_attention=False):
         if return_attention:
