@@ -110,7 +110,6 @@ class Wav2Lip(nn.Module):
             for p in self.output_block.parameters():
                 p.requires_grad = True
 
-
     def forward(self, audio_sequences, face_sequences):
         # face_sequences = 2 * face_sequences - 1  # shift data range from [0, 1] to [-1, 1]
         # face_sequences = face_sequences - 0.5  # shift data range from [0, 1] to [-0.5, 0.5]
