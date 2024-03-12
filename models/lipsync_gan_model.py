@@ -53,7 +53,7 @@ class LipSyncGAN(BasicModel):
 
         mask_kwargs = opt.get("mask", dict(half_precision=True))
         self.mask = Masking(**mask_kwargs).to(self.local_rank)
-
+        self.use_mask = opt.get('use_mask', False)
         # self.ema_g_model = self.create_ema(self.g_model, power=0.75)
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
@@ -96,7 +96,8 @@ class LipSyncGAN(BasicModel):
             pred_y = self.g_model(indiv_mels, x)
 
             sync_weight = self.criteria['sync_loss'].loss_weight
-            sync_loss = self.criteria['sync_loss'](mel, pred_y) if sync_weight != 0 else 0
+            sync_loss = self.criteria['sync_loss'](mel, pred_y,
+                                                   mask=self.mask if self.use_mask else None) if sync_weight != 0 else 0
 
             if 'recon_loss' in self.criteria.keys():
                 recon_loss = self.criteria['recon_loss'](pred_y, y)
