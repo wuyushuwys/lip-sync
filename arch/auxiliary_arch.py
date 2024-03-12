@@ -6,9 +6,42 @@ from torch import nn
 from utils.logging_tool import get_logger
 
 
+class GatedActivation(nn.Module):
+
+    def __init__(self, dim, mode='Conv2d', act='silu'):
+        super().__init__()
+        if mode.lower() == 'conv2d':
+            module = partial(nn.Conv2d, kernel_size=1)
+            self.split_dim = -3
+        elif mode.lower() == 'linear':
+            module = nn.Linear
+            self.split_dim = -1
+        else:
+            raise NotImplementedError(mode)
+
+        self.proj = module(dim, 2 * dim)
+        if act == 'relu':
+            self.act = nn.ReLU(True)
+        elif act == 'leaky':
+            self.act = nn.LeakyReLU(0.2, inplace=True)
+        elif act == 'silu':
+            self.act = nn.SiLU()
+        elif act == 'gelu':
+            self.act = nn.GELU()
+        else:
+            raise NotImplementedError(act)
+
+    def forward(self, x):
+
+        x, gate = self.proj(x).chunk(2, dim=self.split_dim)
+        return self.act(x) * gate
+
+
 class Block(nn.Module):
     def __init__(self, cin, cout, kernel_size, stride, padding,
-                 residual=False, act='leaky',
+                 residual=False,
+                 act='leaky',
+                 gated=False,
                  norm='bn'):
         super().__init__()
         if norm == 'bn':
@@ -22,12 +55,17 @@ class Block(nn.Module):
             norm(cout)
         )
         self.residual = residual
-        if act == 'relu':
-            self.act = nn.ReLU(True)
-        elif act == 'leaky':
-            self.act = nn.LeakyReLU(0.2, inplace=True)
+        if gated:
+            self.act = GatedActivation(dim=cout, mode='Conv2d')
         else:
-            raise NotImplementedError()
+            if act == 'relu':
+                self.act = nn.ReLU(True)
+            elif act == 'leaky':
+                self.act = nn.LeakyReLU(0.2, inplace=True)
+            elif act == 'silu':
+                self.act = nn.SiLU(True)
+            else:
+                raise NotImplementedError()
 
     def forward(self, x):
         out = self.conv_block(x)
@@ -89,7 +127,9 @@ class AudioEncoder(nn.Module):
             Block(256, 512, kernel_size=3, stride=1, padding=1),
             Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
 
-            Block(512, emb_dim, kernel_size=1, stride=1, padding=0))
+            Block(512, emb_dim, kernel_size=3, stride=1, padding=0),
+            Block(emb_dim, emb_dim, kernel_size=1, stride=1, padding=0, act='silu', gated=True),
+        )
 
     def forward(self, x):
         audio_embedding = self.audio_encoder(x)

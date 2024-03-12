@@ -198,7 +198,9 @@ class CrossBlock(nn.Module):
                 shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN(cond).chunk(6, dim=1)
 
                 # modulate self-attention
-                y = gate_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa),
+                y = gate_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x),
+                                                                    shift=shift_msa,
+                                                                    scale=scale_msa),
                                                       return_attention)
                 x = x + self.drop_path(y)
 
@@ -217,7 +219,7 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_key, x_query, return_attention)
+                y = self.cross_attn(self.norm2(x), x_key, x_value, return_attention)
                 x = x + self.drop_path(y)
 
                 # mlp forward
