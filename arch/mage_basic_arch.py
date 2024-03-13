@@ -185,7 +185,8 @@ class CrossBlock(nn.Module):
             # todo: check modulation for cross_attn
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(dim, 6 * dim, bias=True)
+                nn.Linear(dim, 6 * dim, bias=True),
+                nn.Dropout(drop)
             )
             for m in self.adaLN.modules():
                 if isinstance(m, nn.Linear):

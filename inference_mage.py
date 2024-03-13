@@ -44,6 +44,7 @@ parser.add_argument('--ckpt', type=str, required=True, help='model ckpt path')
 parser.add_argument('--output', type=str, default='output.mp4', help='output video path')
 parser.add_argument('--verbose', action='store_true', help='whether save results during generation for debug')
 parser.add_argument('--clean', action='store_true', help='whether clean intermedia results afterwards')
+parser.add_argument('--attach_lip', action='store_true', help='whether attach lip part only')
 
 args = parser.parse_args()
 
@@ -119,9 +120,7 @@ if __name__ == '__main__':
         h, w, _ = cv2.imread(os.path.join(frame_dir, img_file)).shape
     print(f"Video Resolution {h}x{w}")
 
-    # h, w = 720, 1280
-    # h, w = 1080, 1920
-    wav = audio.load_wav(path=args.audio, sr=SAMPLE_RATE)[:SAMPLE_RATE*10]
+    wav = audio.load_wav(path=args.audio, sr=SAMPLE_RATE)
     print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
     mel = audio.melspectrogram(wav).T
 
@@ -141,15 +140,16 @@ if __name__ == '__main__':
     inv_affine_matrices = dataset.inv_affine_matrices
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     mask_module = Masking(half_precision=True, norm=False).to(device)
-    # model = lip_mage_vit_base(vq_config_path="config/vqgan.yml", use_audio_reference=True,
-    #                           use_image_reference=True,
-    #                           mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
-    #                           vq_state_dict="pretrained/vq_model_512_256.pt",
-    #                           ref_control=True,
-    #                           ref_controller_state_dict='refcontrolnet_gated.pt')
-    model = RefControlNet(vq_config_path="config/vqgan.yml",
-                          vq_state_dict="pretrained/vq_model_512_256.pt",
-                          modulate_type='ada_gated_modulate')
+    model = lip_mage_vit_base(vq_config_path="config/vqgan.yml",
+                              vq_state_dict="pretrained/vq_model_512_256.pt",
+                              use_audio_reference=True,
+                              use_image_reference=True,
+                              mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
+                              ref_control=True,
+                              ref_controller_state_dict='refcontrolnet_gated.pt')
+    # model = RefControlNet(vq_config_path="config/vqgan.yml",
+    #                       vq_state_dict="pretrained/vq_model_512_256.pt",
+    #                       modulate_type='ada_gated_modulate')
 
     model.load_state_dict(torch.load(args.ckpt), strict=False)
     model.to(device)
@@ -195,12 +195,12 @@ if __name__ == '__main__':
                                 dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
                                 enabled=True):
                 # g, _ = model.vqgan(x)
-                g = model(x, x)
-                # (loss, acc), g, token_all_mask = model(x_masked,
-                #                                        gt=x,
-                #                                        ref=x,
-                #                                        audio=indiv_mels,
-                #                                        generate=True)
+                # g = model(x, x)
+                (loss, acc), g, token_all_mask = model(x_masked,
+                                                       gt=x,
+                                                       ref=x,
+                                                       audio=indiv_mels,
+                                                       generate=True)
             g = g.to(torch.float32).clamp(-1, 1) / 2 + 0.5
 
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
@@ -211,8 +211,10 @@ if __name__ == '__main__':
             frame = frame.flip(-1).numpy()
             restored_face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
             inv_restored = cv2.warpAffine(restored_face, inverse_matrix, (w, h))
-            # mask = np.ones([SIZE, SIZE], dtype=np.float32)
-            mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
+            if not args.attach_lip:
+                mask = np.ones([SIZE, SIZE], dtype=np.float32)
+            else:
+                mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
             inv_mask = cv2.warpAffine(mask, inverse_matrix, (w, h))
             inv_mask_erosion = cv2.erode(inv_mask, np.ones((2, 2), np.uint8))
             pasted_face = inv_mask_erosion[:, :, None] * inv_restored

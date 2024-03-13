@@ -88,6 +88,9 @@ def test(dataloader: DataLoader,
             y = rearrange(y, 'b c t h w -> (b t) c h w')
         elif len(batch) == 2:
             x, y = batch
+            x = x.to(args.local_rank, non_blocking=True)
+            y = y.to(args.local_rank, non_blocking=True)
+
             ref = x.clone()
         else:
             raise NotImplementedError(len(batch))
