@@ -66,25 +66,33 @@ def test(dataloader: DataLoader,
     ssim = compute_per_image(SSIM(data_range=1))
     ms_ssim = compute_per_image(MS_SSIM(data_range=1))
 
-    for idx, (x, indiv_mels, mel, y) in enumerate(dataloader, start=1):
+    for idx, batch in enumerate(dataloader, start=1):
+
+        if len(batch) == 4:
+            x, indiv_mels, mel, y = batch
+
+            x = x.to(args.local_rank, non_blocking=True)
+
+            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                         torch.split(x, 3, dim=1))
+
+            assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
+
+            # indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
+            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+
+            # unused for now
+            # mel = mel.to(args.local_rank, non_blocking=True)
+
+            y = y.to(args.local_rank, non_blocking=True)
+            y = rearrange(y, 'b c t h w -> (b t) c h w')
+        elif len(batch) == 2:
+            x, y = batch
+            ref = x.clone()
+        else:
+            raise NotImplementedError(len(batch))
         bsz = x.size(0)
-        x = x.to(args.local_rank, non_blocking=True)
 
-        x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                     torch.split(x, 3, dim=1))
-
-        assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
-
-        # indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
-        # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
-
-        # unused for now
-        # mel = mel.to(args.local_rank, non_blocking=True)
-
-        y = y.to(args.local_rank, non_blocking=True)
-        y = rearrange(y, 'b c t h w -> (b t) c h w')
-
-        # x_masked = mask(x.clone())
         x_orig, _ = model.module.vqgan(x)
         g = model(x, ref)
 

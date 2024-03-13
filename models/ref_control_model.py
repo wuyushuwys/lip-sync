@@ -66,26 +66,30 @@ class RefControlModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
             total_batches = (epoch - 1) * nb + batch_idx
+            if len(batch) == 4:
+                x, indiv_mels, mel, y = batch
 
-            x, indiv_mels, mel, y = batch
+                x = x.to(self.local_rank, non_blocking=True)
 
-            x = x.to(self.local_rank, non_blocking=True)
+                # REF is the frame from the same video clip with X but not identical
+                x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                             torch.split(x, 3, dim=1))
 
-            # REF is the frame from the same video clip with X but not identical
-            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                         torch.split(x, 3, dim=1))
+                assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
-            assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
+                # indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
+                # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
 
-            # indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
-            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+                # unused for now
+                # mel = mel.to(self.local_rank, non_blocking=True)
 
-            # unused for now
-            # mel = mel.to(self.local_rank, non_blocking=True)
-
-            y = y.to(self.local_rank, non_blocking=True)
-            y = rearrange(y, 'b c t h w -> (b t) c h w')
-
+                y = y.to(self.local_rank, non_blocking=True)
+                y = rearrange(y, 'b c t h w -> (b t) c h w')
+            elif len(batch) == 2:
+                x, y = batch
+                ref = x.clone()
+            else:
+                raise NotImplementedError(len(batch))
             # mask face
             # with torch.no_grad():
             #     x_masked = self.mask(x.clone())
