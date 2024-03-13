@@ -72,7 +72,7 @@ class BasicModel(ABC):
             ckpt_loader(ckpt, **kwargs)
             start_epoch = ckpt['epoch'] - 1
             logger.info(f'Load checkpoint from {ckpt_path}. Resume from epoch {start_epoch}')
-            self.eta_timer.total_iterations -= start_epoch * len(self.train_data_loader)
+            # self.eta_timer.total_iterations = start_epoch * len(self.train_data_loader)
         else:
             start_epoch = 0
         return start_epoch
