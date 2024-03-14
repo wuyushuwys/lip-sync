@@ -125,15 +125,15 @@ def create_criteria(args: argparse.Namespace):
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
     logger = get_logger()
 
-    def _get_optim(type):
-        if type == 'SM3':
+    def _get_optim(optim_type):
+        if optim_type == 'SM3':
             try:
                 from SM3 import SM3
             except ImportError:
                 raise ImportError("No SM3 found. Please install SM3 via pip install torch-SM3")
             return SM3
         else:
-            return getattr(torch.optim, type)
+            return getattr(torch.optim, optim_type)
 
     assert hasattr(args, 'optim'), "Missing optim in model config"
     if isinstance(args.optim, ListConfig):
