@@ -14,7 +14,7 @@ from timm.layers import use_fused_attn
 
 from utils.logging_tool import get_logger
 
-from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
+from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings
 from .fema_vqgan_arch import FaceCoderNet
 from .ref_control_net_arch import RefControlNet
 from .auxiliary_arch import AudioNet, AudioEncoder
@@ -43,18 +43,30 @@ class DoubleConditionedMAGE(nn.Module):
 
     """
 
-    def __init__(self, img_size=256, patch_size=16, in_chans=3,
-                 embed_dim=1024, depth=24, num_heads=16,
-                 decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
-                 mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
-                 eval_mask_ratio=0.5,
-                 vq_config_path='config/vqgan.yml', vq_state_dict=None,
-                 mage_pretrain_ckpt_path=None,
-                 use_audio_reference=True,
-                 use_image_reference=True,
-                 tokenize_reference=False,
-                 ref_control=False, ref_controller_state_dict=None):
+    def __init__(
+            self,
+            # some image related arguments. not in use
+            img_size=256, patch_size=16, in_chans=3,
+            # transformer encoder config
+            embed_dim=1024, depth=24, num_heads=16,
+            # transformer decoder config
+            decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+            # attention config
+            mlp_ratio=4., norm_layer=nn.LayerNorm,
+            # pixel level loss related
+            norm_pix_loss=False, gumble_softmax=False,
+            # mask modeling related
+            mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25, eval_mask_ratio=0.5,
+            # vqgan config
+            vq_config_path='config/vqgan.yml', vq_state_dict=None,
+            mage_pretrain_ckpt_path=None,
+            # reference information config
+            use_audio_reference=True,
+            use_image_reference=True,
+            tokenize_reference=False,
+            # reference control model config
+            ref_control=False, ref_controller_state_dict=None
+    ):
         super().__init__()
         logger = get_logger()
         # --------------------------------------------------------------------------
@@ -183,8 +195,9 @@ class DoubleConditionedMAGE(nn.Module):
         self.mlm_layer = MlmLayer(feat_emb_dim=decoder_embed_dim, word_emb_dim=embed_dim, vocab_size=vocab_size)
 
         self.norm_pix_loss = norm_pix_loss
+        self.gumble_softmax = gumble_softmax
 
-        self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
 
         if not mage_pretrain_ckpt_path:
             self.initialize_weights()
@@ -439,11 +452,31 @@ class DoubleConditionedMAGE(nn.Module):
             latent_res = self.vqgan.latent_resolution
             vq_emb = self.vqgan_embed_dim
             logits = logits[:, 1:, :self.vqgan.codebook_size]
+
             _, pred_indices = torch.topk(logits, k=1)
             pred_indices = pred_indices * token_all_mask[:, 1:, None] + gt_indices[..., None] * (
                     1 - token_all_mask[:, 1:, None])
             z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
                                                           shape=(bsz, latent_res, latent_res, vq_emb))
+            if self.training and self.norm_pix_loss:
+                if self.gumble_softmax:
+                    # get hard gumble softmax one_hot
+                    soft_one_hot = torch.nn.functional.gumbel_softmax(logits, tau=1, hard=True)
+                else:
+                    # get straight through one_hot
+                    y_soft = logits.softmax(dim=-1)
+                    y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices, 1.0)
+                    soft_one_hot = y_hard - y_soft.detach() + y_soft
+
+                b, seq_len, n_dim = logits.size()
+                h = int(np.sqrt(seq_len))
+                assert h == seq_len / h, f"{h}, {seq_len / h}"
+                soft_one_hot = rearrange(soft_one_hot, 'b (h w) n -> b n h w', h=h)
+                reshape_mask = rearrange(token_all_mask[:, 1:, None], 'b (h w) n -> b n h w', h=h)
+
+                z_q_soft = torch.einsum("b n h w, n d -> b d h w", soft_one_hot, self.vqgan.quantizer.embedding.weight)
+                z_q = z_q_soft * reshape_mask + z_q * (1 - reshape_mask)
+
             if self.ref_control:
                 control_latent = self.ref_controller.control_signal(ref)
                 imgs = self.vqgan.decode(z_q, control_latent=control_latent)
@@ -454,6 +487,11 @@ class DoubleConditionedMAGE(nn.Module):
 
     def __str__(self):
         return self.__class__.__name__.lower()
+
+
+def soft_topk(logits, k=1):
+    _, pred_indices = torch.topk(logits, k=k)
+    nn.functional.one_hot()
 
 
 class TransformerEncoder(nn.Module):
