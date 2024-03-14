@@ -125,9 +125,19 @@ def create_criteria(args: argparse.Namespace):
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
     logger = get_logger()
 
+    def _get_optim(type):
+        if type == 'SM3':
+            try:
+                from SM3 import SM3
+            except ImportError:
+                raise ImportError("No SM3 found. Please install SM3 via pip install torch-SM3")
+            return SM3
+        else:
+            return getattr(torch.optim, optim_args.get('type'))
+
     assert hasattr(args, 'optim'), "Missing optim in model config"
     if isinstance(args.optim, ListConfig):
-        optim_module = [getattr(torch.optim, optim_args.get('type')) for optim_args in args.optim]
+        optim_module = [ _get_optim(optim_args.get('type')) for optim_args in args.optim]
         optim_dict = [subdict(optim_args, 'type') for optim_args in args.optim]
         if args.distributed and args.scale_lr:
             for optim_arg in optim_dict:
@@ -136,7 +146,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
                 optim_arg['lr'] *= scalar
                 logger.info(f"Scale learning rate from {original_lr} --> {optim_arg.get('lr')}")
     elif isinstance(args.optim, DictConfig):
-        optim_module = getattr(torch.optim, args.optim.get('type'))
+        optim_module = _get_optim(args.optim.get('type'))
         optim_dict = subdict(args.optim, 'type')
         if args.distributed and args.scale_lr:
             original_lr = optim_dict.get('lr')
