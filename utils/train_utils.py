@@ -196,11 +196,11 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
 
             params_group = filter(lambda p: p.requires_grad, model.parameters())
 
-            if args.distributed and args.use_zero:
-                logger.info(f"Use Zero Redundancy Optimizer")
-                optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim, **optim_args)
-            else:
-                optimizer = optim(params_group, **optim_args)
+            # if args.distributed and args.use_zero:
+            #     logger.info(f"Use Zero Redundancy Optimizer")
+            #     optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim, **optim_args)
+            # else:
+            optimizer = optim(params_group, **optim_args)
 
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
@@ -231,11 +231,11 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
             else:
                 params_group = filter(lambda p: p.requires_grad, model.parameters())
 
-            if args.distributed and args.use_zero:
-                logger.info(f"Use Zero Redundancy Optimizer")
-                optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim_module, **optim_dict)
-            else:
-                optimizer = optim_module(params_group, **optim_dict)
+            # if args.distributed and args.use_zero:
+            #     logger.info(f"Use Zero Redundancy Optimizer")
+            #     optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim_module, **optim_dict)
+            # else:
+            optimizer = optim_module(params_group, **optim_dict)
 
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
