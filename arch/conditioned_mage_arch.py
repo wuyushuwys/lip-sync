@@ -450,39 +450,40 @@ class DoubleConditionedMAGE(nn.Module):
         loss = self.forward_loss(gt_indices, logits, token_all_mask) if return_loss else None
 
         if generate:
-            latent_res = self.vqgan.latent_resolution
-            vq_emb = self.vqgan_embed_dim
-            logits = logits[:, 1:, :self.vqgan.codebook_size]
+            with torch.set_grad_enabled(generate and self.training):
+                latent_res = self.vqgan.latent_resolution
+                vq_emb = self.vqgan_embed_dim
+                logits = logits[:, 1:, :self.vqgan.codebook_size]
 
-            _, pred_indices = torch.topk(logits, k=1)
-            pred_indices = pred_indices * token_all_mask[:, 1:, None] + gt_indices[..., None] * (
-                    1 - token_all_mask[:, 1:, None])
-            z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
-                                                          shape=(bsz, latent_res, latent_res, vq_emb))
-            if self.training and self.norm_pix_loss:
-                if self.gumble_softmax:
-                    # get hard gumble softmax one_hot
-                    soft_one_hot = torch.nn.functional.gumbel_softmax(logits, tau=1, hard=True)
+                _, pred_indices = torch.topk(logits, k=1)
+                pred_indices = pred_indices * token_all_mask[:, 1:, None] + gt_indices[..., None] * (
+                        1 - token_all_mask[:, 1:, None])
+                z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
+                                                              shape=(bsz, latent_res, latent_res, vq_emb))
+                if self.training and self.norm_pix_loss:
+                    if self.gumble_softmax:
+                        # get hard gumble softmax one_hot
+                        soft_one_hot = torch.nn.functional.gumbel_softmax(logits, tau=1, hard=True)
+                    else:
+                        # get straight through one_hot
+                        y_soft = logits.softmax(dim=-1)
+                        y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices, 1.0)
+                        soft_one_hot = y_hard - y_soft.detach() + y_soft
+
+                    b, seq_len, n_dim = logits.size()
+                    h = int(np.sqrt(seq_len))
+                    assert h == seq_len / h, f"{h}, {seq_len / h}"
+                    soft_one_hot = rearrange(soft_one_hot, 'b (h w) n -> b n h w', h=h)
+                    reshape_mask = rearrange(token_all_mask[:, 1:, None], 'b (h w) n -> b n h w', h=h)
+
+                    z_q_soft = torch.einsum("b n h w, n d -> b d h w", soft_one_hot, self.vqgan.quantizer.embedding.weight)
+                    z_q = z_q_soft * reshape_mask + z_q * (1 - reshape_mask)
+
+                if self.ref_control:
+                    control_latent = self.ref_controller.control_signal(ref)
+                    imgs = self.vqgan.decode(z_q, control_latent=control_latent)
                 else:
-                    # get straight through one_hot
-                    y_soft = logits.softmax(dim=-1)
-                    y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices, 1.0)
-                    soft_one_hot = y_hard - y_soft.detach() + y_soft
-
-                b, seq_len, n_dim = logits.size()
-                h = int(np.sqrt(seq_len))
-                assert h == seq_len / h, f"{h}, {seq_len / h}"
-                soft_one_hot = rearrange(soft_one_hot, 'b (h w) n -> b n h w', h=h)
-                reshape_mask = rearrange(token_all_mask[:, 1:, None], 'b (h w) n -> b n h w', h=h)
-
-                z_q_soft = torch.einsum("b n h w, n d -> b d h w", soft_one_hot, self.vqgan.quantizer.embedding.weight)
-                z_q = z_q_soft * reshape_mask + z_q * (1 - reshape_mask)
-
-            if self.ref_control:
-                control_latent = self.ref_controller.control_signal(ref)
-                imgs = self.vqgan.decode(z_q, control_latent=control_latent)
-            else:
-                imgs = self.vqgan.decode(z_q)
+                    imgs = self.vqgan.decode(z_q)
 
         return loss, imgs, token_all_mask
 
