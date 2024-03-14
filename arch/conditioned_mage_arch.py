@@ -197,7 +197,7 @@ class DoubleConditionedMAGE(nn.Module):
         self.norm_pix_loss = norm_pix_loss
         self.gumble_softmax = gumble_softmax
 
-        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
 
         if not mage_pretrain_ckpt_path:
             self.initialize_weights()
@@ -445,9 +445,10 @@ class DoubleConditionedMAGE(nn.Module):
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
-        # compute prediction_masked_token_loss
 
+        # compute prediction_masked_token_loss
         loss = self.forward_loss(gt_indices, logits, token_all_mask) if return_loss else None
+
         if generate:
             latent_res = self.vqgan.latent_resolution
             vq_emb = self.vqgan_embed_dim
