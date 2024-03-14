@@ -14,7 +14,7 @@ from timm.layers import use_fused_attn
 
 from utils.logging_tool import get_logger
 
-from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings
+from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings, LabelSmoothingCrossEntropy
 from .fema_vqgan_arch import FaceCoderNet
 from .ref_control_net_arch import RefControlNet
 from .auxiliary_arch import AudioNet, AudioEncoder
@@ -197,8 +197,8 @@ class DoubleConditionedMAGE(nn.Module):
         self.norm_pix_loss = norm_pix_loss
         self.gumble_softmax = gumble_softmax
 
-        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
-
+        # self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
+        self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
         if not mage_pretrain_ckpt_path:
             self.initialize_weights()
         else:
