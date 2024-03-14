@@ -13,6 +13,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from torch.utils.data import DataLoader
+from torch.distributed.optim import ZeroRedundancyOptimizer
 
 from omegaconf.listconfig import ListConfig
 from omegaconf.dictconfig import DictConfig
@@ -195,7 +196,12 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
             # todo: modify if needed
 
             params_group = filter(lambda p: p.requires_grad, model.parameters())
-            optimizer = optim(params_group, **optim_args)
+
+            if args.distributed:
+                optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim, **optim_args)
+            else:
+                optimizer = optim(params_group, **optim_args)
+
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:
@@ -224,7 +230,12 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
                     {'params': decay, 'weight_decay': optim_dict.pop("weight_decay")}]
             else:
                 params_group = filter(lambda p: p.requires_grad, model.parameters())
-            optimizer = optim_module(params_group, **optim_dict)
+
+            if args.distributed:
+                optimizer = ZeroRedundancyOptimizer(params=params_group, optimizer_class=optim_module, **optim_dict)
+            else:
+                optimizer = optim_module(params_group, **optim_dict)
+
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:
