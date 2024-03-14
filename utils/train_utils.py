@@ -133,7 +133,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
                 raise ImportError("No SM3 found. Please install SM3 via pip install torch-SM3")
             return SM3
         else:
-            return getattr(torch.optim, optim_args.get('type'))
+            return getattr(torch.optim, type)
 
     assert hasattr(args, 'optim'), "Missing optim in model config"
     if isinstance(args.optim, ListConfig):
