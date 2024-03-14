@@ -24,7 +24,6 @@ from utils.prefetch_dataloader import CUDAPrefetcher
 from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 
-
 __all__ = ["create_dataloader",
            "create_criteria",
            "load_ckpt",
@@ -138,7 +137,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
 
     assert hasattr(args, 'optim'), "Missing optim in model config"
     if isinstance(args.optim, ListConfig):
-        optim_module = [ _get_optim(optim_args.get('type')) for optim_args in args.optim]
+        optim_module = [_get_optim(optim_args.get('type')) for optim_args in args.optim]
         optim_dict = [subdict(optim_args, 'type') for optim_args in args.optim]
         if args.distributed and args.scale_lr:
             for optim_arg in optim_dict:
