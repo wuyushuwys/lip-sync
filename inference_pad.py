@@ -124,7 +124,7 @@ if __name__ == '__main__':
     # win_size = dataset.window_size
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if args.dynamic_mask:
-        mask = Masking(half_precision=True).to(device)
+        mask = Masking(half_precision=True, norm=False).to(device)
     model = Wav2Lip()
     model.load_state_dict(torch.load(args.ckpt))
     model.to(device)
@@ -136,6 +136,7 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(TMP_FOLDER, 'sync_frames'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'diff'), exist_ok=True)
     os.makedirs(os.path.join(TMP_FOLDER, 'compare'), exist_ok=True)
+    os.makedirs(os.path.join(TMP_FOLDER, 'mask'), exist_ok=True)
     process = (
         ffmpeg
         .input('pipe:', format='rawvideo',
@@ -199,6 +200,7 @@ if __name__ == '__main__':
                 diff /= diff.max()  # diff.mean(axis=-1, keepdims=True) * 255
                 cv2.imwrite(f'{TMP_FOLDER}/diff/{frame_idx:06d}.jpg', np.abs(diff).astype(np.uint8))
                 cv2.imwrite(f'{TMP_FOLDER}/compare/{frame_idx:06d}.jpg', concat.astype(np.uint8))
+                cv2.imwrite(f'{TMP_FOLDER}/mask/{frame_idx:06d}.jpg', (face_mask * 255).astype(np.uint8))
             # w_offset = int(48 / 256 * (x2 - x1))
             # h_offset = int(64 / 256 * (y2 - y1))
             resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
@@ -207,6 +209,7 @@ if __name__ == '__main__':
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
+                cv2.imwrite(f'{TMP_FOLDER}/mask/{frame_idx:06d}.jpg', (face_mask * 255).astype(np.uint8))
             process.stdin.write(frame.astype(np.uint8).tobytes())
 
     process.stdin.close()
