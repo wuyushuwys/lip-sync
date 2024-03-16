@@ -105,7 +105,7 @@ class AttnBlock(nn.Module):
         return self.act(out)
 
 
-class AudioPretrainEncoder(nn.Module):
+class AudioPretrainedEncoder(nn.Module):
 
     def __init__(self, audio_weight_path, emb_dim=1024):
         super().__init__()
@@ -113,7 +113,7 @@ class AudioPretrainEncoder(nn.Module):
         audio_net = SyncNet()
         logger.info(f'Load weight audio encoder weight from {audio_weight_path}')
         audio_net.load_state_dict(torch.load(audio_weight_path, map_location='cpu'))
-        self.audio_encoder = audio_net.audio_encoder()
+        self.audio_encoder = audio_net.audio_encoder
         for p in self.audio_encoder.parameters():
             p.requires_grad = False
 
