@@ -200,17 +200,17 @@ class CrossBlock(nn.Module):
             return attn
         else:
             if self.modulation:
-                shift_mca, scale_mca, gate_mca, shift_mlp, scale_mlp, gate_mlp = self.adaLN(cond).chunk(6, dim=1)
+                shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN(cond).chunk(6, dim=1)
 
                 # modulate self-attention
-                y = self.attn(self.norm1(x), return_attention)
+                y = gate_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x),
+                                                                    shift=shift_msa,
+                                                                    scale=scale_msa),
+                                                      return_attention)
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = gate_mca.unsqueeze(1) * self.cross_attn(self.modulate(x=self.norm2(x),
-                                                                          shift=shift_mca,
-                                                                          scale=scale_mca), x_key, x_value,
-                                                            return_attention)
+                y = self.cross_attn(self.norm2(x), x_key, x_value, return_attention)
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
