@@ -120,8 +120,9 @@ class AudioPretrainedEncoder(nn.Module):
         self.proj_out = nn.Linear(1024, emb_dim)
 
     def forward(self, x):
-        x = self.audio_encoder(x)
-        return self.proj_out(x)
+        audio_embedding = self.audio_encoder(x)
+        audio_embedding = audio_embedding.view(audio_embedding.size(0), -1)
+        return self.proj_out(audio_embedding)
 
 
 class AudioEncoder(nn.Module):
