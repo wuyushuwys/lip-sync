@@ -3,6 +3,8 @@ from functools import partial
 import torch
 from torch import nn
 
+from .syncnet_arch import SyncNet
+
 from utils.logging_tool import get_logger
 
 
@@ -101,6 +103,25 @@ class AttnBlock(nn.Module):
         # attn = torch.softmax(self.attn(x), dim=1)
         out = self.conv_block(x) + x
         return self.act(out)
+
+
+class AudioPretrainEncoder(nn.Module):
+
+    def __init__(self, audio_weight_path, emb_dim=1024):
+        super().__init__()
+        logger = get_logger()
+        audio_net = SyncNet()
+        logger.info(f'Load weight audio encoder weight from {audio_weight_path}')
+        audio_net.load_state_dict(torch.load(audio_weight_path, map_location='cpu'))
+        self.audio_encoder = audio_net.audio_encoder()
+        for p in self.audio_encoder.parameters():
+            p.requires_grad = False
+
+        self.proj_out = nn.Linear(1024, emb_dim)
+
+    def forward(self, x):
+        x = self.audio_encoder(x)
+        return self.proj_out(x)
 
 
 class AudioEncoder(nn.Module):

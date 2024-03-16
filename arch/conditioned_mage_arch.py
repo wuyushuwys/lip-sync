@@ -17,7 +17,7 @@ from utils.logging_tool import get_logger
 from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings, LabelSmoothingCrossEntropy
 from .fema_vqgan_arch import FaceCoderNet
 from .ref_control_net_arch import RefControlNet
-from .auxiliary_arch import AudioNet, AudioEncoder
+from .auxiliary_arch import AudioNet, AudioEncoder, AudioPretrainEncoder
 from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
 
@@ -61,7 +61,7 @@ class DoubleConditionedMAGE(nn.Module):
             vq_config_path='config/vqgan.yml', vq_state_dict=None,
             mage_pretrain_ckpt_path=None,
             # reference information config
-            use_audio_reference=True,
+            use_audio_reference=True, audio_weight_path=None,
             use_image_reference=True,
             tokenize_reference=False,
             # reference control model config
@@ -115,7 +115,8 @@ class DoubleConditionedMAGE(nn.Module):
         # create audio encoder based on decoder_embed_dim
         self.use_audio_reference = use_audio_reference
         if use_audio_reference:
-            self.audio_net = AudioEncoder(emb_dim=decoder_embed_dim)
+            # self.audio_net = AudioEncoder(emb_dim=decoder_embed_dim)
+            self.audio_net = AudioPretrainEncoder(audio_weight_path=audio_weight_path, emb_dim=decoder_embed_dim)
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
