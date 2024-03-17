@@ -181,7 +181,8 @@ if __name__ == '__main__':
                 ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
                 face_mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
                 inv_mask_erosion = cv2.erode(face_mask, np.ones((2, 2), np.uint8))
-                pasted_face = inv_mask_erosion[:, :, None] * face
+                # pasted_face = inv_mask_erosion[:, :, None] * face
+                pasted_face = face
                 total_face_area = np.sum(inv_mask_erosion)  # // 3
                 w_edge = int(total_face_area ** 0.5) // 20
                 erosion_radius = w_edge * 2

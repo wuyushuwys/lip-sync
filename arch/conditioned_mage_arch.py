@@ -121,8 +121,9 @@ class DoubleConditionedMAGE(nn.Module):
         # create audio encoder based on decoder_embed_dim
         self.use_audio_reference = use_audio_reference
         if use_audio_reference:
+            self.audio_net = AudioNet(emb_dim=decoder_embed_dim, seq_len=16, downsample=False, out_seq=16)
             # self.audio_net = AudioEncoder(emb_dim=decoder_embed_dim)
-            self.audio_net = AudioPretrainedEncoder(audio_weight_path=audio_weight_path, emb_dim=decoder_embed_dim)
+            # self.audio_net = AudioPretrainedEncoder(audio_weight_path=audio_weight_path, emb_dim=decoder_embed_dim)
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
@@ -410,10 +411,13 @@ class DoubleConditionedMAGE(nn.Module):
         # else:
         #     ref = x
         # ref += self.cross_embed(ref)
-        if self.use_image_reference:
-            ref = ref_emb
+        if self.use_audio_reference:
+            ref = audio_emb
+        # if self.use_image_reference:
+        #     ref = ref_emb
         else:
             ref = x
+        cond = ref_emb
         # apply Transformer blocks
         x = self.transformer_decoder(x, key=ref, value=ref, cond=audio_emb if self.use_audio_reference else None)
 

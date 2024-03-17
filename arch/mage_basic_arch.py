@@ -183,7 +183,7 @@ class CrossBlock(nn.Module):
 
         if modulation:
             # todo: check modulation for cross_attn
-            self.num_modulation = 3
+            self.num_modulation = 6
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
                 nn.Linear(dim, self.num_modulation * dim, bias=True),
@@ -201,21 +201,22 @@ class CrossBlock(nn.Module):
             return attn
         else:
             if self.modulation:
-                gated_mlp, shift_mlp, scale_mlp = self.adaLN(cond).chunk(self.num_modulation, dim=1)
+                gated_msa, shift_msa, scale_msa, gated_mlp, shift_mlp, scale_mlp = self.adaLN(cond).chunk(
+                    self.num_modulation, dim=1)
 
                 # modulate self-attention
-                y = self.attn(self.norm1(x),
-                              return_attention)
+                y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
+                # y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_key, x_value, return_attention)
+                y = self.cross_attn(self.norm2(x), x_key, x_value)
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
-                x = x + gated_mlp.unsqueeze(1) * self.drop_path(self.mlp(self.modulate(x=self.norm3(x),
-                                                                                       shift=shift_mlp,
-                                                                                       scale=scale_mlp)))
+                x = x + gated_mlp * self.drop_path(self.mlp(self.modulate(x=self.norm3(x),
+                                                                          shift=shift_mlp,
+                                                                          scale=scale_mlp)))
 
             else:
                 # self-attention
@@ -232,7 +233,7 @@ class CrossBlock(nn.Module):
 
     @staticmethod
     def modulate(x, shift, scale):
-        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+        return x * (1 + scale) + shift
 
 
 class Block(nn.Module):
