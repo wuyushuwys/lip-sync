@@ -491,11 +491,6 @@ class DoubleConditionedMAGE(nn.Module):
         return self.__class__.__name__.lower()
 
 
-def soft_topk(logits, k=1):
-    _, pred_indices = torch.topk(logits, k=k)
-    nn.functional.one_hot()
-
-
 class TransformerEncoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,

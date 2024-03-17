@@ -107,12 +107,15 @@ class AttnBlock(nn.Module):
 
 class AudioPretrainedEncoder(nn.Module):
 
-    def __init__(self, audio_weight_path, emb_dim=1024):
+    def __init__(self, audio_weight_path=None, emb_dim=1024):
         super().__init__()
         logger = get_logger()
         audio_net = SyncNet()
-        logger.info(f'Load weight audio encoder weight from {audio_weight_path}')
-        audio_net.load_state_dict(torch.load(audio_weight_path, map_location='cpu'))
+        if audio_weight_path is not None:
+            logger.info(f'Load weight audio encoder weight from {audio_weight_path}.')
+            audio_net.load_state_dict(torch.load(audio_weight_path, map_location='cpu'))
+        else:
+            logger.warning(f"No pretrained audio encoder weight provided.")
         self.audio_encoder = audio_net.audio_encoder
         for p in self.audio_encoder.parameters():
             p.requires_grad = False

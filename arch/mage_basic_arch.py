@@ -183,9 +183,10 @@ class CrossBlock(nn.Module):
 
         if modulation:
             # todo: check modulation for cross_attn
+            self.num_modulation = 3
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
-                nn.Linear(dim, 6 * dim, bias=True),
+                nn.Linear(dim, self.num_modulation * dim, bias=True),
                 nn.Dropout(drop)
             )
             for m in self.adaLN.modules():
@@ -200,13 +201,11 @@ class CrossBlock(nn.Module):
             return attn
         else:
             if self.modulation:
-                shift_msa, scale_msa, gate_msa, shift_mlp, scale_mlp, gate_mlp = self.adaLN(cond).chunk(6, dim=1)
+                gated_mlp, shift_mlp, scale_mlp = self.adaLN(cond).chunk(self.num_modulation, dim=1)
 
                 # modulate self-attention
-                y = gate_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x),
-                                                                    shift=shift_msa,
-                                                                    scale=scale_msa),
-                                                      return_attention)
+                y = self.attn(self.norm1(x),
+                              return_attention)
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
@@ -214,9 +213,9 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
-                x = x + gate_mlp.unsqueeze(1) * self.drop_path(self.mlp(self.modulate(x=self.norm3(x),
-                                                                                      shift=shift_mlp,
-                                                                                      scale=scale_mlp)))
+                x = x + gated_mlp.unsqueeze(1) * self.drop_path(self.mlp(self.modulate(x=self.norm3(x),
+                                                                                       shift=shift_mlp,
+                                                                                       scale=scale_mlp)))
 
             else:
                 # self-attention
