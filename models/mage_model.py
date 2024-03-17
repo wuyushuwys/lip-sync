@@ -92,7 +92,7 @@ class MageModel(BasicModel):
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
                 loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=use_pixel_loss)
 
-                if use_pixel_loss:
+                if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
                     # y = rearrange(y, '(b t) c h w -> b c t h w', b=bsz)
                     if 'recon_loss' in self.criteria.keys():
                         recon_loss = self.criteria['recon_loss'](g, y)

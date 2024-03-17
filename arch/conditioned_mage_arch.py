@@ -65,7 +65,7 @@ class DoubleConditionedMAGE(nn.Module):
             use_image_reference=True,
             tokenize_reference=False,
             # reference control model config
-            ref_control=False, ref_controller_state_dict=None
+            ref_control=False, ref_controller_state_dict=None, ref_control_adaptive=False
     ):
         super().__init__()
         logger = get_logger()
@@ -80,8 +80,14 @@ class DoubleConditionedMAGE(nn.Module):
             setattr(self, 'vqgan', self.ref_controller.vqgan)
 
             # froze the pretrained ref_controller model
-            for p in self.ref_controller.parameters():
-                p.requires_grad = False
+            if not ref_control_adaptive:
+                logger.info("Unfrozen reference controller")
+                for p in self.vqgan.parameters():
+                    p.requires_grad = False
+            else:
+                logger.info("Frozen reference controller")
+                for p in self.ref_controller.parameters():
+                    p.requires_grad = False
 
         else:
             # VQGAN specifics
