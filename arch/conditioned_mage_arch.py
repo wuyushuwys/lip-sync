@@ -80,7 +80,7 @@ class DoubleConditionedMAGE(nn.Module):
             setattr(self, 'vqgan', self.ref_controller.vqgan)
 
             # froze the pretrained ref_controller model
-            if not ref_control_adaptive:
+            if ref_control_adaptive:
                 logger.info("Unfrozen reference controller")
                 for p in self.vqgan.parameters():
                     p.requires_grad = False
