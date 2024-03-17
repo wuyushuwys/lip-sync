@@ -275,8 +275,8 @@ class DoubleConditionedMAGE(nn.Module):
             z_ref = self.vqgan.encode(ref)
             if tokenize:
                 z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
-                ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1).long()
-                z = self.token_emb(self.add_class_token(ref_indices))
+                ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
+                z = self.token_emb(self.add_class_token(ref_indices).long())
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
