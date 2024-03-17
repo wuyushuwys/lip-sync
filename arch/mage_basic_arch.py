@@ -171,7 +171,7 @@ class CrossBlock(nn.Module):
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
-        # CrossAttention module for LQ reference info
+        # CrossAttention module for reference info
         self.cross_attn = CrossAttention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 

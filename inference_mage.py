@@ -22,7 +22,7 @@ from models.modules.masking import Masking
 from utils import audio
 
 EXT = 'jpg'
-TMP_FOLDER = 'tmp'
+TMP_FOLDER = 'tmp_mage'
 SAMPLE_RATE = 16000
 FPS = 25
 SIZE = 256
