@@ -202,7 +202,7 @@ class CrossBlock(nn.Module):
         else:
             if self.modulation:
                 gated_msa, shift_msa, scale_msa, gated_mlp, shift_mlp, scale_mlp = self.adaLN(cond).chunk(
-                    self.num_modulation, dim=1)
+                    self.num_modulation, dim=-1)
 
                 # modulate self-attention
                 y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
