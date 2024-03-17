@@ -205,8 +205,7 @@ class CrossBlock(nn.Module):
                     self.num_modulation, dim=-1)
 
                 # modulate self-attention
-                y = self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
-                y[:, 1:, ...] = y[:, 1:, ...] * gated_msa
+                y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
                 # y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
 
@@ -234,12 +233,12 @@ class CrossBlock(nn.Module):
 
     @staticmethod
     def modulate(x, shift, scale):
-        if x.size(1) != shift.size(1):
-            offset = x.size(1) - shift.size(1)
-            x[:, offset:, ...] = x[:, offset:, ...] * (1 + scale) + shift
-            return x
-        else:
-            return x * (1 + scale) + shift
+        # if x.size(1) != shift.size(1):
+        #     offset = x.size(1) - shift.size(1)
+        #     x[:, offset:, ...] = x[:, offset:, ...] * (1 + scale) + shift
+        #     return x
+        # else:
+        return x * (1 + scale) + shift
 
 
 class Block(nn.Module):

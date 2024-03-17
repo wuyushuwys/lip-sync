@@ -276,12 +276,18 @@ class DoubleConditionedMAGE(nn.Module):
             if tokenize:
                 z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
                 ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1).long()
-                z = self.token_emb(ref_indices)
+                z = self.token_emb(self.add_class_token(ref_indices))
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
         z_map = self.decoder_embed_mapping(z)
         return z_map
+
+    def add_class_token(self, x):
+        x = torch.cat(
+            [torch.zeros(x.size(0), 1, device=x.device), x], dim=1)
+        x[:, 0] = self.fake_class_label
+        return x
 
     def index_generator(self, x, gt=None):
         bsz = x.size(0)
@@ -343,9 +349,7 @@ class DoubleConditionedMAGE(nn.Module):
         # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))
 
         # concate class token
-        x_indices = torch.cat(
-            [torch.zeros(x_indices.size(0), 1, device=x_indices.device), x_indices], dim=1)
-        x_indices[:, 0] = self.fake_class_label
+        x_indices = self.add_class_token(x_indices)
 
         token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_drop_mask],
                                     dim=1)
