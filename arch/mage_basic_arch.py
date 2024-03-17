@@ -233,11 +233,6 @@ class CrossBlock(nn.Module):
 
     @staticmethod
     def modulate(x, shift, scale):
-        # if x.size(1) != shift.size(1):
-        #     offset = x.size(1) - shift.size(1)
-        #     x[:, offset:, ...] = x[:, offset:, ...] * (1 + scale) + shift
-        #     return x
-        # else:
         return x * (1 + scale) + shift
 
 

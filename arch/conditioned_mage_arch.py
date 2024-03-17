@@ -423,7 +423,7 @@ class DoubleConditionedMAGE(nn.Module):
             ref = x
         cond = ref_emb
         # apply Transformer blocks
-        x = self.transformer_decoder(x, key=ref, value=ref, cond=cond if self.use_audio_reference else None)
+        x = self.transformer_decoder(x, key=ref, value=ref, cond=cond if self.use_image_reference else None)
 
         x = self.decoder_norm(x)
 
