@@ -118,7 +118,8 @@ if __name__ == '__main__':
     # h, w = 720, 1280
     # h, w = 1080, 1920
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
-
+    if np.isnan(mel.reshape(-1)).sum() > 0:
+        raise ValueError('Mel contains nan! Using a TTS voice? Add a small epsilon noise to the wav file and try again')
     dataset = GenerateDataset(TMP_FOLDER, mel, dynamic_mask=args.dynamic_mask)
     coords = dataset.coords
     # win_size = dataset.window_size

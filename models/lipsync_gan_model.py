@@ -105,7 +105,8 @@ class LipSyncGAN(BasicModel):
                 recon_loss = 0
 
             if 'perceptual_loss' in self.criteria.keys():
-                perceptual_loss = self.criteria['perceptual_loss'](pred_y, y)
+                perceptual_loss = self.criteria['perceptual_loss'](pred_y[..., pred_y.size(-2) // 2:, :],
+                                                                   y[..., y.size(-2) // 2:, :])
             else:
                 perceptual_loss = 0
 
