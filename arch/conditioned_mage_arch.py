@@ -532,8 +532,8 @@ class TransformerDecoder(nn.Module):
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
         super().__init__()
-        module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
-        self.cross_attn = cross_attn
+        module = partial(Block, modulation=modulation)
+        # self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
@@ -541,10 +541,10 @@ class TransformerDecoder(nn.Module):
     def forward(self, x, key, value, c_msa=None, c_mlp=None):
         assert key.size() == value.size()
         for blk in self.decoder_blocks:
-            if self.cross_attn:
-                x = blk(x, key, value, c_msa)
-            else:
-                x = blk(x, c_msa=c_msa, c_mlp=c_mlp)
+            # if self.cross_attn:
+            #     x = blk(x, key, value, c_msa)
+            # else:
+            x = blk(x, c_msa=c_msa, c_mlp=c_mlp)
         return x
 
 
