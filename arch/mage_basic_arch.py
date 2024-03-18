@@ -239,8 +239,9 @@ class CrossBlock(nn.Module):
 class Block(nn.Module):
 
     def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, modulation=False):
         super().__init__()
+        self.modulation = modulation
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
@@ -250,18 +251,52 @@ class Block(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-    def forward(self, x, return_attention=False):
+        if modulation:
+            self.ada_msa = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(dim, 3 * dim, bias=True),
+                nn.Dropout(drop)
+            )
+            self.ada_mlp = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(dim, 3 * dim, bias=True),
+                nn.Dropout(drop)
+            )
+            for m in self.ada_msa.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.constant_(m.weight, 0)
+                    torch.nn.init.constant_(m.bias, 0)
+            for m in self.ada_mlp.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.constant_(m.weight, 0)
+                    torch.nn.init.constant_(m.bias, 0)
+
+    def forward(self, x, c_msa=None, c_mlp=None, return_attention=False):
         if return_attention:
             y, attn = self.attn(self.norm1(x), return_attention)
             x = x + self.drop_path(y)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
             return x, attn
         else:
-            y = self.attn(self.norm1(x), return_attention)
-            x = x + self.drop_path(y)
-            x = x + self.drop_path(self.mlp(self.norm2(x)))
+            if self.modulation:
+                gate_msa, shift_msa, scale_msa = self.ada_msa(c_msa).chunk(3, -1)
+                gate_mlp, shift_mlp, scale_mlp = self.ada_msa(c_mlp).chunk(3, -1)
+                y = gate_msa * self.attn(self.modulate(self.norm1(x), shift_msa, scale_msa), return_attention)
+                x = x + self.drop_path(y)
+                y = gate_mlp.unsqueeze(1) * self.mlp(self.modulate(self.norm2(x), shift_mlp, scale_mlp, unsqueeze=True))
+                x = x + self.drop_path(y)
+            else:
+                y = self.attn(self.norm1(x), return_attention)
+                x = x + self.drop_path(y)
+                x = x + self.drop_path(self.mlp(self.norm2(x)))
             return x
 
+    @staticmethod
+    def modulate(x, shift, scale, unsqueeze=False):
+        if unsqueeze:
+            return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+        else:
+            return x * (1 + scale) + shift
 
 class Attention(nn.Module):
     fused_attn: Final[bool]

@@ -190,8 +190,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_image_reference,  # add image reference information in cross attention
-            modulation=self.use_audio_reference,  # add audio reference information in modulation
+            # cross_attn=self.use_image_reference,  # add image reference information in cross attention
+            modulation=self.use_audio_reference and self.use_image_reference,  # add audio reference information in modulation
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
@@ -222,8 +222,8 @@ class DoubleConditionedMAGE(nn.Module):
                 if name in incompatible_keys.missing_keys:
                     continue
                 # then, we unfreeze mlp parameters in decoder
-                elif 'decoder_blocks' in name and 'mlp' in name:
-                    continue
+                # elif 'decoder_blocks' in name and 'mlp' in name:
+                #     continue
                 p.requires_grad = False
 
         # unfreeze decoder_norm layer
@@ -421,9 +421,12 @@ class DoubleConditionedMAGE(nn.Module):
         #     ref = ref_emb
         else:
             ref = x
-        cond = ref_emb
+        c_msa = ref_emb
+        c_mlp = audio_emb
         # apply Transformer blocks
-        x = self.transformer_decoder(x, key=ref, value=ref, cond=cond if self.use_image_reference else None)
+        x = self.transformer_decoder(x, key=ref, value=ref,
+                                     c_msa=c_msa if self.use_image_reference else None,
+                                     c_mlp=c_mlp if self.use_audio_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -535,10 +538,13 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, value, cond=None):
+    def forward(self, x, key, value, c_msa=None, c_mlp=None):
         assert key.size() == value.size()
         for blk in self.decoder_blocks:
-            x = blk(x, key, value, cond) if self.cross_attn else blk(x)
+            if self.cross_attn:
+                x = blk(x, key, value, c_msa)
+            else:
+                x = blk(x, c_msa=c_msa, c_mlp=c_mlp)
         return x
 
 
