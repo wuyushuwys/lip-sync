@@ -280,7 +280,7 @@ class Block(nn.Module):
         else:
             if self.modulation:
                 gate_msa, shift_msa, scale_msa = self.ada_msa(c_msa).chunk(3, -1)
-                gate_mlp, shift_mlp, scale_mlp = self.ada_msa(c_mlp).chunk(3, -1)
+                gate_mlp, shift_mlp, scale_mlp = self.ada_mlp(c_mlp).chunk(3, -1)
                 y = gate_msa * self.attn(self.modulate(self.norm1(x), shift_msa, scale_msa), return_attention)
                 x = x + self.drop_path(y)
                 y = gate_mlp.unsqueeze(1) * self.mlp(self.modulate(self.norm2(x), shift_mlp, scale_mlp, unsqueeze=True))
