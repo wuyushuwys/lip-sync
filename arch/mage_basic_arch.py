@@ -204,7 +204,7 @@ class CrossBlock(nn.Module):
                 gated_msa, shift_msa, scale_msa = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
 
                 # modulate self-attention
-                y = gated_msa.unsqueeze(1) * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
+                y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
                 # y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
 
@@ -231,7 +231,7 @@ class CrossBlock(nn.Module):
 
     @staticmethod
     def modulate(x, shift, scale):
-        return x * (1 + scale.unsqueeze(1)) + shift.unsqueeze(1)
+        return x * (1 + scale) + shift
 
 
 class Block(nn.Module):
