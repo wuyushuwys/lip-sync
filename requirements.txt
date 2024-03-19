@@ -1,4 +1,4 @@
-torch>2.0
+torch>2.0  # for flash-attention support
 torchvision
 tensorboard
 tqdm
