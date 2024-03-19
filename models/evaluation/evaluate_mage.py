@@ -98,10 +98,9 @@ def test(dataloader: DataLoader,
 
         # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
         x_masked = (x_masked + 1) / 2
-        imgs = (imgs + 1) / 2
-
-        y = (y + 1) / 2
         ref = (ref + 1) / 2
+        imgs = (imgs + 1) / 2
+        y = (y + 1) / 2
 
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), bsz)
         loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), bsz)

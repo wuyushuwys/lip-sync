@@ -137,6 +137,13 @@ class MageModel(BasicModel):
                                  logger=self.logger,
                                  mask=self.mask)
 
+    def load_model(self, model, ckpt_path):
+        if ckpt_path:
+            ckpt = torch.load(ckpt_path, map_location='cpu')
+            self.model_no_ddp(model).load_state_dict(ckpt, strict=False)
+
+            self.logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
+
     def save_model(self, path, *opt):
         state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
 
