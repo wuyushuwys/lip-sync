@@ -99,21 +99,22 @@ def test(dataloader: DataLoader,
         # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
         x_masked = (x_masked + 1) / 2
         imgs = (imgs + 1) / 2
+
         y = (y + 1) / 2
-        vq_y = (vq_y + 1) / 2
+        ref = (ref + 1) / 2
 
         loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), bsz)
         loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), bsz)
         loss_dict['SSIM'].update(reduce_all(ssim(imgs, y)), bsz)
 
-        save_sample_images(x_masked, imgs, vq_y, y, idx, epoch, img_folder)
+        save_sample_images(x_masked, ref, imgs, y, idx, epoch, img_folder)
 
     return loss_dict
 
 
 @master_only
-def save_sample_images(x, g, vq_gt, gt, batch_num, epoch, folder_path):
-    outputs = torch.cat([x, g, vq_gt, gt], dim=-1)
+def save_sample_images(x, ref, g, gt, batch_num, epoch, folder_path):
+    outputs = torch.cat([x, ref, g, gt], dim=-1)
     # folder = os.path.join(folder_path, "samples_step{:03d}".format(epoch))
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
     outputs = make_grid(outputs, nrow=2, padding=10)
