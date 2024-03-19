@@ -505,7 +505,7 @@ class TransformerDecoder(nn.Module):
 
         for i, blk in enumerate(self.decoder_blocks):
             if self.cross_attn:
-                proj_cond = self.proj_ins[i](cond).unsqueeze(1) if self.proj_ins is not None else None
+                proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
                 x = blk(x, kv, proj_cond)
             else:
                 x = blk(x)
