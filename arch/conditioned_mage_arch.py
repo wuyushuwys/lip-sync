@@ -113,9 +113,14 @@ class DoubleConditionedMAGE(nn.Module):
         self.use_image_reference = use_image_reference
         if use_image_reference:
             if tokenize_reference:
-                self.decoder_embed_mapping = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
+                self.decoder_embed_mapping = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
+                                                           nn.LayerNorm(decoder_embed_dim),
+                                                           nn.SiLU())
             else:
-                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+                self.decoder_embed_mapping = nn.Sequential(
+                    nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True),
+                    nn.LayerNorm(decoder_embed_dim),
+                    nn.SiLU())
 
         self.tokenize_reference = tokenize_reference
 
@@ -148,9 +153,7 @@ class DoubleConditionedMAGE(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAGE decoder specifics
-        self.decoder_embed = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
-                                           nn.LayerNorm(decoder_embed_dim),
-                                           nn.SiLU())
+        self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
 
         self.pad_with_cls_token = True
 
