@@ -190,8 +190,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            # cross_attn=self.use_image_reference,  # add image reference information in cross attention
-            modulation=self.use_audio_reference and self.use_image_reference,  # add audio reference information in modulation
+            cross_attn=self.use_audio_reference,   # add information in cross attention
+            modulation=self.use_image_reference,  # add information in modulation
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
@@ -276,7 +276,7 @@ class DoubleConditionedMAGE(nn.Module):
             if tokenize:
                 z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
                 ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
-                z = self.token_emb(self.add_class_token(ref_indices).long())
+                z = self.token_emb(ref_indices.long())  # we don't concat class token
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
@@ -421,12 +421,9 @@ class DoubleConditionedMAGE(nn.Module):
         #     ref = ref_emb
         else:
             ref = x
-        c_msa = ref_emb
-        c_mlp = audio_emb
+        cond = ref_emb
         # apply Transformer blocks
-        x = self.transformer_decoder(x, key=ref, value=ref,
-                                     c_msa=c_msa if self.use_image_reference else None,
-                                     c_mlp=c_mlp if self.use_audio_reference else None)
+        x = self.transformer_decoder(x, key=ref, value=ref, cond=cond if self.use_image_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -458,7 +455,7 @@ class DoubleConditionedMAGE(nn.Module):
 
         # generate ref_emb and audio_emb when use_image/audio_reference
         ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
-        audio_emb = self.audio_net(audio) if self.use_audio_reference else None
+        audio_emb = self.audio_net(audio).unsqueeze(1) if self.use_audio_reference else None  # make it bsz, 1, emb_dim
 
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
@@ -532,19 +529,16 @@ class TransformerDecoder(nn.Module):
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
         super().__init__()
-        module = partial(Block, modulation=modulation)
-        # self.cross_attn = cross_attn
+        module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
+        self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, value, c_msa=None, c_mlp=None):
+    def forward(self, x, key, value, cond=None):
         assert key.size() == value.size()
         for blk in self.decoder_blocks:
-            # if self.cross_attn:
-            #     x = blk(x, key, value, c_msa)
-            # else:
-            x = blk(x, c_msa=c_msa, c_mlp=c_mlp)
+            x = blk(x, key, value, cond) if self.cross_attn else blk(x)
         return x
 
 
