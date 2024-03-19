@@ -190,7 +190,7 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_audio_reference,   # add information in cross attention
+            cross_attn=self.use_audio_reference,  # add information in cross attention
             modulation=self.use_image_reference,  # add information in modulation
         )
 
@@ -423,7 +423,7 @@ class DoubleConditionedMAGE(nn.Module):
             ref = x
         cond = ref_emb
         # apply Transformer blocks
-        x = self.transformer_decoder(x, key=ref, value=ref, cond=cond if self.use_image_reference else None)
+        x = self.transformer_decoder(x, kv=ref, cond=cond if self.use_image_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -455,7 +455,7 @@ class DoubleConditionedMAGE(nn.Module):
 
         # generate ref_emb and audio_emb when use_image/audio_reference
         ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
-        audio_emb = self.audio_net(audio).unsqueeze(1) if self.use_audio_reference else None  # make it bsz, 1, emb_dim
+        audio_emb = self.audio_net(audio) if self.use_audio_reference else None  # make it bsz, 1, emb_dim
 
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
@@ -527,7 +527,7 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False, proj_in=None):
         super().__init__()
         module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
         self.cross_attn = cross_attn
@@ -535,10 +535,19 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, value, cond=None):
-        assert key.size() == value.size()
-        for blk in self.decoder_blocks:
-            x = blk(x, key, value, cond) if self.cross_attn else blk(x)
+        self.proj_ins = nn.ModuleList([nn.Linear(proj_in, embed_dim) for _ in range(depth)]) if proj_in else None
+
+    def forward(self, x, kv, cond=None):
+
+        for i, blk in enumerate(self.decoder_blocks):
+            if self.cross_attn:
+                if self.proj_ins is not None:
+                    proj_kv = self.proj_ins[i](kv)
+                else:
+                    proj_kv = kv
+                x = blk(x, proj_kv, cond)
+            else:
+                x = blk(x)
         return x
 
 

@@ -107,7 +107,7 @@ class AttnBlock(nn.Module):
 
 class AudioPretrainedEncoder(nn.Module):
 
-    def __init__(self, audio_weight_path=None, emb_dim=1024):
+    def __init__(self, audio_weight_path=None):
         super().__init__()
         logger = get_logger()
         audio_net = SyncNet()
@@ -120,12 +120,10 @@ class AudioPretrainedEncoder(nn.Module):
         for p in self.audio_encoder.parameters():
             p.requires_grad = False
 
-        self.proj_out = nn.Linear(1024, emb_dim)
-
     def forward(self, x):
         audio_embedding = self.audio_encoder(x)
         audio_embedding = audio_embedding.view(audio_embedding.size(0), -1)
-        return self.proj_out(audio_embedding)
+        return audio_embedding.unsqueeze(1)
 
 
 class AudioEncoder(nn.Module):
