@@ -81,7 +81,9 @@ class Masking(nn.Module):
                 pad_w = int(face_masks.size(2) * self.pad)
                 for idx, bbox in enumerate(bound_bbox):
                     if bbox is None:
-                        face_masks[idx] = 1  # no mask if failed to detect nose (normally caused by bad face detection)
+                        # no mask if failed to detect nose (mask bottom half)
+                        face_masks[idx] = 1
+                        face_masks[idx, self.lip_h:, ...] = 0
                     else:
                         x1, y1, x2, y2 = bbox
                         face_masks[idx, :y2, ...] = 1   # bottom of nose (or other object)
