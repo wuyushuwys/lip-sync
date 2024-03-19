@@ -172,7 +172,7 @@ if __name__ == '__main__':
             masked_flag = mask.inverse_mask.cpu()
         with torch.no_grad():
             g = model(indiv_mels.half(), x.half())
-            g = g.clamp(-1, 1) / 2 - 0.5
+            g = g.clamp(-1, 1) / 2 + 0.5
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
             frame_idx = i * bsz + batch_id
             x1, y1, x2, y2 = coords[name]
@@ -211,7 +211,6 @@ if __name__ == '__main__':
             if args.verbose:
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.png"), np.flip(resize_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
-                cv2.imwrite(f'{TMP_FOLDER}/mask/{frame_idx:06d}.jpg', (face_mask * 255).astype(np.uint8))
             process.stdin.write(frame.astype(np.uint8).tobytes())
 
     process.stdin.close()

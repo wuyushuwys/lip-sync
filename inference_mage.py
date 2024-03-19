@@ -145,6 +145,7 @@ if __name__ == '__main__':
                               vq_state_dict="pretrained/vq_model_512_256.pt",
                               use_audio_reference=True,
                               use_image_reference=True,
+                              tokenize_reference=True,
                               mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
                               ref_control=True,
                               ref_controller_state_dict='refcontrolnet_gated.pt')
