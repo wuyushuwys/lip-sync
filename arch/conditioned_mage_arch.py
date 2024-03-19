@@ -168,8 +168,9 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_image_reference,  # add information in cross attention
-            modulation=self.use_audio_reference,  # add information in modulation
+            cross_attn=self.use_audio_reference,  # add information in cross attention
+            modulation=self.use_image_reference,  # add information in modulation
+            proj_in=1024 if use_audio_reference else None  # embedding for audio
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
@@ -416,7 +417,7 @@ class DoubleConditionedMAGE(nn.Module):
 
         # generate ref_emb and audio_emb when use_image/audio_reference
         ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
-        audio_emb = self.audio_net(audio) if self.use_audio_reference else None  # make it bsz, 1, emb_dim
+        audio_emb = self.audio_net(audio) if self.use_audio_reference else None
 
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
@@ -488,7 +489,7 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False, proj_in=None):
         super().__init__()
         module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
         self.cross_attn = cross_attn
@@ -496,11 +497,16 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
+        self.proj_ins = nn.ModuleList([nn.Sequential(
+            nn.Linear(proj_in, embed_dim)
+        ) for _ in range(depth)]) if proj_in else None
+
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
             if self.cross_attn:
-                x = blk(x, kv, cond)
+                proj_cond = self.proj_ins[i](kv) if self.proj_ins is not None else None
+                x = blk(x, kv, proj_cond)
             else:
                 x = blk(x)
         return x
