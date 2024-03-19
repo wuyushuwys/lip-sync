@@ -105,12 +105,11 @@ class LipSyncGAN(BasicModel):
                 recon_loss = 0
 
             if 'perceptual_loss' in self.criteria.keys():
-                perceptual_loss = self.criteria['perceptual_loss'](pred_y[..., pred_y.size(-2) // 2:, :],
-                                                                   y[..., y.size(-2) // 2:, :])
+                perceptual_loss = self.criteria['perceptual_loss'](pred_y, y)
             else:
                 perceptual_loss = 0
 
-            fake_g_pred = self.d_model(face_rearrange(pred_y))
+            fake_g_pred = self.d_model(face_rearrange(pred_y)[..., pred_y.size(-2) // 2:, :])
 
             adversarial_loss = self.criteria['adversarial'](fake_g_pred, True, is_disc=False)
 
@@ -130,11 +129,11 @@ class LipSyncGAN(BasicModel):
             self.g_optimizer.zero_grad()
             self.d_optimizer.zero_grad()
 
-            real_d_pred = self.d_model(face_rearrange(y))
+            real_d_pred = self.d_model(face_rearrange(y)[..., pred_y.size(-2) // 2:, :])
             l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
             l_d_real.backward()
 
-            fake_d_pred = self.d_model(face_rearrange(pred_y.detach()))
+            fake_d_pred = self.d_model(face_rearrange(pred_y.detach())[..., pred_y.size(-2) // 2:, :])
             l_d_fake = self.criteria['adversarial'](fake_d_pred, False, is_disc=True)
             l_d_fake.backward()
 
