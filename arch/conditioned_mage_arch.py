@@ -123,7 +123,7 @@ class DoubleConditionedMAGE(nn.Module):
         if use_audio_reference:
             # self.audio_net = AudioNet(emb_dim=decoder_embed_dim, seq_len=16, downsample=False, out_seq=16)
             # self.audio_net = AudioEncoder(emb_dim=decoder_embed_dim)
-            self.audio_net = AudioPretrainedEncoder(audio_weight_path=audio_weight_path, emb_dim=decoder_embed_dim)
+            self.audio_net = AudioPretrainedEncoder(audio_weight_path=audio_weight_path)
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
@@ -192,6 +192,7 @@ class DoubleConditionedMAGE(nn.Module):
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
             cross_attn=self.use_audio_reference,  # add information in cross attention
             modulation=self.use_image_reference,  # add information in modulation
+            proj_in=1024 if use_audio_reference else None  # embedding for audio
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
