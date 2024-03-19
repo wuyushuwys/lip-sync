@@ -194,10 +194,10 @@ class CrossBlock(nn.Module):
                     torch.nn.init.constant_(m.weight, 0)
                     torch.nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, x_kv, cond=None, return_attention=False):
+    def forward(self, x, kv, cond=None, return_attention=False):
         if return_attention:
             _, attn = self.attn(self.norm1(x), return_attention)
-            _, attn = self.cross_attn(self.norm1(x), x_kv, return_attention)
+            _, attn = self.cross_attn(self.norm1(x), kv, return_attention)
             return attn
         else:
             if self.modulation:
@@ -209,10 +209,11 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_kv)
+                y = self.cross_attn(self.norm2(x), kv)
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
+                # x = x + gated_mlp * self.mlp(self.modulate(x=self.norm3(x), shift=shift_mlp, scale=scale_mlp))
                 x = x + self.drop_path(self.mlp(self.norm3(x)))
 
             else:
@@ -221,7 +222,7 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_kv, return_attention)
+                y = self.cross_attn(self.norm2(x), kv, return_attention)
                 x = x + self.drop_path(y)
 
                 # mlp forward

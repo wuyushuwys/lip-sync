@@ -24,23 +24,7 @@ from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 class DoubleConditionedMAGE(nn.Module):
     """
         Masked Autoencoder with VisionTransformer backbone
-
-        # for lip-sync work, extra CrossattentionBlock would be inserted into MAGE_Decoder.
-
-        # Solution1:
-        # wav2lip like way of info concatenation:
-        # concate (reference float_latent(output from your pretrained VQGAN_Encoder), audioMel)
-        # treat this chunk altogether into a single CrossattentionBlock
-
-        # Solution2:
-        # treat reference float_latent and audio mel seperately
-        # two adjacent crossattention blocks are inserted, and two conditional info treated sequentially
-
-
-        # here with the Solution1 version, but if required, we could easily formulate Solution2.
-
-        # make sure you replace the import and initialization for our FACE_VQGAN
-
+        for lip-sync work, extra CrossAttentionBlock would be inserted into MAGE_Decoder.
     """
 
     def __init__(
@@ -133,9 +117,6 @@ class DoubleConditionedMAGE(nn.Module):
             else:
                 self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
-        # if use_image_reference or use_audio_reference:
-        #     self.cross_embed = PositionalEncoding(d_model=decoder_embed_dim)
-
         self.tokenize_reference = tokenize_reference
 
         logger.info(f"use_audio_reference:{use_audio_reference}")
@@ -151,21 +132,13 @@ class DoubleConditionedMAGE(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAGE encoder specifics
-        # patch_embed, cls_token, pos_embed is never used in MAGE Encoder
-        # check whether need to apply pos_embed for Encoder, not sure about this
         dropout_rate = 0.1
-        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
-        # num_patches = self.patch_embed.num_patches
         num_patches = self.vqgan.latent_resolution ** 2
 
         self.token_emb = BertEmbeddings(vocab_size=vocab_size,
                                         hidden_size=embed_dim,
                                         max_position_embeddings=num_patches + 1,
                                         dropout=0.1)
-
-        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
-        #                               requires_grad=False)  # fixed sin-cos embedding
 
         self.transformer_encoder = TransformerEncoder(embed_dim, num_heads, depth=depth, mlp_ratio=mlp_ratio,
                                                       qkv_bias=True, qk_scale=None,
@@ -175,7 +148,9 @@ class DoubleConditionedMAGE(nn.Module):
 
         # --------------------------------------------------------------------------
         # MAGE decoder specifics
-        self.decoder_embed = nn.Linear(embed_dim, decoder_embed_dim, bias=True)
+        self.decoder_embed = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
+                                           nn.LayerNorm(decoder_embed_dim),
+                                           nn.SiLU())
 
         self.pad_with_cls_token = True
 
@@ -190,9 +165,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_audio_reference,  # add information in cross attention
-            modulation=self.use_image_reference,  # add information in modulation
-            proj_in=1024 if use_audio_reference else None  # embedding for audio
+            cross_attn=self.use_image_reference,  # add information in cross attention
+            modulation=self.use_audio_reference,  # add information in modulation
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
@@ -206,8 +180,8 @@ class DoubleConditionedMAGE(nn.Module):
         self.norm_pix_loss = norm_pix_loss
         self.gumble_softmax = gumble_softmax
 
-        # self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
-        self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
+        # self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
         if not mage_pretrain_ckpt_path:
             self.initialize_weights()
         else:
@@ -223,8 +197,8 @@ class DoubleConditionedMAGE(nn.Module):
                 if name in incompatible_keys.missing_keys:
                     continue
                 # then, we unfreeze mlp parameters in decoder
-                # elif 'decoder_blocks' in name and 'mlp' in name:
-                #     continue
+                elif 'decoder_blocks' in name and 'mlp' in name:
+                    continue
                 p.requires_grad = False
 
         # unfreeze decoder_norm layer
@@ -237,22 +211,6 @@ class DoubleConditionedMAGE(nn.Module):
 
     def initialize_weights(self):
         # initialization
-        # initialize (and freeze) pos_embed by sin-cos embedding
-        # if hasattr(self, 'pos_embed'):
-        #     pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
-        #                                         cls_token=True)
-        #     self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
-
-        # decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
-        #                                             int(self.patch_embed.num_patches ** .5), cls_token=True)
-        # self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
-
-        # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        # w = self.patch_embed.proj.weight.data
-        # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-
-        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        # torch.nn.init.normal_(self.cls_token, std=.02)
         if not self.pad_with_cls_token:
             torch.nn.init.normal_(self.mask_token, std=.02)
         torch.nn.init.normal_(self.decoder_pos_embed_learned, std=.02)
@@ -277,7 +235,8 @@ class DoubleConditionedMAGE(nn.Module):
             if tokenize:
                 z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
                 ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
-                z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
+                # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
+                z = self.token_emb(ref_indices.long())
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
@@ -360,8 +319,6 @@ class DoubleConditionedMAGE(nn.Module):
         # bert embedding
         input_embeddings = self.token_emb(x_indices)
         # print("Input embedding shape:", input_embeddings.shape)
-        # if self.encoder_pos_embed:
-        #     input_embeddings = input_embeddings + self.encoder_pos(input_embeddings)
         bsz, seq_len, emb_dim = input_embeddings.shape
 
         # dropping
@@ -416,15 +373,15 @@ class DoubleConditionedMAGE(nn.Module):
         # else:
         #     ref = x
         # ref += self.cross_embed(ref)
-        if self.use_audio_reference:
-            ref = audio_emb
-        # if self.use_image_reference:
-        #     ref = ref_emb
+        # if self.use_audio_reference:
+        #     ref = audio_emb
+        if self.use_image_reference:
+            ref = ref_emb
         else:
             ref = x
-        cond = ref_emb
+        cond = audio_emb
         # apply Transformer blocks
-        x = self.transformer_decoder(x, kv=ref, cond=cond if self.use_image_reference else None)
+        x = self.transformer_decoder(x, kv=ref, cond=cond if self.use_audio_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -528,7 +485,7 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False, proj_in=None):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False):
         super().__init__()
         module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
         self.cross_attn = cross_attn
@@ -536,17 +493,11 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-        self.proj_ins = nn.ModuleList([nn.Linear(proj_in, embed_dim) for _ in range(depth)]) if proj_in else None
-
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
             if self.cross_attn:
-                if self.proj_ins is not None:
-                    proj_kv = self.proj_ins[i](kv)
-                else:
-                    proj_kv = kv
-                x = blk(x, proj_kv, cond)
+                x = blk(x, kv, cond)
             else:
                 x = blk(x)
         return x
