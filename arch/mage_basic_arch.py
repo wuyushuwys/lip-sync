@@ -114,15 +114,15 @@ class CrossAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.fused_attn = use_fused_attn()
 
-    def forward(self, x_query, x_key=None, x_value=None, return_attn=False):
+    def forward(self, x_query, x_kv=None, return_attn=False):
         """
         when both x_key and x_value are None then self-attention
         """
 
         # Linear transformations for query, key, and value
         q = self.query(x_query)
-        k = self.key(x_key if x_key is not None else x_query)
-        v = self.value(x_value if x_value is not None else x_query)
+        k = self.key(x_kv if x_kv is not None else x_query)
+        v = self.value(x_kv if x_kv is not None else x_query)
 
         # Reshape and permute for multi-head attention
         B, N_query, C = q.shape
@@ -194,24 +194,23 @@ class CrossBlock(nn.Module):
                     torch.nn.init.constant_(m.weight, 0)
                     torch.nn.init.constant_(m.bias, 0)
 
-    def forward(self, x, x_key, x_value, cond=None, return_attention=False):
+    def forward(self, x, x_kv, cond=None, return_attention=False):
         if return_attention:
             _, attn = self.attn(self.norm1(x), return_attention)
-            _, attn = self.cross_attn(self.norm1(x), x_key, x_value, return_attention)
+            _, attn = self.cross_attn(self.norm1(x), x_kv, return_attention)
             return attn
         else:
             if self.modulation:
-                gated_msa, shift_msa, scale_msa = self.adaLN(cond).chunk(
-                    self.num_modulation, dim=-1)
+                gated_msa, shift_msa, scale_msa = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
 
                 # modulate self-attention
                 y = self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
-                y[:, 1:] *= gated_msa  # skip class token
+                y[:, 1:] = y[:, 1:] * gated_msa  # skip class token
                 # y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_key, x_value)
+                y = self.cross_attn(self.norm2(x), x_kv)
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
@@ -223,7 +222,7 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
-                y = self.cross_attn(self.norm2(x), x_key, x_value, return_attention)
+                y = self.cross_attn(self.norm2(x), x_kv, return_attention)
                 x = x + self.drop_path(y)
 
                 # mlp forward
