@@ -160,7 +160,7 @@ class DoubleConditionedMAGE(nn.Module):
         if not self.pad_with_cls_token:
             self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
-        # self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_embed_dim), requires_grad=False)  # fixed sin-cos embedding
+
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
@@ -168,8 +168,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_audio_reference,  # add information in cross attention
-            modulation=self.use_image_reference,  # add information in modulation
+            cross_attn=self.use_image_reference,  # add information in cross attention
+            modulation=self.use_audio_reference,  # add information in modulation
             proj_in=1024 if use_audio_reference else None  # embedding for audio
         )
 
@@ -491,7 +491,7 @@ class TransformerDecoder(nn.Module):
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False, proj_in=None):
         super().__init__()
-        module = partial(CrossBlock, modulation=modulation) if cross_attn else Block
+        module = partial(CrossBlock, modulation=modulation) if cross_attn else partial(Block, modulation=modulation)
         self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
@@ -504,11 +504,11 @@ class TransformerDecoder(nn.Module):
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
+            proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
             if self.cross_attn:
-                proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
                 x = blk(x, kv, proj_cond)
             else:
-                x = blk(x)
+                x = blk(x, proj_cond)
         return x
 
 
