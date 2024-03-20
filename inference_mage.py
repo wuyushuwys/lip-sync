@@ -7,6 +7,7 @@ import os
 import shutil
 import numpy as np
 import datetime
+import time
 from tqdm import tqdm
 
 import torch
@@ -144,8 +145,8 @@ if __name__ == '__main__':
     model = lip_mage_vit_base(vq_config_path="config/vqgan.yml",
                               vq_state_dict="pretrained/vq_model_512_256.pt",
                               use_audio_reference=True,
-                              use_image_reference=True,
-                              tokenize_reference=True,
+                              use_image_reference=False,
+                              tokenize_reference=False,
                               mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
                               ref_control=True,
                               ref_controller_state_dict='refcontrolnet_gated.pt')
@@ -153,7 +154,7 @@ if __name__ == '__main__':
     #                       vq_state_dict="pretrained/vq_model_512_256.pt",
     #                       modulate_type='ada_gated_modulate')
 
-    model.load_state_dict(torch.load(args.ckpt), strict=False)
+    model.load_state_dict(torch.load(args.ckpt))
     model.to(device)
     model.eval()
 
@@ -181,6 +182,11 @@ if __name__ == '__main__':
         .run_async(pipe_stdin=True, quiet=not args.verbose)
     )
 
+    T_mask = []
+    T_wav2lip = []
+    T_unwrap = []
+    T_write = []
+
     if args.verbose:
         pbar = enumerate(dataloader)
     else:
@@ -189,9 +195,15 @@ if __name__ == '__main__':
         x = x.to(device, non_blocking=True)
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
+        torch.cuda.synchronize()
+        t_mask = time.monotonic()
         with torch.no_grad():
             x_masked = mask_module(x)
         masked_flag = mask_module.inverse_mask
+        torch.cuda.synchronize()
+        T_mask.append(time.monotonic() - t_mask)
+
+        t_w2l = time.monotonic()
         with torch.no_grad():
             with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
                                 dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
@@ -204,8 +216,12 @@ if __name__ == '__main__':
                                                        audio=indiv_mels,
                                                        generate=True)
             g = g.to(torch.float32).clamp(-1, 1) / 2 + 0.5
-
+        torch.cuda.synchronize()
+        T_wav2lip.append(time.monotonic() - t_w2l)
+        t_unwarp = 0
+        t_write = 0
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
+            tmp_unwarp = time.monotonic()
             frame_idx = i * bsz + batch_id
             x1, y1, x2, y2 = coords[name]
             landmark = landmarks[name]
@@ -236,11 +252,24 @@ if __name__ == '__main__':
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_face', f"{frame_idx:06d}.jpg"), np.flip(restored_face, -1))
                 cv2.imwrite(os.path.join(TMP_FOLDER, 'sync_frames', f"{frame_idx:06d}.jpg"), np.flip(frame, -1))
             # process.stdin.write(restored_face.astype(np.uint8).tobytes())
+            t_unwarp += time.monotonic() - tmp_unwarp
+            tmp_write = time.monotonic()
             process.stdin.write(frame.astype(np.uint8).tobytes())
-            # exit()
+            t_write += time.monotonic() - tmp_write
+        T_unwrap.append(t_unwarp)
+        T_write.append(t_write)
 
     process.stdin.close()
     process.wait()
+
+    skip = 10
+    mean_mask = np.mean(T_mask[skip:]) / batch_size * 1000
+    mean_wav2lip = np.mean(T_wav2lip[skip:]) / batch_size * 1000
+    mean_unwrap = np.mean(T_unwrap[skip:]) / batch_size * 1000
+    mean_write = np.mean(T_write[skip:]) / batch_size * 1000
+    total_fps = 1 / ((mean_mask + mean_wav2lip + mean_unwrap + mean_write) / 1000)
+    print(
+        f"Mask: {mean_mask:.02f}ms, Wav2Lip: {mean_wav2lip:.02f}ms, Unwrap: {mean_unwrap:.02f}ms, Write: {mean_write:.02f}ms, total fps: {total_fps:.02f}")
 
     if args.clean:
         shutil.rmtree(TMP_FOLDER)
