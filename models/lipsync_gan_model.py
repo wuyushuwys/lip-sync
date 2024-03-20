@@ -129,7 +129,7 @@ class LipSyncGAN(BasicModel):
             self.g_optimizer.zero_grad()
             self.d_optimizer.zero_grad()
 
-            real_d_pred = self.d_model(face_rearrange(y))
+            real_d_pred = self.d_model(face_rearrange(y).contiguous().detach())
             l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
             l_d_real.backward()
 
