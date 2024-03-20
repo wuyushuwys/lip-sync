@@ -168,8 +168,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_image_reference,  # add information in cross attention
-            modulation=self.use_audio_reference,  # add information in modulation
+            cross_attn=self.use_audio_reference,  # add information in cross attention
+            modulation=False,  # add information in modulation
             proj_in=1024 if use_audio_reference else None  # embedding for audio
         )
 
@@ -379,11 +379,11 @@ class DoubleConditionedMAGE(nn.Module):
         # ref += self.cross_embed(ref)
         # if self.use_audio_reference:
         #     ref = audio_emb
-        if self.use_image_reference:
-            ref = ref_emb
+        if self.use_audio_reference:
+            ref = audio_emb
         else:
             ref = x
-        cond = audio_emb
+        cond = None
         # apply Transformer blocks
         x = self.transformer_decoder(x, kv=ref, cond=cond if self.use_audio_reference else None)
 
@@ -504,11 +504,11 @@ class TransformerDecoder(nn.Module):
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
-            proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
+            proj_kv = self.proj_ins[i](kv) if self.proj_ins is not None else None
             if self.cross_attn:
-                x = blk(x, kv, proj_cond)
+                x = blk(x, proj_kv, cond)
             else:
-                x = blk(x, proj_cond)
+                x = blk(x, cond)
         return x
 
 
