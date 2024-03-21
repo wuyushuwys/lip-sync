@@ -214,7 +214,6 @@ class DoubleConditionedMAGE(nn.Module):
             for p in self.ref_controller.controller.parameters():
                 p.requires_grad = True
 
-
     def initialize_weights(self):
         # initialization
         if not self.pad_with_cls_token:
