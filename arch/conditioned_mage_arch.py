@@ -208,6 +208,7 @@ class DoubleConditionedMAGE(nn.Module):
             p.requires_grad = True
 
         if ref_control_adaptive:
+            # only train controller
             for p in self.parameters():
                 p.requires_grad = False
             for p in self.ref_controller.controller.parameters():
