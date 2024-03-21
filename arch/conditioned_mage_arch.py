@@ -63,15 +63,10 @@ class DoubleConditionedMAGE(nn.Module):
             logger.info(f"Enable reference control: {ref_control}")
             setattr(self, 'vqgan', self.ref_controller.vqgan)
 
-            # froze the pretrained ref_controller model
-            if ref_control_adaptive:
-                logger.info("Unfrozen reference controller")
-                for p in self.vqgan.parameters():
-                    p.requires_grad = False
-            else:
-                logger.info("Frozen reference controller")
-                for p in self.ref_controller.parameters():
-                    p.requires_grad = False
+            # frozen the pretrained ref_controller model
+            logger.info("Frozen reference controller")
+            for p in self.ref_controller.parameters():
+                p.requires_grad = False
 
         else:
             # VQGAN specifics
@@ -211,6 +206,13 @@ class DoubleConditionedMAGE(nn.Module):
         # unfreeze mlm layer
         for p in self.mlm_layer.parameters():
             p.requires_grad = True
+
+        if ref_control_adaptive:
+            for p in self.parameters():
+                p.requires_grad = False
+            for p in self.ref_controller.controller.parameters():
+                p.requires_grad = True
+
 
     def initialize_weights(self):
         # initialization
