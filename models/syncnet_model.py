@@ -38,7 +38,7 @@ class SyncNetModel(BasicModel):
 
         self.no_ddp_model = self.model_no_ddp(model)
 
-        mask_kwargs = opt.get("mask", dict(half_precision=True))
+        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
         self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.cur_loss = None

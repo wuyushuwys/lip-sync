@@ -36,7 +36,7 @@ class LipSyncModel(BasicModel):
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        mask_kwargs = opt.get("mask", dict(half_precision=True))
+        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
         self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
         self.use_amp = opt.get('use_amp', False)
