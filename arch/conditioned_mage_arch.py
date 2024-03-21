@@ -487,10 +487,11 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-        self.proj_ins = nn.ModuleList([nn.Sequential(
-            nn.LayerNorm(proj_in),
-            nn.Linear(proj_in, embed_dim)
-        ) for _ in range(depth)]) if proj_in else None
+        self.proj_ins = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(proj_in, embed_dim),
+                nn.LayerNorm(proj_in),
+            ) for _ in range(depth)]) if proj_in else None
 
     def forward(self, x, kv, cond=None):
 
