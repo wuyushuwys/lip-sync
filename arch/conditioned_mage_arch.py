@@ -45,7 +45,7 @@ class DoubleConditionedMAGE(nn.Module):
             vq_config_path='config/vqgan.yml', vq_state_dict=None,
             mage_pretrain_ckpt_path=None,
             # reference information config
-            use_audio_reference=True, audio_weight_path=None,
+            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024,
             use_image_reference=True,
             tokenize_reference=False,
             # reference control model config
@@ -169,7 +169,7 @@ class DoubleConditionedMAGE(nn.Module):
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
-            proj_in=1024 if use_audio_reference else None  # embedding for audio
+            proj_in=num_audio_embed if use_audio_reference else None  # embedding for audio
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
