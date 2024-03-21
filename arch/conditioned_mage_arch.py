@@ -160,7 +160,6 @@ class DoubleConditionedMAGE(nn.Module):
         if not self.pad_with_cls_token:
             self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
-
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
@@ -168,8 +167,8 @@ class DoubleConditionedMAGE(nn.Module):
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-            cross_attn=self.use_audio_reference,  # add information in cross attention
-            modulation=False,  # add information in modulation
+            cross_attn=self.use_image_reference,  # add information in cross attention
+            modulation=self.use_audio_reference,  # add information in modulation
             proj_in=1024 if use_audio_reference else None  # embedding for audio
         )
 
@@ -367,25 +366,14 @@ class DoubleConditionedMAGE(nn.Module):
         # add pos embed
         x = x_after_pad + self.decoder_pos_embed_learned
 
-        # if self.use_audio_reference and self.use_image_reference:
-        #     assert audio_emb.size(-1) == ref_emb.size(-1)
-        #     ref = torch.cat([audio_emb, ref_emb], dim=1)
-        # elif self.use_audio_reference:
-        #     ref = audio_emb
-        # elif self.use_image_reference:
-        #     ref = ref_emb
-        # else:
-        #     ref = x
-        # ref += self.cross_embed(ref)
         # if self.use_audio_reference:
         #     ref = audio_emb
-        if self.use_audio_reference:
-            ref = audio_emb
+        if self.use_image_reference:
+            ref = ref_emb
         else:
             ref = x
-        cond = None
         # apply Transformer blocks
-        x = self.transformer_decoder(x, kv=ref, cond=cond if self.use_audio_reference else None)
+        x = self.transformer_decoder(x, kv=ref, cond=audio_emb if self.use_audio_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -498,17 +486,18 @@ class TransformerDecoder(nn.Module):
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
         self.proj_ins = nn.ModuleList([nn.Sequential(
+            nn.LayerNorm(proj_in),
             nn.Linear(proj_in, embed_dim)
         ) for _ in range(depth)]) if proj_in else None
 
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
-            proj_kv = self.proj_ins[i](kv) if self.proj_ins is not None else None
+            proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
             if self.cross_attn:
-                x = blk(x, proj_kv, cond)
+                x = blk(x, kv, proj_cond)
             else:
-                x = blk(x, cond)
+                x = blk(x, proj_cond)
         return x
 
 
