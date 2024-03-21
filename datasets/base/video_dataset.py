@@ -65,10 +65,11 @@ class FrameMelDataset(Dataset):
 
         if self.mode == utils.mode.TRAIN:
             self.num_samples = self.data_spec.num_samples  # number of samples from each video
+            if extent_factor:
+                self.num_samples = int(self.num_samples * extent_factor)
         elif self.mode == utils.mode.EVAL:
             self.num_samples = self.data_spec.eval_samples  # number of samples from each video
-        if extent_factor:
-            self.num_samples = int(self.num_samples * extent_factor)
+
         # if self.model == 'syncnet':
         #     # Indexing eval list
         #     if self.mode == utils.mode.EVAL:
