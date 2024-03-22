@@ -9,11 +9,13 @@ from models.modules.masking import Masking
 
 class CosineLoss(nn.Module):
 
-    def __init__(self, loss_weight=1):
+    def __init__(self, loss_weight=1, vanilla=True):
         super().__init__()
         self.loss_weight = loss_weight
-        self.loss = nn.BCELoss()
-        # self.loss = nn.BCEWithLogitsLoss()
+        if vanilla:
+            self.loss = nn.BCELoss()
+        else:
+            self.loss = nn.BCEWithLogitsLoss()
         self.cos_sim = nn.CosineSimilarity()
 
     def forward(self, a, v, y):
@@ -36,7 +38,7 @@ class SyncLoss(nn.Module):
         self.loss_weight = loss_weight
         self.window_size = window_size
 
-        self.criterion = CosineLoss()
+        self.criterion = CosineLoss(vanilla=False)
 
         self.expert_model.eval()
 
