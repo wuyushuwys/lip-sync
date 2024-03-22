@@ -113,7 +113,7 @@ def create_criteria(args: argparse.Namespace):
     if args.losses is not None:
         for name, kwargs in args.losses.items():
             if 'type' in kwargs:
-                logger.info(f"Create {name}[{kwargs.get({type})}]")
+                logger.info(f"Create {name}[{kwargs.get({'type'})}]")
                 loss = getattr(losses_module, kwargs.get('type'))
                 criteria[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
