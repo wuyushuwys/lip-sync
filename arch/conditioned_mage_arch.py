@@ -436,7 +436,7 @@ class DoubleConditionedMAGE(nn.Module):
                 else:
                     # get straight through one_hot
                     y_soft = logits.softmax(dim=-1)
-                    y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices, 1.0)
+                    y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices.long(), 1.0)
                     soft_one_hot = y_hard - y_soft.detach() + y_soft
 
                 b, seq_len, n_dim = logits.size()
