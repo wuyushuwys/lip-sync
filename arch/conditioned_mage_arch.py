@@ -59,8 +59,11 @@ class DoubleConditionedMAGE(nn.Module):
         if ref_control:
             self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
                                                 vq_state_dict=vq_state_dict)
-            self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
-            logger.info(f"Enable reference control: {ref_control}")
+            if ref_controller_state_dict:
+                self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
+                logger.info(f"Enable reference control: {ref_control}")
+            else:
+                logger.warning("No ref_controller_state_dict")
             setattr(self, 'vqgan', self.ref_controller.vqgan)
 
             # frozen the pretrained ref_controller model

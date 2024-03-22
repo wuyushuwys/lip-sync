@@ -75,8 +75,7 @@ class MageModel(BasicModel):
             indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
             audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
 
-            # unused for now
-            # mel = mel.to(self.local_rank, non_blocking=True)
+            mel = mel.to(self.local_rank, non_blocking=True)
 
             y = y.to(self.local_rank, non_blocking=True)
             y = rearrange(y, 'b c t h w -> (b t) c h w')
@@ -104,6 +103,14 @@ class MageModel(BasicModel):
                         perceptual_loss = self.criteria['perceptual_loss'](g, y)
                         loss += perceptual_loss
                         log_vars['perceptual_loss'] = perceptual_loss
+
+                    if 'sync_loss' in self.criteria.keys():
+                        sync_weight = self.criteria['sync_loss'].loss_weight
+                        sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
+                                                               mask=self.mask) * sync_weight
+                        loss += sync_weight
+                        log_vars['sync_loss'] = sync_loss
+
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
