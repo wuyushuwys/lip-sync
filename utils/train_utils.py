@@ -104,9 +104,7 @@ def subdict(dict: Union[Dict, DictConfig], *exceptions) -> Dict:
 
 
 def create_criteria(args: argparse.Namespace):
-    # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
     assert hasattr(args, 'losses'), "Missing losses in model config"
-    # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
     criteria = OrderedDict()
     logger = get_logger()
