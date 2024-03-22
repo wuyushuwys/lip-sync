@@ -187,7 +187,7 @@ class CrossBlock(nn.Module):
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
                 nn.Linear(dim, self.num_modulation * dim, bias=True),
-                nn.Dropout(drop)
+                # nn.Dropout(drop)
             )
             for m in self.adaLN.modules():
                 if isinstance(m, nn.Linear):
@@ -213,7 +213,7 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
-                # x = x + gated_mlp * self.mlp(self.modulate(x=self.norm3(x), shift=shift_mlp, scale=scale_mlp))
+                # x = x + gated_mlp * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift_mlp, scale=scale_mlp)))
                 x = x + self.drop_path(self.mlp(self.norm3(x)))
 
             else:
@@ -254,7 +254,7 @@ class Block(nn.Module):
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
                 nn.Linear(dim, self.num_modulation * dim, bias=True),
-                nn.Dropout(drop)
+                # nn.Dropout(drop)
             )
             for m in self.adaLN.modules():
                 if isinstance(m, nn.Linear):
@@ -273,6 +273,7 @@ class Block(nn.Module):
 
                 y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
                 x = x + self.drop_path(y)
+                # x = x + gated_mlp * self.drop_path(self.mlp(self.modulate(x=self.norm2(x), shift=shift_mlp, scale=scale_mlp)))
                 x = x + self.drop_path(self.mlp(self.norm2(x)))
             else:
                 y = self.attn(self.norm1(x), return_attention)
