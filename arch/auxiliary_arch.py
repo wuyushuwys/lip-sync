@@ -134,24 +134,26 @@ class AudioEncoder(nn.Module):
         self.audio_encoder = nn.Sequential(
             Block(1, 32, kernel_size=3, stride=1, padding=1),
             Block(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
-            Block(32, 32, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(32, 32, kernel_size=3, stride=1, padding=1, act='silu', residual=True),
 
             Block(32, 64, kernel_size=3, stride=(3, 1), padding=1),
             Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
-            Block(64, 64, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(64, 64, kernel_size=3, stride=1, padding=1, act='silu', residual=True),
 
             Block(64, 128, kernel_size=3, stride=3, padding=1),
             Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
-            Block(128, 128, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(128, 128, kernel_size=3, stride=1, padding=1, act='silu', residual=True),
 
             Block(128, 256, kernel_size=3, stride=(3, 2), padding=1),
             Block(256, 256, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(256, 256, kernel_size=3, stride=1, padding=1, act='silu', residual=True),
 
             Block(256, 512, kernel_size=3, stride=1, padding=1),
             Block(512, 512, kernel_size=3, stride=1, padding=1, residual=True),
+            Block(512, 512, kernel_size=3, stride=1, padding=1, act='silu', residual=True),
 
-            Block(512, emb_dim, kernel_size=3, stride=1, padding=0),
-            Block(emb_dim, emb_dim, kernel_size=1, stride=1, padding=0, act='silu', gated=True),
+            Block(512, emb_dim, kernel_size=3, stride=1, padding=1),
+            Block(emb_dim, emb_dim, kernel_size=3, stride=1, padding=0, act='silu', gated=True),
         )
 
     def forward(self, x):
@@ -170,8 +172,7 @@ class AudioAttNet(nn.Module):
         self.seq_len = seq_len
         self.dim_aud = dim_aud
         self.attentionConvNet = nn.Sequential(  # b x subspace_dim x seq_len
-            nn.Conv1d(self.dim_aud, 16, kernel_size=3,
-                      stride=1, padding=1, bias=True),
+            nn.Conv1d(self.dim_aud, 16, kernel_size=3, stride=1, padding=1, bias=True),
             nn.LeakyReLU(0.02, True),
             nn.Conv1d(16, 8, kernel_size=3, stride=1, padding=1, bias=True),
             nn.LeakyReLU(0.02, True),
