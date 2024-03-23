@@ -122,8 +122,8 @@ class AudioPretrainedEncoder(nn.Module):
 
     def forward(self, x):
         audio_embedding = self.audio_encoder(x)
-        audio_embedding = audio_embedding.view(audio_embedding.size(0), -1)
-        return audio_embedding.unsqueeze(1)
+        audio_embedding = audio_embedding.view(audio_embedding.size(0), 1, -1)
+        return audio_embedding
 
 
 class AudioEncoder(nn.Module):
@@ -159,7 +159,7 @@ class AudioEncoder(nn.Module):
     def forward(self, x):
         audio_embedding = self.audio_encoder(x)
 
-        audio_embedding = audio_embedding.view(audio_embedding.size(0), -1)
+        audio_embedding = audio_embedding.view(audio_embedding.size(0), 1, -1)
 
         return audio_embedding
 
