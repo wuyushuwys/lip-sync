@@ -13,6 +13,7 @@ from einops import rearrange
 
 import wandb
 
+from losses import SyncLoss
 from common.meters import AverageMeter
 from utils.helpers import compute_per_image, reduce_all
 from utils.logger_utils import eval_tb_writer
@@ -43,7 +44,7 @@ def evaluation(model, eval_data_loaders, epoch, criteria,
     model.eval()
     for eval_data_name, eval_data_loader in eval_data_loaders:
         img_folder = f"{args.job_dir}/samples/{eval_data_name}"
-        loss_dict = test(eval_data_loader, model, epoch, img_folder, args, mask)
+        loss_dict = test(eval_data_loader, model, criteria, epoch, img_folder, args, mask)
         log_string = eval_tb_writer(writer=writer, loss_dict=loss_dict, nb=epoch, eval_data_name=eval_data_name)
         logger.info(log_string)
     logger.info(f"Finish Epoch {epoch} Evaluation\n")
@@ -52,6 +53,7 @@ def evaluation(model, eval_data_loaders, epoch, criteria,
 @torch.no_grad()
 def test(dataloader: DataLoader,
          model: torch.nn.Module,
+         criteria,
          epoch: int,
          img_folder: str,
          args: argparse.Namespace,
@@ -63,6 +65,9 @@ def test(dataloader: DataLoader,
     loss_dict["SSIM"] = AverageMeter()
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
+    loss_dict['SyncLoss'] = AverageMeter()
+
+    sync_net = SyncLoss(ckpt_path=args.get('sync_net_path', 'pretrained/syncnet.pt')).cuda()
 
     ssim = compute_per_image(SSIM(data_range=1))
     ms_ssim = compute_per_image(MS_SSIM(data_range=1))
@@ -73,14 +78,14 @@ def test(dataloader: DataLoader,
 
         x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
                      torch.split(x, 3, dim=1))
-
+        num_frames = x.size(0)
         assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
         indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
         audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
 
         # unused for now
-        # mel = mel.to(args.local_rank, non_blocking=True)
+        mel = mel.to(args.local_rank, non_blocking=True)
 
         y = y.to(args.local_rank, non_blocking=True)
         y = rearrange(y, 'b c t h w -> (b t) c h w')
@@ -91,10 +96,13 @@ def test(dataloader: DataLoader,
 
         mage_loss = reduce_all(loss)
         mage_accuracy = reduce_all(acc)
-        loss_dict['mage_loss'].update(mage_loss.item(), bsz)
-        loss_dict['acc'].update(mage_accuracy.item(), bsz)
+        loss_dict['mage_loss'].update(mage_loss.item(), num_frames)
+        loss_dict['acc'].update(mage_accuracy.item(), num_frames)
 
-        vq_y, _ = model.module.vqgan(y)
+        sync_loss = sync_net(mel, rearrange(imgs, '(b t) c h w -> b c t h w', b=bsz), mask=mask)
+        loss_dict['SyncLoss'].update(reduce_all(sync_loss), bsz)
+
+        # vq_y, _ = model.module.vqgan(y)
 
         # scale image from [-1, 1] to [0, 1] for saving and image pixel evaluation
         x_masked = (x_masked + 1) / 2
@@ -102,9 +110,9 @@ def test(dataloader: DataLoader,
         imgs = (imgs + 1) / 2
         y = (y + 1) / 2
 
-        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), bsz)
-        loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), bsz)
-        loss_dict['SSIM'].update(reduce_all(ssim(imgs, y)), bsz)
+        loss_dict['MS_SSIM'].update(reduce_all(ms_ssim(imgs, y)), num_frames)
+        loss_dict['PSNR'].update(reduce_all(psnr(imgs, y).mean()), num_frames)
+        loss_dict['SSIM'].update(reduce_all(ssim(imgs, y)), num_frames)
 
         save_sample_images(x_masked, ref, imgs, y, idx, epoch, img_folder)
 
