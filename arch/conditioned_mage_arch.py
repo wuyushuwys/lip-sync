@@ -45,7 +45,7 @@ class DoubleConditionedMAGE(nn.Module):
             vq_config_path='config/vqgan.yml', vq_state_dict=None,
             mage_pretrain_ckpt_path=None,
             # reference information config
-            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024,
+            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024, modulate_type=None,
             use_image_reference=True,
             tokenize_reference=False,
             # reference control model config
@@ -167,7 +167,8 @@ class DoubleConditionedMAGE(nn.Module):
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
-            proj_in=num_audio_embed if use_audio_reference else None  # embedding for audio
+            proj_in=num_audio_embed if use_audio_reference else None,  # embedding for audio
+            modulate_type=modulate_type,
         )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
@@ -482,9 +483,10 @@ class TransformerEncoder(nn.Module):
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True, modulation=False, proj_in=None):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
+                 modulation=False, modulate_type='msa', proj_in=None):
         super().__init__()
-        module = partial(CrossBlock, modulation=modulation) if cross_attn else partial(Block, modulation=modulation)
+        module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
         self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,

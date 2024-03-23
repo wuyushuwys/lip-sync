@@ -161,8 +161,10 @@ class CrossAttention(nn.Module):
 
 class CrossBlock(nn.Module):
 
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, modulation=False):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+                 drop=0., attn_drop=0., drop_path=0.,
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,
+                 modulation=False, modulate_type='msa'):
         super(CrossBlock, self).__init__()
         self.modulation = modulation
         self.norm1 = norm_layer(dim)
@@ -182,6 +184,8 @@ class CrossBlock(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if modulation:
+            assert modulate_type in ['msa', 'mlp'], f"{modulate_type} not support"
+            self.modulate_type = modulate_type
             # todo: check modulation for cross_attn
             self.num_modulation = 3
             self.adaLN = nn.Sequential(
@@ -201,11 +205,13 @@ class CrossBlock(nn.Module):
             return attn
         else:
             if self.modulation:
-                gated_msa, shift_msa, scale_msa = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                gated, shift, scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
 
                 # modulate self-attention
-                y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
-                # y = self.attn(self.norm1(x))
+                if self.modulate_type == 'msa':
+                    y = gated * self.attn(self.modulate(x=self.norm1(x), shift=shift, scale=scale))
+                else:
+                    y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
 
                 # cross-attention with reference
@@ -213,8 +219,11 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
-                # x = x + gated_mlp * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift_mlp, scale=scale_mlp)))
-                x = x + self.drop_path(self.mlp(self.norm3(x)))
+                if self.modulate_type == 'mlp':
+                    y = gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift, scale=scale)))
+                else:
+                    y = self.mlp(self.norm3(x))
+                x = x + self.drop_path(y)
 
             else:
                 # self-attention
@@ -236,8 +245,10 @@ class CrossBlock(nn.Module):
 
 class Block(nn.Module):
 
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm, modulation=False):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+                 drop=0., attn_drop=0., drop_path=0.,
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,
+                 modulation=False, modulate_type='msa'):
         super().__init__()
         self.modulation = modulation
         self.norm1 = norm_layer(dim)
@@ -250,6 +261,8 @@ class Block(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if modulation:
+            assert modulate_type in ['msa', 'mlp'], f"{modulate_type} not support"
+            self.modulate_type = modulate_type
             self.num_modulation = 3
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
@@ -269,12 +282,20 @@ class Block(nn.Module):
             return x, attn
         else:
             if self.modulation:
-                gated_msa, shift_msa, scale_msa = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                gated, shift, scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
 
-                y = gated_msa * self.attn(self.modulate(x=self.norm1(x), shift=shift_msa, scale=scale_msa))
+                # modulate self-attention
+                if self.modulate_type == 'msa':
+                    y = gated * self.attn(self.modulate(x=self.norm1(x), shift=shift, scale=scale))
+                else:
+                    y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
-                # x = x + gated_mlp * self.drop_path(self.mlp(self.modulate(x=self.norm2(x), shift=shift_mlp, scale=scale_mlp)))
-                x = x + self.drop_path(self.mlp(self.norm2(x)))
+                # modulate Mlp
+                if self.modulate_type == 'mlp':
+                    y = gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift, scale=scale)))
+                else:
+                    y = self.mlp(self.norm2(x))
+                x = x + self.drop_path(y)
             else:
                 y = self.attn(self.norm1(x), return_attention)
                 x = x + self.drop_path(y)
