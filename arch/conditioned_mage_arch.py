@@ -45,7 +45,7 @@ class DoubleConditionedMAGE(nn.Module):
             vq_config_path='config/vqgan.yml', vq_state_dict=None,
             mage_pretrain_ckpt_path=None,
             # reference information config
-            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024, modulate_type=None,
+            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024, modulate_type='msa',
             use_image_reference=True,
             tokenize_reference=False,
             # reference control model config
