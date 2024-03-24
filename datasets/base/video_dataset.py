@@ -180,7 +180,7 @@ class FrameMelDataset(Dataset):
             if self.crop is not None:
                 _, H, W = cache_data.shape
                 y1, y2, x1, x2 = self.crop
-                cache_data = cache_data[:, int(H * y1):int(H * y2), int(W * x1):int(W * x1)]
+                cache_data = cache_data[:, int(H * y1):int(H * y2), int(W * x1):int(W * x2)]
             return cache_data
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)
