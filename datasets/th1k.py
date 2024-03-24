@@ -8,12 +8,13 @@ from datasets.base.video_dataset import FrameMelDataset
 from .utils import load_from_folder
 
 DATA_ROOT = "data/TH1K"
+
+
 # META_PATH = lambda mode: f'{DATA_ROOT}/{mode}.txt'
 
 
 def get_dataset(mode: AnyStr, args: Namespace):
     return TH1K(mode, args, args.data_root.celeba_hq if args.get("data_root", False) else DATA_ROOT)
-
 
 
 class TH1K(FrameMelDataset):
@@ -34,7 +35,7 @@ class TH1K(FrameMelDataset):
         super(TH1K, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
                                    audio_cache_path=audio_cache_path, video_cache_path=video_cache_path,
                                    skip_offset=0.05,  # only use middle 90% data to training
-                                   )
+                                   crop=[0.1, 0.9, 0.1, 0.9])
 
     def __str__(self):
         return self.__class__.__name__.lower()
