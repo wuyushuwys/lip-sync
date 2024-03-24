@@ -178,8 +178,9 @@ class FrameMelDataset(Dataset):
             if cache_data.dim() == 1:
                 cache_data = decode_image(cache_data)
             if self.crop is not None:
+                _, H, W = cache_data.shape
                 y1, y2, x1, x2 = self.crop
-                cache_data = cache_data[:, y1:y2, x1:x2]
+                cache_data = cache_data[:, int(H * y1):int(H * y2), int(W * x1):int(W * x1)]
             return cache_data
         elif self.data_mode == 'tar':
             root, key = os.path.split(fname)
