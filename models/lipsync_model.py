@@ -44,6 +44,10 @@ class LipSyncModel(BasicModel):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
         self.no_ddp_model = self.model_no_ddp(model)
+
+        self.sync_weight = criteria['sync_loss'].loss_weight if 'sync_loss' in criteria else 0
+        if 'sync_loss' in criteria:
+            criteria['sync_loss'].loss_weight = 0
         # self.ema_model = self.create_ema(model, power=0.75)
 
     def compile_model(self):
@@ -124,7 +128,7 @@ class LipSyncModel(BasicModel):
                                             logger=self.logger,
                                             mask=self.mask)
         if sync_loss < 0.75:
-            self.criteria['sync_loss'].loss_weight = 0.03
+            self.criteria['sync_loss'].loss_weight = self.sync_weight
 
     def save_model(self, path, *opt):
         state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
