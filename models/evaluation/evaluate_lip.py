@@ -86,7 +86,7 @@ def test(dataloader: DataLoader,
             loss_dict['recon_loss'].update(recon_loss.item(), bsz)
 
         if 'perceptual_loss' in criteria.keys():
-            perceptual_loss = reduce_all(criteria['perceptual_loss'](pred_y, y, val=True))
+            perceptual_loss = reduce_all(criteria['perceptual_loss'](pred_y, y, normalize=False, val=True))
             loss_dict['perceptual_loss'].update(perceptual_loss.item(), bsz)
 
         x = x / 2 + 0.5
