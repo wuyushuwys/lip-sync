@@ -100,7 +100,7 @@ class MageModel(BasicModel):
                         loss += recon_loss
                         log_vars['recon_loss'] = recon_loss
                     if 'perceptual_loss' in self.criteria.keys():
-                        perceptual_loss = self.criteria['perceptual_loss'](g, y)
+                        perceptual_loss = self.criteria['perceptual_loss'](g, y, normalize=False)
                         loss += perceptual_loss
                         log_vars['perceptual_loss'] = perceptual_loss
 
@@ -110,7 +110,6 @@ class MageModel(BasicModel):
                                                                mask=self.mask) * sync_weight
                         loss += sync_weight
                         log_vars['sync_loss'] = sync_loss
-
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
