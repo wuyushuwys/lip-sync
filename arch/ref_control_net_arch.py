@@ -22,12 +22,14 @@ class RefControlNet(nn.Module):
         if vq_config_path is not None:
             vq_config = OmegaConf.load(vq_config_path)
             self.vqgan = FaceCoderNet(**vq_config.g_model)
-            if os.path.exists(vq_state_dict):
-                self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
-                logger.info(f"Load vq model weight from {vq_state_dict}")
+            if vq_state_dict is not None:
+                if os.path.exists(vq_state_dict):
+                    self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
+                    logger.info(f"Load vq model weight from {vq_state_dict}")
+                else:
+                    raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
             else:
-                raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
-
+                logger.info(f"Not pretrain vq model weight provided")
         # freeze vqgan
         for p in self.vqgan.parameters():
             p.requires_grad = False
