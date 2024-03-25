@@ -39,6 +39,11 @@ def create_dataloader(args):
     dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
     train_dataset = ConcatDataset([module.get_dataset(utils.mode.TRAIN, args) for module in dataset_modules])
     logger.info(f"Total training data:{len(train_dataset)}")
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset,
+                                                                    num_replicas=args.world_size,
+                                                                    rank=args.rank,
+                                                                    shuffle=True) if args.distributed else None
+
     # Load eval dataset
     if args.eval_datasets:
         eval_datasets = []
@@ -57,7 +62,6 @@ def create_dataloader(args):
         for name, dataset in eval_datasets:
             eval_samplers[name] = torch.utils.data.distributed.DistributedSampler(dataset) if args.distributed else None
 
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     prefetch_factor = args.data_spec['prefetch_factor'] if 'prefetch_factor' in args.data_spec.keys() else 2
 
     _, world_size = get_dist_info()
