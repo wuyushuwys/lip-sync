@@ -65,7 +65,7 @@ def test(dataloader: DataLoader,
     loss_dict["SSIM"] = AverageMeter()
     loss_dict["MS_SSIM"] = AverageMeter()
     loss_dict["PSNR"] = AverageMeter()
-    loss_dict['SyncLoss'] = AverageMeter()
+    loss_dict['sync_loss'] = AverageMeter()
 
     sync_net = SyncLoss(ckpt_path=args.get('sync_net_path', 'pretrained/syncnet.pt')).cuda()
 
@@ -100,7 +100,7 @@ def test(dataloader: DataLoader,
         loss_dict['acc'].update(mage_accuracy.item(), num_frames)
 
         sync_loss = sync_net(mel, rearrange(imgs, '(b t) c h w -> b c t h w', b=bsz), mask=mask)
-        loss_dict['SyncLoss'].update(reduce_all(sync_loss), bsz)
+        loss_dict['sync_loss'].update(reduce_all(sync_loss), bsz)
 
         # vq_y, _ = model.module.vqgan(y)
 

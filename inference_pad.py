@@ -115,8 +115,6 @@ if __name__ == '__main__':
         img_file = [fname for fname in os.listdir(frame_dir) if fname.endswith(EXT)][0]
         h, w, _ = cv2.imread(os.path.join(frame_dir, img_file)).shape
     print(f"Video Resolution {h}x{w}")
-    # h, w = 720, 1280
-    # h, w = 1080, 1920
     mel = audio.melspectrogram(audio.load_wav(path=args.audio, sr=SAMPLE_RATE)).T
     if np.isnan(mel.reshape(-1)).sum() > 0:
         raise ValueError('Mel contains nan! Using a TTS voice? Add a small epsilon noise to the wav file and try again')

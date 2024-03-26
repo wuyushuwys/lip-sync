@@ -86,8 +86,10 @@ class LipSyncModel(BasicModel):
 
                 recon_loss = self.criteria['recon_loss'](pred_y, y) if 'recon_loss' in self.criteria.keys() else 0
 
-                perceptual_loss = self.criteria['perceptual_loss'](pred_y,
-                                                                   y, normalize=False) if 'perceptual_loss' in self.criteria.keys() else 0
+                if 'perceptual_loss' in self.criteria.keys():
+                    perceptual_loss = self.criteria['perceptual_loss'](pred_y, y, normalize=False)
+                else:
+                    perceptual_loss = 0
 
                 loss = sync_loss * sync_weight + (recon_loss + perceptual_loss) * (1 - sync_weight)
 

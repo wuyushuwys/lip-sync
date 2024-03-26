@@ -30,8 +30,8 @@ class LPIPSLoss(nn.Module):
                 val=False, **ignore_kwargs
                 ) -> torch.Tensor:
         if source.dim() > 4:
-            source = torch.cat(source.unbind(2), dim=0)
-            target = torch.cat(target.unbind(2), dim=0)
+            source = torch.cat([source[:, :, i] for i in range(source.size(2))], dim=0)
+            target = torch.cat([target[:, :, i] for i in range(target.size(2))], dim=0)
 
         lpips_loss = torch.mean(self.model(source, target, normalize=normalize))
         if val:

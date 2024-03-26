@@ -124,15 +124,16 @@ if __name__ == '__main__':
 
     wav = audio.load_wav(path=args.audio, sr=SAMPLE_RATE)
     print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
+    print(f"Output file: {args.output}")
     mel = audio.melspectrogram(wav).T
-
+    batch_size = 16
     dataset = GenerateDataset(TMP_FOLDER,
                               mel,
                               dynamic_mask=True,
                               landmark=True,
                               mage=True)
     dataloader = DataLoader(dataset,
-                            batch_size=16,
+                            batch_size=batch_size,
                             shuffle=False,
                             prefetch_factor=8,
                             num_workers=8)
@@ -145,14 +146,9 @@ if __name__ == '__main__':
     model = lip_mage_vit_base(vq_config_path="config/vqgan.yml",
                               vq_state_dict="pretrained/vq_model_512_256.pt",
                               use_audio_reference=True,
-                              use_image_reference=False,
+                              use_image_reference=True,
                               tokenize_reference=False,
-                              mage_pretrain_ckpt_path="pretrained/lip_mage_vit_base_pretrained.pt",
-                              ref_control=True,
-                              ref_controller_state_dict='refcontrolnet_gated.pt')
-    # model = RefControlNet(vq_config_path="config/vqgan.yml",
-    #                       vq_state_dict="pretrained/vq_model_512_256.pt",
-    #                       modulate_type='ada_gated_modulate')
+                              ref_control=True)
 
     model.load_state_dict(torch.load(args.ckpt))
     model.to(device)
@@ -242,7 +238,7 @@ if __name__ == '__main__':
             w_edge = int(total_face_area ** 0.5) // 20
             erosion_radius = w_edge * 2
             inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
-            blur_size = w_edge * 4
+            blur_size = w_edge * 2
             inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
             inv_soft_mask = inv_soft_mask[:, :, None]
             frame = inv_soft_mask * pasted_face + (1 - inv_soft_mask) * frame

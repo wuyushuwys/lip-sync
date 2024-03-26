@@ -221,6 +221,12 @@ class DoubleConditionedMAGE(nn.Module):
             for p in self.ref_controller.controller.parameters():
                 p.requires_grad = True
 
+    def reload_controller(self, state_dict_path):
+        logger = get_logger()
+        if hasattr(self, 'ref_controller'):
+            logger.info(f"Load control weight from {state_dict_path}")
+            self.ref_controller.load_state_dict(torch.load(state_dict_path, map_location='cpu'))
+
     def initialize_weights(self):
         # initialization
         if not self.pad_with_cls_token:
