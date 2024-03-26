@@ -55,6 +55,7 @@ class FrameMelDataset(Dataset):
         self.video_spec = args.video_spec
         self.audio_spec = args.audio_spec
         self.data_spec = args.data_spec
+        self.fake_audio = self.data_spec.get('fake_audio', False)
         self.window_size = args.data_spec['window_size']
         self.arch = args.arch
         self.mode = mode
@@ -253,9 +254,13 @@ class FrameMelDataset(Dataset):
 
     def _gather_lipsync_data(self, idx, true_window, wrong_window, audio_file):
         assert idx - 2 >= 0
-        audio_mel = self._load_audio_melspec(audio_file)
-        mel = self._crop_audio_window(audio_mel.copy(), idx)
-        indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
+        if not self.fake_audio:
+            audio_mel = self._load_audio_melspec(audio_file)
+            mel = self._crop_audio_window(audio_mel.copy(), idx)
+            indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
+        else:
+            mel = torch.zeros(1)
+            indiv_mels = torch.zeros(1)
 
         true_window = torch.stack(true_window, dim=1) / 255
         wrong_window = torch.stack(wrong_window, dim=1) / 255
@@ -289,8 +294,9 @@ class FrameMelDataset(Dataset):
         #     true_window[:, :, true_window.size(2) // 2:] = 0
 
         x = torch.cat([true_window, wrong_window], dim=0)
-        indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
-        mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
+        if not self.fake_audio:
+            indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
+            mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
         y = gt
 
         return x, indiv_mels, mel, y
@@ -347,8 +353,11 @@ class FrameMelDataset(Dataset):
             audio_idx = false_idx
             label = torch.zeros(1)
 
-        mel = self._load_audio_melspec(audio_file)
-        mel = self._crop_audio_window(mel.copy(), audio_idx)
+        if not self.fake_audio:
+            mel = self._load_audio_melspec(audio_file)
+            mel = self._crop_audio_window(mel.copy(), audio_idx)
+        else:
+            mel = torch.zeros(1)
 
         if 'aug' in self.data_spec.keys() and self.data_spec['aug']:
             if self.mode == utils.mode.TRAIN:
@@ -371,7 +380,8 @@ class FrameMelDataset(Dataset):
             if self.bottom_half:
                 img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
-        mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
+        if not self.fake_audio:
+            mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
         return img_window, mel, label
 
