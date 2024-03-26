@@ -52,6 +52,9 @@ class DoubleConditionedMAGE(nn.Module):
             ref_control=False, ref_controller_state_dict=None, ref_control_adaptive=False
     ):
         super().__init__()
+
+        assert modulate_type in ['msa', 'mlp', 'all'], f"got unexpected modulation {modulate_type}"
+
         logger = get_logger()
         # --------------------------------------------------------------------------
         # VQGAN with reference control specifics
@@ -170,7 +173,8 @@ class DoubleConditionedMAGE(nn.Module):
             norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
-            proj_in=num_audio_embed if use_audio_reference else None,  # embedding for audio
+            audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
+            img_dim= self.vqgan_embed_dim if use_image_reference else None,
             modulate_type=modulate_type,
         )
 
@@ -493,7 +497,7 @@ class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
-                 modulation=False, modulate_type='msa', proj_in=None):
+                 modulation=False, modulate_type='msa', audio_dim=None, img_dim=None):
         super().__init__()
         module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
         self.cross_attn = cross_attn
@@ -501,20 +505,27 @@ class TransformerDecoder(nn.Module):
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-        self.proj_ins = nn.ModuleList([
+        self.proj_audio = nn.ModuleList([
             nn.Sequential(
-                nn.Linear(proj_in, embed_dim),
+                nn.Linear(audio_dim, embed_dim),
                 nn.LayerNorm(embed_dim),
-            ) for _ in range(depth)]) if proj_in else None
+            ) for _ in range(depth)]) if audio_dim else None
+
+        self.proj_img = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(img_dim, embed_dim),
+                nn.LayerNorm(embed_dim),
+            ) for _ in range(depth)]) if img_dim else None
 
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
-            proj_cond = self.proj_ins[i](cond) if self.proj_ins is not None else None
+            proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
+            proj_image = self.proj_img[i](kv) if self.proj_img is not None else None
             if self.cross_attn:
-                x = blk(x, kv, proj_cond)
+                x = blk(x, proj_image, proj_audio)
             else:
-                x = blk(x, proj_cond)
+                x = blk(x, proj_audio)
         return x
 
 

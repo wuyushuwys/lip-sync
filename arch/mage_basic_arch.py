@@ -184,10 +184,13 @@ class CrossBlock(nn.Module):
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
         if modulation:
-            assert modulate_type in ['msa', 'mlp'], f"{modulate_type} not support"
+            assert modulate_type in ['msa', 'mlp', 'all'], f"{modulate_type} not support"
             self.modulate_type = modulate_type
             # todo: check modulation for cross_attn
-            self.num_modulation = 3
+            if modulate_type in ['msa', 'mlp']:
+                self.num_modulation = 3
+            else:
+                self.num_modulation = 6
             self.adaLN = nn.Sequential(
                 nn.SiLU(),
                 nn.Linear(dim, self.num_modulation * dim, bias=True),
@@ -205,11 +208,19 @@ class CrossBlock(nn.Module):
             return attn
         else:
             if self.modulation:
-                gated, shift, scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                if self.modulate_type == 'msa':
+                    msa_gated, msa_shift, msa_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                elif self.modulate_type == 'mlp':
+                    mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                elif self.modulate_type == 'all':
+                    msa_gated, msa_shift, msa_scale, mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                else:
+                    # but you shall never reach here
+                    raise NotImplementedError(f"{self.modulate_type} is not implemented.")
 
                 # modulate self-attention
-                if self.modulate_type == 'msa':
-                    y = gated * self.attn(self.modulate(x=self.norm1(x), shift=shift, scale=scale))
+                if self.modulate_type in ['msa', 'all']:
+                    y = msa_gated * self.attn(self.modulate(x=self.norm1(x), shift=msa_shift, scale=msa_scale))
                 else:
                     y = self.attn(self.norm1(x))
                 x = x + self.drop_path(y)
@@ -219,8 +230,8 @@ class CrossBlock(nn.Module):
                 x = x + self.drop_path(y)
 
                 # modulate mlp forward
-                if self.modulate_type == 'mlp':
-                    y = gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift, scale=scale)))
+                if self.modulate_type in ['mlp', 'all']:
+                    y = mlp_gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=mlp_shift, scale=mlp_scale)))
                 else:
                     y = self.mlp(self.norm3(x))
                 x = x + self.drop_path(y)
