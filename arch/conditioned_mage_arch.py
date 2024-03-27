@@ -167,6 +167,8 @@ class DoubleConditionedMAGE(nn.Module):
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
+        image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
+
         self.transformer_decoder = TransformerDecoder(
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
             mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
@@ -174,7 +176,7 @@ class DoubleConditionedMAGE(nn.Module):
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
             audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
-            img_dim=self.vqgan_embed_dim if use_image_reference else None,
+            img_dim=image_embed_dim if use_image_reference else None,
             modulate_type=modulate_type,
         )
 
