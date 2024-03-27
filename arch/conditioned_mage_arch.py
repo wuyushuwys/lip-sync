@@ -115,16 +115,9 @@ class DoubleConditionedMAGE(nn.Module):
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
-        # if use_image_reference:
-        #     if tokenize_reference:
-        #         self.decoder_embed_mapping = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
-        #                                                    nn.LayerNorm(decoder_embed_dim),
-        #                                                    nn.SiLU())
-        #     else:
-        #         self.decoder_embed_mapping = nn.Sequential(
-        #             nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True),
-        #             nn.LayerNorm(decoder_embed_dim),
-        #             nn.SiLU())
+        if use_image_reference:
+            if not tokenize_reference:
+                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         self.tokenize_reference = tokenize_reference
 
@@ -167,7 +160,7 @@ class DoubleConditionedMAGE(nn.Module):
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
-        image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
+        # image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
 
         self.transformer_decoder = TransformerDecoder(
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
@@ -176,7 +169,7 @@ class DoubleConditionedMAGE(nn.Module):
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
             audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
-            img_dim=image_embed_dim if use_image_reference else None,
+            # img_dim=image_embed_dim if use_image_reference else None,
             modulate_type=modulate_type,
         )
 
@@ -261,10 +254,10 @@ class DoubleConditionedMAGE(nn.Module):
                 ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
                 # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
                 z = self.token_emb(ref_indices.long())
+                z = self.decoder_embed(z)  # unified mapping
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
-
-        # z_map = self.decoder_embed_mapping(z)
+                z = self.decoder_embed_mapping(z)
         return z
 
     def add_class_token(self, x):
@@ -499,7 +492,7 @@ class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
-                 modulation=False, modulate_type='msa', audio_dim=None, img_dim=None):
+                 modulation=False, modulate_type='msa', audio_dim=None):
         super().__init__()
         module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
         self.cross_attn = cross_attn
@@ -514,19 +507,19 @@ class TransformerDecoder(nn.Module):
                 nn.SiLU(),
             ) for _ in range(depth)]) if audio_dim else None
 
-        self.proj_img = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(img_dim, embed_dim),
-                nn.LayerNorm(embed_dim),
-            ) for _ in range(depth)]) if img_dim else None
+        # self.proj_img = nn.ModuleList([
+        #     nn.Sequential(
+        #         nn.Linear(img_dim, embed_dim),
+        #         nn.LayerNorm(embed_dim),
+        #     ) for _ in range(depth)]) if img_dim else None
 
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
             proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
-            proj_image = self.proj_img[i](kv) if self.proj_img is not None else None
+            # proj_image = self.proj_img[i](kv) if self.proj_img is not None else None
             if self.cross_attn:
-                x = blk(x, proj_image, proj_audio)
+                x = blk(x, kv, proj_audio)
             else:
                 x = blk(x, proj_audio)
         return x
