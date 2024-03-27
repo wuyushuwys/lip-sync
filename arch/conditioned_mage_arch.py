@@ -115,16 +115,16 @@ class DoubleConditionedMAGE(nn.Module):
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
-        if use_image_reference:
-            if tokenize_reference:
-                self.decoder_embed_mapping = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
-                                                           nn.LayerNorm(decoder_embed_dim),
-                                                           nn.SiLU())
-            else:
-                self.decoder_embed_mapping = nn.Sequential(
-                    nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True),
-                    nn.LayerNorm(decoder_embed_dim),
-                    nn.SiLU())
+        # if use_image_reference:
+        #     if tokenize_reference:
+        #         self.decoder_embed_mapping = nn.Sequential(nn.Linear(embed_dim, decoder_embed_dim, bias=True),
+        #                                                    nn.LayerNorm(decoder_embed_dim),
+        #                                                    nn.SiLU())
+        #     else:
+        #         self.decoder_embed_mapping = nn.Sequential(
+        #             nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True),
+        #             nn.LayerNorm(decoder_embed_dim),
+        #             nn.SiLU())
 
         self.tokenize_reference = tokenize_reference
 
@@ -174,7 +174,7 @@ class DoubleConditionedMAGE(nn.Module):
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
             audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
-            img_dim= self.vqgan_embed_dim if use_image_reference else None,
+            img_dim=self.vqgan_embed_dim if use_image_reference else None,
             modulate_type=modulate_type,
         )
 
@@ -262,8 +262,8 @@ class DoubleConditionedMAGE(nn.Module):
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
 
-        z_map = self.decoder_embed_mapping(z)
-        return z_map
+        # z_map = self.decoder_embed_mapping(z)
+        return z
 
     def add_class_token(self, x):
         x = torch.cat(
@@ -509,6 +509,7 @@ class TransformerDecoder(nn.Module):
             nn.Sequential(
                 nn.Linear(audio_dim, embed_dim),
                 nn.LayerNorm(embed_dim),
+                nn.SiLU(),
             ) for _ in range(depth)]) if audio_dim else None
 
         self.proj_img = nn.ModuleList([
