@@ -160,7 +160,7 @@ class DoubleConditionedMAGE(nn.Module):
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
-        # image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
+        image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
 
         self.transformer_decoder = TransformerDecoder(
             decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
@@ -169,7 +169,7 @@ class DoubleConditionedMAGE(nn.Module):
             cross_attn=self.use_image_reference,  # add information in cross attention
             modulation=self.use_audio_reference,  # add information in modulation
             audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
-            # img_dim=image_embed_dim if use_image_reference else None,
+            img_dim=image_embed_dim if use_image_reference else None,
             modulate_type=modulate_type,
         )
 
@@ -254,7 +254,7 @@ class DoubleConditionedMAGE(nn.Module):
                 ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
                 # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
                 z = self.token_emb(ref_indices.long())
-                z = self.decoder_embed(z)  # unified mapping
+                # z = self.decoder_embed(z)  # unified mapping
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
                 z = self.decoder_embed_mapping(z)
@@ -380,8 +380,6 @@ class DoubleConditionedMAGE(nn.Module):
         # add pos embed
         x = x_after_pad + self.decoder_pos_embed_learned
 
-        # if self.use_audio_reference:
-        #     ref = audio_emb
         if self.use_image_reference:
             ref = ref_emb
         else:
@@ -492,7 +490,7 @@ class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
                  qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
-                 modulation=False, modulate_type='msa', audio_dim=None):
+                 modulation=False, modulate_type='msa', audio_dim=None, img_dim=None):
         super().__init__()
         module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
         self.cross_attn = cross_attn
@@ -507,17 +505,17 @@ class TransformerDecoder(nn.Module):
                 nn.SiLU(),
             ) for _ in range(depth)]) if audio_dim else None
 
-        # self.proj_img = nn.ModuleList([
-        #     nn.Sequential(
-        #         nn.Linear(img_dim, embed_dim),
-        #         nn.LayerNorm(embed_dim),
-        #     ) for _ in range(depth)]) if img_dim else None
+        self.proj_img = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(img_dim, embed_dim),
+                nn.LayerNorm(embed_dim),
+            ) for _ in range(depth)]) if img_dim else None
 
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
             proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
-            # proj_image = self.proj_img[i](kv) if self.proj_img is not None else None
+            kv = self.proj_img[i](kv) if self.proj_img is not None else None
             if self.cross_attn:
                 x = blk(x, kv, proj_audio)
             else:
