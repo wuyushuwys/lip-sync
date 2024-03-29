@@ -14,7 +14,7 @@ DATA_ROOT = "data/TH1K"
 
 
 def get_dataset(mode: AnyStr, args: Namespace):
-    return TH1K(mode, args, args.data_root.celeba_hq if args.get("data_root", False) else DATA_ROOT)
+    return TH1K(mode, args, args.data_root.th1k if args.get("data_root", False) else DATA_ROOT)
 
 
 class TH1K(FrameMelDataset):
