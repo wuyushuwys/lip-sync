@@ -108,7 +108,7 @@ class MageModel(BasicModel):
                         sync_weight = self.criteria['sync_loss'].loss_weight
                         sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
                                                                mask=self.mask) * sync_weight
-                        loss += sync_weight
+                        loss += sync_loss
                         log_vars['sync_loss'] = sync_loss
 
             self.scaler.scale(loss).backward()
