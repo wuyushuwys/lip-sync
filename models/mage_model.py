@@ -89,10 +89,10 @@ class MageModel(BasicModel):
             use_pixel_loss = (self.criteria is not None and len(self.criteria) > 0) or self.no_ddp_model.norm_pix_loss
 
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
-                loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=use_pixel_loss)
+                ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=use_pixel_loss)
 
-                log_vars['ce_loss'] = loss
-
+                log_vars['ce_loss'] = ce_loss
+                loss = ce_loss
                 if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
                     # y = rearrange(y, '(b t) c h w -> b c t h w', b=bsz)
                     if 'recon_loss' in self.criteria.keys():
