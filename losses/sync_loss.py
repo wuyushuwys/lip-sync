@@ -1,10 +1,7 @@
 import torch
 import torch.nn as nn
 
-from einops import rearrange
-
 from arch.syncnet_arch import SyncNet
-from models.modules.masking import Masking
 
 
 class CosineLoss(nn.Module):
@@ -19,7 +16,7 @@ class CosineLoss(nn.Module):
         self.cos_sim = nn.CosineSimilarity()
 
     def forward(self, a, v, y):
-        assert a.size() == v.size()
+        assert a.size() == v.size(), f"{a.size()} {v.size()}"
         distance = self.cos_sim(a, v)
         if distance.dim() != y.dim():
             distance = distance.unsqueeze(1)

@@ -12,15 +12,13 @@ from tqdm import tqdm
 
 import torch
 from torch.utils.data import DataLoader
-import torchvision
 
 import ffmpeg
 from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset
 from arch.conditioned_mage_arch import lip_mage_vit_base
-from arch.ref_control_net_arch import RefControlNet
-from models.modules.masking import Masking
+from arch.modules import Masking
 from utils import audio
 
 EXT = 'jpg'

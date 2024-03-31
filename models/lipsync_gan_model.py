@@ -9,7 +9,7 @@ from utils.logger_utils import tb_writer, loss_printer
 from .evaluation import evaluate_lip
 from utils.train_utils import state_dict_saver, ckpt_saver
 
-from .modules.masking import Masking
+from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 face_rearrange = lambda x: rearrange(x, 'b c t h w -> (b t) c h w')

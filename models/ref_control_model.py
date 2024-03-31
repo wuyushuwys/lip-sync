@@ -10,7 +10,7 @@ from utils.train_utils import state_dict_saver, ckpt_saver
 from arch.ref_control_net_arch import RefControlNet
 
 from .evaluation import evaluate_ref_control
-from .modules.masking import Masking
+from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 

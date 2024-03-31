@@ -9,7 +9,7 @@ from .evaluation import evaluate_mage
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from arch.conditioned_mage_arch import DoubleConditionedMAGE
-from .modules.masking import Masking
+from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 

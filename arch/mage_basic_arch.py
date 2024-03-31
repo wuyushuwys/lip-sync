@@ -213,7 +213,8 @@ class CrossBlock(nn.Module):
                 elif self.modulate_type == 'mlp':
                     mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
                 elif self.modulate_type == 'all':
-                    msa_gated, msa_shift, msa_scale, mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                    msa_gated, msa_shift, msa_scale, mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(
+                        self.num_modulation, dim=-1)
                 else:
                     # but you shall never reach here
                     raise NotImplementedError(f"{self.modulate_type} is not implemented.")
@@ -231,7 +232,8 @@ class CrossBlock(nn.Module):
 
                 # modulate mlp forward
                 if self.modulate_type in ['mlp', 'all']:
-                    y = mlp_gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=mlp_shift, scale=mlp_scale)))
+                    y = mlp_gated * self.drop_path(
+                        self.mlp(self.modulate(x=self.norm3(x), shift=mlp_shift, scale=mlp_scale)))
                 else:
                     y = self.mlp(self.norm3(x))
                 x = x + self.drop_path(y)
@@ -399,9 +401,8 @@ class BertEmbeddings(nn.Module):
         torch.nn.init.normal_(self.word_embeddings.weight, std=.02)
         torch.nn.init.normal_(self.position_embeddings.weight, std=.02)
 
-    def forward(
-            self, input_ids
-    ):
+    def forward(self, input_ids):
+
         input_shape = input_ids.size()
 
         seq_length = input_shape[1]

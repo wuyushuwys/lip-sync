@@ -11,7 +11,7 @@ from arch.ref_control_net_arch import RefControlNet
 from arch.discriminator_arch import UNetDiscriminatorSN
 
 from .evaluation import evaluate_ref_control
-from .modules.masking import Masking
+from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 

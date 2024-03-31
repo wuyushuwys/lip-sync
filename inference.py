@@ -17,7 +17,7 @@ from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset, EMA
 from arch.wav2lip_arch import Wav2Lip
-from models.modules.masking import Masking
+from arch.modules import Masking
 from utils import audio
 
 EXT = 'jpg'

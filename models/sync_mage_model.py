@@ -4,14 +4,13 @@ import torch
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from .evaluation import evaluate_sync
+from .evaluation import evaluate_sync_mage
 from utils.train_utils import state_dict_saver, ckpt_saver
 
-from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 
-class SyncNetModel(BasicModel):
+class SyncMageModel(BasicModel):
 
     def __init__(self,
                  opt,
@@ -38,14 +37,10 @@ class SyncNetModel(BasicModel):
 
         self.no_ddp_model = self.model_no_ddp(model)
 
-        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
-        self.mask = Masking(**mask_kwargs).to(self.local_rank)
-
         self.cur_loss = None
         self.best_loss = float('inf')
 
         self.use_amp = opt.get('use_amp', False)
-        self.bottom_half = opt.video_spec.get('bottom_half', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
     def compile_model(self):
@@ -63,10 +58,6 @@ class SyncNetModel(BasicModel):
             x = x.to(self.local_rank, non_blocking=True)
             mel = mel.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
-
-            with torch.no_grad():
-                if not self.bottom_half:
-                    x = self.mask(x.clone(), mask_face=False, lip_only=True)
 
             self.optimizer.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
@@ -100,13 +91,13 @@ class SyncNetModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        self.cur_loss = evaluate_sync.evaluation(model=self.model,
-                                                 eval_data_loaders=self.eval_data_loaders,
-                                                 epoch=epoch,
-                                                 criteria=self.criteria,
-                                                 writer=self.writer,
-                                                 args=self.opt,
-                                                 logger=self.logger, mask=self.mask)
+        self.cur_loss = evaluate_sync_mage.evaluation(model=self.model,
+                                                      eval_data_loaders=self.eval_data_loaders,
+                                                      epoch=epoch,
+                                                      criteria=self.criteria,
+                                                      writer=self.writer,
+                                                      args=self.opt,
+                                                      logger=self.logger)
 
     def save_model(self, path, best=False):
 

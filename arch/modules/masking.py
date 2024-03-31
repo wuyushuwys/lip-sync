@@ -27,6 +27,8 @@ class Masking(nn.Module):
         """
         super().__init__()
         self.detector = BiSeNet(n_classes=19, norm=norm)
+        for p in self.detector.parameters():
+            p.requires_grad = False
         assert 0 <= pad < 0.5, f"mask pad should between [0, 0.5], but got {pad}"
         self.pad = pad  # pad mask for better boundary effect.
         self.size = size
@@ -147,6 +149,7 @@ class Masking(nn.Module):
         Returns:
             masked image
         """
+        self.eval()
         bsz = x.size(0)
         x = x.clone()
         if x.dim() == 5:

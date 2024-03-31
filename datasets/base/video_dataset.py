@@ -62,7 +62,7 @@ class FrameMelDataset(Dataset):
         self.data_mode = data_mode
         self.skip_offset = skip_offset
         self.crop = crop
-        self.bottom_half = args.video_spec.get("bottom_half", True)
+        self.bottom_half = args.video_spec.get("bottom_half", False)
 
         if self.mode == utils.mode.TRAIN:
             self.num_samples = self.data_spec.num_samples  # number of samples from each video
