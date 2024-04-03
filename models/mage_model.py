@@ -94,6 +94,8 @@ class MageModel(BasicModel):
                 log_vars['ce_loss'] = ce_loss
                 loss += ce_loss
                 if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
+                    if self.opt.model.get('ref_control_adaptive', False):
+                        loss = 0
                     # y = rearrange(y, '(b t) c h w -> b c t h w', b=bsz)
                     if 'recon_loss' in self.criteria.keys():
                         recon_loss = self.criteria['recon_loss'](g, y)

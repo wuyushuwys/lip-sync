@@ -18,7 +18,7 @@ from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset
 from arch.conditioned_mage_arch import lip_mage_vit_base
-from arch.modules import Masking
+from arch.modules.masking import Masking
 from utils import audio
 
 EXT = 'jpg'
@@ -145,7 +145,7 @@ if __name__ == '__main__':
                               vq_state_dict="pretrained/vq_model_512_256.pt",
                               use_audio_reference=True,
                               use_image_reference=True,
-                              tokenize_reference=False,
+                              tokenize_reference=True,
                               ref_control=True)
 
     model.load_state_dict(torch.load(args.ckpt))
