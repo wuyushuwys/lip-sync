@@ -68,7 +68,7 @@ def face_crop(output_folder, face_detector):
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
     with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
-        for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True):
+        for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True, position=2, leave=False):
             names, imgs = data['name'], data['img']
             batched_bboxes, _ = face_detector.batched_detect_faces(imgs,
                                                                    conf_threshold=0.97,
@@ -93,6 +93,7 @@ def face_crop(output_folder, face_detector):
                     x1, y1, x2, y2 = 20 / 160, 0, 140 / 160, 120 / 160
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
+                    bbox = x1, y1, x2, y2
                     f.write(meta_line(name, *bbox))
                     continue
 
@@ -189,7 +190,7 @@ if __name__ == '__main__':
         )
 
         pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f'Processing {input_file}', dynamic_ncols=True,
-                    leave=False, position=2)
+                    leave=False, position=3)
         for i, (x, indiv_mels, ori_window, meta) in pbar:
             x = x.to(device, non_blocking=True)
             indiv_mels = indiv_mels.to(device, non_blocking=True)
