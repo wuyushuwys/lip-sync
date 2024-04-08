@@ -152,7 +152,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.split(output_file)[0], exist_ok=True)
         # print(f"Output file: {output_file}")
         mel = audio.melspectrogram(wav).T
-        dataset = GenerateDataset(tmp_output_folder, mel, dynamic_mask=args.dynamic_mask)
+        dataset = GenerateDataset(tmp_output_folder, mel, dynamic_mask=True)
         dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
                                 shuffle=False,
@@ -160,8 +160,6 @@ if __name__ == '__main__':
                                 num_workers=8)
 
         coords = dataset.coords
-        landmarks = dataset.landmarks
-        inv_affine_matrices = dataset.inv_affine_matrices
 
         process = (
             ffmpeg
