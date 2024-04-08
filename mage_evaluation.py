@@ -193,12 +193,10 @@ if __name__ == '__main__':
             x = x.to(device, non_blocking=True)
             indiv_mels = indiv_mels.to(device, non_blocking=True)
             bsz = x.size(0)
-            torch.cuda.synchronize()
 
             with torch.no_grad():
                 x_masked = mask_module(x)
             masked_flag = mask_module.inverse_mask
-            torch.cuda.synchronize()
 
             with torch.no_grad():
                 with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
@@ -210,7 +208,6 @@ if __name__ == '__main__':
                                                            audio=indiv_mels,
                                                            generate=True)
                 g = g.to(torch.float32).clamp(-1, 1) / 2 + 0.5
-            torch.cuda.synchronize()
             for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
                 frame_idx = i * bsz + batch_id
                 x1, y1, x2, y2 = coords[name]
