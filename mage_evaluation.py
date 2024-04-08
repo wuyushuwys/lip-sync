@@ -26,6 +26,7 @@ TMP_FOLDER = 'tmp_mage'
 SAMPLE_RATE = 16000
 FPS = 25
 SIZE = 256
+batch_size = 16
 
 face_template = np.array([[192.98138, 239.94708],
                           [318.90277, 240.1936],
@@ -42,7 +43,7 @@ parser.add_argument('--input_list', type=str, required=True, help='input image o
 parser.add_argument('--dataset', type=str, required=True, help='dataset name')
 parser.add_argument('--data_root', type=str, required=True, help='data root folder')
 parser.add_argument('--ckpt', type=str, required=True, help='model ckpt path')
-parser.add_argument('--output', type=str, default='output.mp4', help='output video path')
+parser.add_argument('--output_folder', type=str, default='output', help='output video folder path')
 parser.add_argument('--verbose', action='store_true', help='whether save results during generation for debug')
 parser.add_argument('--clean', action='store_true', help='whether clean intermedia results afterwards')
 parser.add_argument('--attach_lip', action='store_true', help='whether attach lip part only')
@@ -145,13 +146,14 @@ if __name__ == '__main__':
             img_file = [fname for fname in os.listdir(frame_dir) if fname.endswith(EXT)][0]
             h, w, _ = cv2.imread(os.path.join(frame_dir, img_file)).shape
 
-        print(f"Video Resolution {h}x{w}")
+        # print(f"Video Resolution {h}x{w}")
 
         wav = audio.load_wav(path=os.path.join(TMP_FOLDER, 'audio.wav'), sr=SAMPLE_RATE)
-        print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
-        print(f"Output file: {args.output}")
+        # print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
+        output_file = os.path.join(args.output_folder, input_file.replace(args.data_root, ''))
+        os.makedirs(os.path.split(output_file)[0], exist_ok=True)
+        # print(f"Output file: {output_file}")
         mel = audio.melspectrogram(wav).T
-        batch_size = 16
         dataset = GenerateDataset(TMP_FOLDER,
                                   mel,
                                   dynamic_mask=True,
@@ -175,7 +177,7 @@ if __name__ == '__main__':
                    r=FPS,
                    thread_queue_size=1024)
             .output(ffmpeg.input(args.audio, channel_layout="mono"),
-                    args.output,
+                    output_file,
                     pix_fmt="yuv420p",
                     vcodec="libx264",
                     acodec='aac',
