@@ -99,7 +99,7 @@ class GenerateDataset(Dataset):
                 break
             self.mel_chunks.append(mel_spec[start_idx: start_idx + mel_step_size, :])
             i += 1
-        print("Length of mel chunks: {}".format(len(self.mel_chunks)))
+        # print("Length of mel chunks: {}".format(len(self.mel_chunks)))
 
     def __len__(self):
         return len(self.mel_chunks)

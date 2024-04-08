@@ -54,17 +54,17 @@ face_detector = init_detection_model(model_name='retinaface_resnet50', half=True
 
 def extract_frames(file_path, output_folder):
     streams = ffmpeg.input(file_path)
-    streams.video.output(os.path.join(output_folder, f'%06d.{EXT}'),
+    streams.video.output(os.path.join(os.path.join(output_folder, 'frames'), f'%06d.{EXT}'),
                          **{'qscale:v': 0, 'r': FPS}).run(overwrite_output=True, quiet=True)
     streams.audio.output(os.path.join(output_folder, f'audio.wav'),
                          **{"qscale:a": 1, 'ar': 16000}).run(overwrite_output=True, quiet=True)
 
 
 @torch.no_grad()
-def face_crop(output_folder):
+def face_crop(output_folder, face_detector):
     dataset = ImageFolder(os.path.join(output_folder, 'frames'), output_mode='cv2')
 
-    print(f"Total frame extracted {len(dataset)}")
+    # print(f"Total frame extracted {len(dataset)}")
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
     with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
@@ -121,7 +121,7 @@ if __name__ == '__main__':
         with open(args.input_list, 'r') as f:
             lines = f.readlines()
             for line in lines:
-                input_file_list.append(os.path.join(f'{args.data_root}', line.strip('\n') + "/mp4"))
+                input_file_list.append(os.path.join(f'{args.data_root}', line.strip('\n') + ".mp4"))
     else:
         NotImplementedError(f"{args.dataset} is not support yet.")
 
@@ -145,8 +145,8 @@ if __name__ == '__main__':
             os.makedirs(os.path.join(tmp_output_folder, 'frames'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'crop_face'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'align_face'), exist_ok=True)
-            extract_frames(input_file, output_folder=os.path.join(tmp_output_folder, 'frames'))
-            h, w = face_crop(output_folder=tmp_output_folder)
+            extract_frames(input_file, output_folder=tmp_output_folder)
+            h, w = face_crop(output_folder=tmp_output_folder, face_detector=face_detector)
         else:
             frame_dir = os.path.join(tmp_output_folder, 'frames')
             img_file = [fname for fname in os.listdir(frame_dir) if fname.endswith(EXT)][0]
@@ -160,7 +160,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.split(output_file)[0], exist_ok=True)
         # print(f"Output file: {output_file}")
         mel = audio.melspectrogram(wav).T
-        dataset = GenerateDataset(tmp_output_folder, mel, dynamic_mask=True)
+        dataset = GenerateDataset(tmp_output_folder, mel, dynamic_mask=True, mage=True)
         dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
                                 shuffle=False,
@@ -213,7 +213,7 @@ if __name__ == '__main__':
                 frame_idx = i * bsz + batch_id
                 x1, y1, x2, y2 = coords[name]
                 frame = frame.flip(-1).numpy()
-                restored_face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
+                face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
 
                 ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
                 face_mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
