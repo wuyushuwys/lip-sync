@@ -90,7 +90,7 @@ def face_crop(output_folder, face_detector):
             for name, bbox, img in zip(names, batched_det_faces, imgs):
                 output_path = os.path.join(output_folder, 'crop_face', f'{name}.{EXT}')
                 if args.dataset == 'lrs':
-                    x1, y1, x2, y2 = 20 / 160, 0, 140 / 160, 120 / 160
+                    y1, y2, x1, x2 = 0, -40, 20, -20
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
                     bbox = x1, y1, x2, y2
@@ -230,7 +230,18 @@ if __name__ == '__main__':
                 inv_soft_mask = inv_soft_mask[:, :, None]
                 face = (inv_soft_mask * pasted_face + (1 - inv_soft_mask) * ori_face).astype(np.uint8)
                 resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
-                # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
+                if args.verbose:
+                    g = face.copy()
+                    ref = cv2.resize(frame[y1:y2, x1:x2], (256, 256))
+                    concat = np.flip(np.concatenate([ref, g], axis=1), axis=-1)
+                    diff = np.abs(g.astype(float) - ref.astype(float))
+                    diff /= diff.max()  # diff.mean(axis=-1, keepdims=True) * 255
+                    os.makedirs(f"{tmp_output_folder}/diff", exist_ok=True)
+                    os.makedirs(f"{tmp_output_folder}/compare", exist_ok=True)
+                    os.makedirs(f"{tmp_output_folder}/mask", exist_ok=True)
+                    cv2.imwrite(f'{tmp_output_folder}/diff/{frame_idx:06d}.jpg', np.abs(diff).astype(np.uint8))
+                    cv2.imwrite(f'{tmp_output_folder}/compare/{frame_idx:06d}.jpg', concat.astype(np.uint8))
+                    cv2.imwrite(f'{tmp_output_folder}/mask/{frame_idx:06d}.jpg', (face_mask * 255).astype(np.uint8))
                 frame[y1:y2, x1:x2] = resize_face
                 process.stdin.write(frame.astype(np.uint8).tobytes())
 
