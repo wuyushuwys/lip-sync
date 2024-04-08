@@ -67,7 +67,7 @@ def face_crop(output_folder):
     print(f"Total frame extracted {len(dataset)}")
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
-    with open(os.path.join(TMP_FOLDER, 'meta.txt'), 'w') as f:
+    with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
         for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True):
             names, imgs = data['name'], data['img']
             batched_bboxes, _ = face_detector.batched_detect_faces(imgs,
@@ -88,7 +88,14 @@ def face_crop(output_folder):
                     batched_det_faces.append(det_faces.astype(int).tolist()[:4])
 
             for name, bbox, img in zip(names, batched_det_faces, imgs):
-                output_path = os.path.join(TMP_FOLDER, 'crop_face', f'{name}.{EXT}')
+                output_path = os.path.join(output_folder, 'crop_face', f'{name}.{EXT}')
+                if args.dataset == 'lrs':
+                    x1, y1, x2, y2 = 20 / 160, 0, 140 / 160, 120 / 160
+                    cropped_face = img.numpy()[y1:y2, x1:x2, :]
+                    cv2.imwrite(output_path, cropped_face)
+                    f.write(meta_line(name, *bbox))
+                    continue
+
                 if bbox:
                     x1, y1, x2, y2 = bbox
                     hh = y2 - y1
@@ -103,6 +110,7 @@ def face_crop(output_folder):
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
                     f.write(meta_line(name, *bbox))
+
     del face_detector
     return h, w
 
