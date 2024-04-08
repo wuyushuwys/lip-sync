@@ -50,13 +50,16 @@ parser.add_argument('--attach_lip', action='store_true', help='whether attach li
 args = parser.parse_args()
 
 face_detector = init_detection_model(model_name='retinaface_resnet50', half=True,
-                                         device='cuda' if torch.cuda.is_available() else 'cpu')
+                                     device='cuda' if torch.cuda.is_available() else 'cpu')
+
+
 def extract_frames(file_path, output_folder):
     streams = ffmpeg.input(file_path)
     streams.video.output(os.path.join(output_folder, f'%06d.{EXT}'),
                          **{'qscale:v': 0, 'r': FPS}).run(overwrite_output=True, quiet=True)
     streams.audio.output(os.path.join(output_folder, f'audio.wav'),
                          **{"qscale:a": 1, 'ar': 16000}).run(overwrite_output=True, quiet=True)
+
 
 @torch.no_grad()
 def face_crop(output_folder):
