@@ -49,7 +49,8 @@ parser.add_argument('--attach_lip', action='store_true', help='whether attach li
 
 args = parser.parse_args()
 
-
+face_detector = init_detection_model(model_name='retinaface_resnet50', half=True,
+                                         device='cuda' if torch.cuda.is_available() else 'cpu')
 def extract_frames(file_path, output_folder):
     streams = ffmpeg.input(file_path)
     streams.video.output(os.path.join(output_folder, f'%06d.{EXT}'),
@@ -57,13 +58,10 @@ def extract_frames(file_path, output_folder):
     streams.audio.output(os.path.join(output_folder, f'audio.wav'),
                          **{"qscale:a": 1, 'ar': 16000}).run(overwrite_output=True, quiet=True)
 
-
 @torch.no_grad()
 def face_crop(output_folder):
     dataset = ImageFolder(os.path.join(output_folder, 'frames'), output_mode='cv2')
     print(f"Total frame extracted {len(dataset)}")
-    face_detector = init_detection_model(model_name='retinaface_resnet50', half=True,
-                                         device='cuda' if torch.cuda.is_available() else 'cpu')
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
     with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
@@ -104,7 +102,7 @@ def face_crop(output_folder):
                     cv2.imwrite(output_path_crop, cropped_face)
                     cv2.imwrite(output_path_align, aligned_face)
                     f.write(meta_line(name, bbox, landmark, inv_affine))
-    del face_detector
+    # del face_detector
     return h, w
 
 
@@ -131,7 +129,7 @@ if __name__ == '__main__':
     model.to(device)
     model.eval()
 
-    for input_file in input_file_list:
+    for input_file in tqdm(input_file_list, desc=f'Evaluate {args.dataset}', dynamic_ncols=True, position=1):
         TMP_FOLDER = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')))
         os.makedirs(os.path.join(TMP_FOLDER, 'frames'), exist_ok=True)
         os.makedirs(os.path.join(TMP_FOLDER, 'crop_face'), exist_ok=True)
@@ -185,10 +183,8 @@ if __name__ == '__main__':
             .run_async(pipe_stdin=True, quiet=True)
         )
 
-        if args.verbose:
-            pbar = enumerate(dataloader)
-        else:
-            pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='lip-sync', dynamic_ncols=True)
+        pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc=f'Processing {input_file}', dynamic_ncols=True,
+                    leave=False, position=2)
         for i, (x, indiv_mels, ori_window, meta) in pbar:
             x = x.to(device, non_blocking=True)
             indiv_mels = indiv_mels.to(device, non_blocking=True)
@@ -225,7 +221,7 @@ if __name__ == '__main__':
                 inv_mask_erosion = cv2.erode(inv_mask, np.ones((2, 2), np.uint8))
 
                 pasted_face = inv_restored
-                total_face_area = np.sum(inv_mask_erosion)  # // 3
+                total_face_area = np.sum(inv_mask_erosion)
                 w_edge = int(total_face_area ** 0.5) // 20
                 erosion_radius = w_edge * 2
                 inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
