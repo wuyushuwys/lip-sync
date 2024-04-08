@@ -34,9 +34,7 @@ face_template = np.array([[192.98138, 239.94708],
                           [201.26117, 371.41043],
                           [313.08905, 371.15118]]) / 512 * SIZE
 
-meta_line = lambda name, bbox, lm, inv_affine: f"{name} {','.join(map(str, bbox))} " \
-                                               f"{','.join(lm.flatten().astype(str).tolist())} " \
-                                               f"{','.join(inv_affine.flatten().astype(str).tolist())}\n"
+meta_line = lambda name, x1, y1, x2, y2: f"{name} {x1},{y1},{x2},{y2}\n"
 
 parser = argparse.ArgumentParser(description='lip-sync')
 parser.add_argument('--input_list', type=str, required=True, help='input image or video input')
@@ -65,48 +63,47 @@ def extract_frames(file_path, output_folder):
 @torch.no_grad()
 def face_crop(output_folder):
     dataset = ImageFolder(os.path.join(output_folder, 'frames'), output_mode='cv2')
+
     print(f"Total frame extracted {len(dataset)}")
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
-    with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
+    with open(os.path.join(TMP_FOLDER, 'meta.txt'), 'w') as f:
         for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True):
             names, imgs = data['name'], data['img']
-            batched_bboxes, batched_lms = face_detector.batched_detect_faces(imgs,
-                                                                             conf_threshold=0.97,
-                                                                             nms_threshold=0.3,
-                                                                             use_origin_size=True)
+            batched_bboxes, _ = face_detector.batched_detect_faces(imgs,
+                                                                   conf_threshold=0.97,
+                                                                   nms_threshold=0.3,
+                                                                   use_origin_size=True)
             b, h, w, c = imgs.size()
             batched_det_faces = []
-            batched_det_lm = []
-            for bboxes, lms in zip(batched_bboxes, batched_lms):
+
+            for bboxes in batched_bboxes:
                 det_faces = []
-                det_lms = []
                 if len(bboxes) == 0:
                     batched_det_faces.append(None)
-                    batched_det_faces.append(None)
                 else:
-                    for bbox, lm in zip(bboxes, lms):
+                    for bbox in bboxes:
                         det_faces.append(bbox[0:5])
-                        det_lms.append(lm)
-                    det_faces, idx = get_largest_face(det_faces, h=h, w=w)
+                    det_faces, _ = get_largest_face(det_faces, h=h, w=w)
                     batched_det_faces.append(det_faces.astype(int).tolist()[:4])
-                    batched_det_lm.append(np.array(np.split(lm, 5, axis=0)))
-            for name, bbox, landmark, img in zip(names, batched_det_faces, batched_det_lm, imgs):
-                output_path_crop = os.path.join(output_folder, 'crop_face', f'{name}.{EXT}')
-                output_path_align = os.path.join(output_folder, 'align_face', f'{name}.{EXT}')
 
+            for name, bbox, img in zip(names, batched_det_faces, imgs):
+                output_path = os.path.join(TMP_FOLDER, 'crop_face', f'{name}.{EXT}')
                 if bbox:
                     x1, y1, x2, y2 = bbox
+                    hh = y2 - y1
+                    hw = x2 - x1
+                    h_pad = 0.1
+                    w_pad = 0.25
+                    x1 = int(x1 - w_pad * hw) if x1 - w_pad * hw >= 0 else 0
+                    y1 = int(y1 - h_pad * hh) if y1 - h_pad * hh >= 0 else 0
+                    x2 = int(x2 + w_pad * hw)
+                    y2 = int(y2 + h_pad * hw)
+                    bbox = x1, y1, x2, y2
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
-                    affine_matrix = cv2.estimateAffinePartial2D(landmark, face_template, method=cv2.LMEDS)[0]
-                    aligned_face = cv2.warpAffine(img.numpy(), affine_matrix, [SIZE, SIZE],
-                                                  borderMode=cv2.BORDER_CONSTANT,
-                                                  borderValue=(135, 133, 132))
-                    inv_affine = cv2.invertAffineTransform(affine_matrix)
-                    cv2.imwrite(output_path_crop, cropped_face)
-                    cv2.imwrite(output_path_align, aligned_face)
-                    f.write(meta_line(name, bbox, landmark, inv_affine))
-    # del face_detector
+                    cv2.imwrite(output_path, cropped_face)
+                    f.write(meta_line(name, *bbox))
+    del face_detector
     return h, w
 
 
@@ -155,11 +152,7 @@ if __name__ == '__main__':
         os.makedirs(os.path.split(output_file)[0], exist_ok=True)
         # print(f"Output file: {output_file}")
         mel = audio.melspectrogram(wav).T
-        dataset = GenerateDataset(tmp_output_folder,
-                                  mel,
-                                  dynamic_mask=True,
-                                  landmark=True,
-                                  mage=True)
+        dataset = GenerateDataset(tmp_output_folder, mel, dynamic_mask=args.dynamic_mask)
         dataloader = DataLoader(dataset,
                                 batch_size=batch_size,
                                 shuffle=False,
@@ -213,28 +206,25 @@ if __name__ == '__main__':
             for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
                 frame_idx = i * bsz + batch_id
                 x1, y1, x2, y2 = coords[name]
-                landmark = landmarks[name]
-                inverse_matrix = inv_affine_matrices[name]
                 frame = frame.flip(-1).numpy()
                 restored_face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
-                inv_restored = cv2.warpAffine(restored_face, inverse_matrix, (w, h))
-                if not args.attach_lip:
-                    mask = np.ones([SIZE, SIZE], dtype=np.float32)
-                else:
-                    mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
 
-                inv_mask = cv2.warpAffine(mask, inverse_matrix, (w, h))
-                inv_mask_erosion = cv2.erode(inv_mask, np.ones((2, 2), np.uint8))
+                ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
+                face_mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
+                inv_mask_erosion = cv2.erode(face_mask, np.ones((2, 2), np.uint8))
 
-                pasted_face = inv_restored
-                total_face_area = np.sum(inv_mask_erosion)
+                pasted_face = face
+                total_face_area = np.sum(inv_mask_erosion)  # // 3
                 w_edge = int(total_face_area ** 0.5) // 20
                 erosion_radius = w_edge * 2
                 inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
                 blur_size = w_edge * 2
                 inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
                 inv_soft_mask = inv_soft_mask[:, :, None]
-                frame = inv_soft_mask * pasted_face + (1 - inv_soft_mask) * frame
+                face = (inv_soft_mask * pasted_face + (1 - inv_soft_mask) * ori_face).astype(np.uint8)
+                resize_face = cv2.resize(face, dsize=(x2 - x1, y2 - y1), interpolation=cv2.INTER_CUBIC)
+                # frame[y1:y2 - h_offset, x1 + w_offset:x2 - w_offset] = resize_face[:-h_offset, w_offset:-w_offset]
+                frame[y1:y2, x1:x2] = resize_face
                 process.stdin.write(frame.astype(np.uint8).tobytes())
 
         process.stdin.close()
