@@ -8,7 +8,7 @@ from datasets.base.video_dataset import FrameMelDataset
 from .utils import load_from_folder
 
 DATA_ROOT = "data/TH1K"
-
+META_PATH = lambda data_root, mode: f'{data_root}/{mode}.txt'
 
 # META_PATH = lambda mode: f'{DATA_ROOT}/{mode}.txt'
 
@@ -23,10 +23,12 @@ class TH1K(FrameMelDataset):
     def __init__(self, mode: AnyStr, args: Namespace, data_root: AnyStr):
         folder_tree: Dict = dict()
 
-        folder_list = glob(os.path.join(data_root, mode, '*'))
-
-        for folder in folder_list:
-            load_from_folder(folder_tree=folder_tree, folder=folder, mode=args.data_spec['mode'], ext=self.EXT)
+        # folder_list = glob(os.path.join(data_root, mode, '*'))
+        with open(META_PATH(data_root, mode), 'r') as f:
+            lines = f.readlines()
+            for line in lines:
+                folder = line.strip('\n')
+                load_from_folder(folder_tree=folder_tree, folder=folder, mode=args.data_spec['mode'], ext=self.EXT)
 
         video_cache_path = f"{data_root}/data.h5" if os.path.isfile(f"{data_root}/data.h5") else None
         audio_cache_path = f"{data_root}/TH1K_audio_sr_{args.audio_spec['sample_rate']}.h5"
