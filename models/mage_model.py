@@ -111,7 +111,7 @@ class MageModel(BasicModel):
 
                     if 'sync_loss' in self.criteria.keys():
                         sync_weight = self.criteria['sync_loss'].loss_weight
-                        sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
+                        sync_loss = self.criteria['sync_loss'](mel, torch.stack(g.split(bsz, dim=0), 2),
                                                                mask=self.mask) * sync_weight
                         loss += sync_loss
                         log_vars['sync_loss'] = sync_loss
