@@ -102,7 +102,7 @@ def test(dataloader: DataLoader,
         loss_dict['mage_loss'].update(mage_loss.item(), num_frames)
         loss_dict['acc'].update(mage_accuracy.item(), num_frames)
 
-        sync_loss = sync_net(mel, rearrange(imgs, '(b t) c h w -> b c t h w', b=bsz), mask=mask)
+        sync_loss = sync_net(mel, torch.stack(imgs.split(bsz, dim=0), 2), mask=mask)
         loss_dict['sync_loss'].update(reduce_all(sync_loss), bsz)
 
         # vq_y, _ = model.module.vqgan(y)
