@@ -76,20 +76,23 @@ def test(dataloader: DataLoader,
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
 
-        x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                     torch.split(x, 3, dim=1))
+        # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+        #              torch.split(x, 3, dim=1))
+        x, ref = torch.split(torch.cat(x.unbind(2), dim=0), 3, dim=1)
+
         num_frames = x.size(0)
         assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
         indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
-        audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+        # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
+        audio_mel = torch.cat(indiv_mels.unbind(1), dim=0)
 
         # unused for now
         mel = mel.to(args.local_rank, non_blocking=True)
 
         y = y.to(args.local_rank, non_blocking=True)
-        y = rearrange(y, 'b c t h w -> (b t) c h w')
-
+        # y = rearrange(y, 'b c t h w -> (b t) c h w')
+        y = torch.cat(y.unbind(2), dim=0)
         x_masked = mask(x.clone())
 
         (loss, acc), imgs, token_all_mask = model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=True)

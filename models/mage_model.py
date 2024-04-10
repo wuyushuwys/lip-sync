@@ -67,19 +67,21 @@ class MageModel(BasicModel):
             x = x.to(self.local_rank, non_blocking=True)
 
             # REF is the frame from the same video clip with X but not identical
-            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                         torch.split(x, 3, dim=1))
+            # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+            #              torch.split(x, 3, dim=1))
+            x, ref = torch.split(torch.cat(x.unbind(2), dim=0), 3, dim=1)
 
             assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
             indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
-            audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
-
+            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
+            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
+            audio_mel = torch.cat(indiv_mels.unbind(1), dim=0)
             mel = mel.to(self.local_rank, non_blocking=True)
 
             y = y.to(self.local_rank, non_blocking=True)
-            y = rearrange(y, 'b c t h w -> (b t) c h w')
-
+            # y = rearrange(y, 'b c t h w -> (b t) c h w')
+            y = torch.cat(y.unbind(2), dim=0)
             # mask face
             with torch.no_grad():
                 x_masked = self.mask(x.clone())
@@ -89,7 +91,8 @@ class MageModel(BasicModel):
             use_pixel_loss = (self.criteria is not None and len(self.criteria) > 0) or self.no_ddp_model.norm_pix_loss
             loss = 0
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
-                ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=use_pixel_loss)
+                ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel,
+                                                        generate=use_pixel_loss)
 
                 log_vars['ce_loss'] = ce_loss
                 loss += ce_loss
