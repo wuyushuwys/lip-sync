@@ -15,7 +15,7 @@ from .fema_vqgan_arch import FaceCoderNet, ResBlock
 
 class RefControlNet(nn.Module):
 
-    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_gated_modulate', zero_init=False):
+    def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_gated_modulate', zero_init=False, magnitude=1):
         super().__init__()
         logger = get_logger()
         # load face vq_model
@@ -37,7 +37,7 @@ class RefControlNet(nn.Module):
         # we only use encoder to encode reference image
         self.controller = nn.ModuleList()
         for ch in self.vqgan.multiscale_encoder.latent_out_ch[::-1]:
-            self.controller.append(AdaConvBlock(ch, ch, modulate_type=modulate_type))
+            self.controller.append(AdaConvBlock(ch, ch, modulate_type=modulate_type, magnitude=magnitude))
 
         if zero_init:
             self._zero_init()
@@ -75,22 +75,23 @@ class RefControlNet(nn.Module):
         return self.__class__.__name__.lower()
 
 
-def ada_modulate(x, shift, scale):
+def ada_fn(x, shift, scale):
     return x * (1 + scale) + shift
 
 
-def ada_gated_modulate(x, shift, scale, gate):
-    return x + gate * (x * (1 + scale) + shift)
+def ada_gated_fn(x, shift, scale, gate, w=1):
+    return x + w * gate * (x * (1 + scale) + shift)
 
 
-def ada_residual_modulate(x, shift, scale):
-    return x + (x + shift) * scale
+def ada_residual_fn(x, shift, scale, w=1):
+    return x + w * (x * scale + shift)
 
 
 class AdaConvBlock(nn.Module):
 
-    def __init__(self, in_channels, out_channels, kernel_size=3, modulate_type='ada_modulate'):
+    def __init__(self, in_channels, out_channels, kernel_size=3, modulate_type='ada_modulate', magnitude=1):
         super().__init__()
+        self.magnitude = magnitude
         self.fuse_encoder = nn.Sequential(
             ResBlock(2 * in_channels, 2 * in_channels),
             nn.LeakyReLU(0.2, True),
@@ -121,12 +122,12 @@ class AdaConvBlock(nn.Module):
 
         if self.modulate_type == 'ada_modulate':
             shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_modulate(dec_feat, shift, scale)
+            return ada_fn(dec_feat, shift, scale)
         elif self.modulate_type == 'ada_gated_modulate':
             shift, scale, gated = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_gated_modulate(dec_feat, shift, scale, gated)
+            return ada_gated_fn(dec_feat, shift, scale, gated, w=self.magnitude)
         elif self.modulate_type == 'ada_residual_modulate':
             shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_residual_modulate(dec_feat, shift, scale)
+            return ada_residual_fn(dec_feat, shift, scale, w=self.magnitude)
         else:
             NotImplementedError(f'{self.modulate_type} not implemented')
