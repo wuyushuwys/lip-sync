@@ -66,22 +66,19 @@ class MageModel(BasicModel):
             bsz = x.size(0)
             x = x.to(self.local_rank, non_blocking=True)
 
-            # REF is the frame from the same video clip with X but not identical
-            # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-            #              torch.split(x, 3, dim=1))
-            x, ref = torch.split(torch.cat(x.unbind(2), dim=0), 3, dim=1)
+            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                         torch.split(x, 3, dim=1))
 
             assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
             indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
-            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
-            # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
-            audio_mel = torch.cat(indiv_mels.unbind(1), dim=0)
+            audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+
             mel = mel.to(self.local_rank, non_blocking=True)
 
             y = y.to(self.local_rank, non_blocking=True)
-            # y = rearrange(y, 'b c t h w -> (b t) c h w')
-            y = torch.cat(y.unbind(2), dim=0)
+            y = rearrange(y, 'b c t h w -> (b t) c h w')
+
             # mask face
             with torch.no_grad():
                 x_masked = self.mask(x.clone())
@@ -99,7 +96,7 @@ class MageModel(BasicModel):
                 if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
                     if self.opt.model.get('ref_control_adaptive', False):
                         loss = 0
-                    # y = rearrange(y, '(b t) c h w -> b c t h w', b=bsz)
+
                     if 'recon_loss' in self.criteria.keys():
                         recon_loss = self.criteria['recon_loss'](g, y)
                         loss += recon_loss
@@ -111,7 +108,7 @@ class MageModel(BasicModel):
 
                     if 'sync_loss' in self.criteria.keys():
                         sync_weight = self.criteria['sync_loss'].loss_weight
-                        sync_loss = self.criteria['sync_loss'](mel, torch.stack(g.split(bsz, dim=0), 2),
+                        sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
                                                                mask=self.mask) * sync_weight
                         loss += sync_loss
                         log_vars['sync_loss'] = sync_loss

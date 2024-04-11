@@ -76,23 +76,21 @@ def test(dataloader: DataLoader,
         bsz = x.size(0)
         x = x.to(args.local_rank, non_blocking=True)
 
-        # x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-        #              torch.split(x, 3, dim=1))
-        x, ref = torch.split(torch.cat(x.unbind(2), dim=0), 3, dim=1)
+        x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                     torch.split(x, 3, dim=1))
 
         num_frames = x.size(0)
         assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
         indiv_mels = indiv_mels.to(args.local_rank, non_blocking=True)
-        # audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
-        audio_mel = torch.cat(indiv_mels.unbind(1), dim=0)
+        audio_mel = rearrange(indiv_mels, 'b t c h w -> (t b) c h w')
 
         # unused for now
         mel = mel.to(args.local_rank, non_blocking=True)
 
         y = y.to(args.local_rank, non_blocking=True)
-        # y = rearrange(y, 'b c t h w -> (b t) c h w')
-        y = torch.cat(y.unbind(2), dim=0)
+        y = rearrange(y, 'b c t h w -> (b t) c h w')
+
         x_masked = mask(x.clone())
 
         (loss, acc), imgs, token_all_mask = model(x_masked, gt=y, ref=ref, audio=audio_mel, generate=True)
@@ -102,7 +100,7 @@ def test(dataloader: DataLoader,
         loss_dict['mage_loss'].update(mage_loss.item(), num_frames)
         loss_dict['acc'].update(mage_accuracy.item(), num_frames)
 
-        sync_loss = sync_net(mel, torch.stack(imgs.split(bsz, dim=0), 2), mask=mask)
+        sync_loss = sync_net(mel, rearrange(imgs, '(b t) c h w -> b c t h w', b=bsz), mask=mask)
         loss_dict['sync_loss'].update(reduce_all(sync_loss), bsz)
 
         # vq_y, _ = model.module.vqgan(y)
