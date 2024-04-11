@@ -54,10 +54,11 @@ face_detector = init_detection_model(model_name='retinaface_resnet50', half=True
                                      device='cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def extract_frames(file_path, output_folder):
-    streams = ffmpeg.input(file_path)
+def extract_frames(audio_file_path, video_file_path, output_folder):
+    streams = ffmpeg.input(video_file_path)
     streams.video.output(os.path.join(output_folder, f'%06d.{EXT}'),
                          **{'qscale:v': 0, 'r': FPS}).run(overwrite_output=True, quiet=True)
+    streams = ffmpeg.input(audio_file_path)
     streams.audio.output(os.path.join(output_folder, f'audio.wav'),
                          **{"qscale:a": 1, 'ar': 16000}).run(overwrite_output=True, quiet=True)
 
@@ -112,11 +113,14 @@ def face_crop(output_folder):
 
 if __name__ == '__main__':
     input_file_list = []
+    input_audio_list = []
     if args.dataset == 'lrs2':
         with open(args.input_list, 'r') as f:
             lines = f.readlines()
             for line in lines:
-                input_file_list.append(os.path.join(f'{args.data_root}', line.strip('\n') + "/mp4"))
+                audio_file, video_file = line.strip().split()
+                input_audio_list.append(os.path.join(f'{args.data_root}', audio_file + ".mp4"))
+                input_file_list.append(os.path.join(f'{args.data_root}', video_file + ".mp4"))
     else:
         NotImplementedError(f"{args.dataset} is not support yet.")
 
@@ -133,14 +137,15 @@ if __name__ == '__main__':
     model.to(device)
     model.eval()
 
-    for input_file in tqdm(input_file_list, desc=f'Evaluate {args.dataset}', dynamic_ncols=True, position=1):
-        tmp_output_folder = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')))
+    for audio_file, input_file in tqdm(zip(input_audio_list, input_file_list),
+                                       desc=f'Evaluate {args.dataset}', dynamic_ncols=True, position=1):
+        tmp_output_folder = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')) + '_'.join(os.path.splitext(audio_file)[0].split('/')))
 
         if not os.path.exists(tmp_output_folder):
             os.makedirs(os.path.join(tmp_output_folder, 'frames'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'crop_face'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'align_face'), exist_ok=True)
-            extract_frames(input_file, output_folder=os.path.join(tmp_output_folder, 'frames'))
+            extract_frames(audio_file, input_file, output_folder=os.path.join(tmp_output_folder, 'frames'))
             h, w = face_crop(output_folder=tmp_output_folder)
         else:
             frame_dir = os.path.join(tmp_output_folder, 'frames')
