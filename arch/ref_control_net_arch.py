@@ -18,6 +18,7 @@ class RefControlNet(nn.Module):
     def __init__(self, vq_config_path, vq_state_dict, modulate_type='ada_gated_modulate', zero_init=False, magnitude=1):
         super().__init__()
         logger = get_logger()
+        logger.info(f"stabilizing magnitude: {magnitude}")
         # load face vq_model
         if vq_config_path is not None:
             vq_config = OmegaConf.load(vq_config_path)
@@ -125,9 +126,9 @@ class AdaConvBlock(nn.Module):
             return ada_fn(dec_feat, shift, scale)
         elif self.modulate_type == 'ada_gated_modulate':
             shift, scale, gated = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_gated_fn(dec_feat, shift, scale, gated, w=self.magnitude)
+            return ada_gated_fn(dec_feat, shift, scale, gated, w=self.magnitude if not self.training else 1)
         elif self.modulate_type == 'ada_residual_modulate':
             shift, scale = torch.chunk(self.ada_modulation(fused_feat), chunks=self.num_split, dim=1)
-            return ada_residual_fn(dec_feat, shift, scale, w=self.magnitude)
+            return ada_residual_fn(dec_feat, shift, scale, w=self.magnitude if not self.training else 1)
         else:
             NotImplementedError(f'{self.modulate_type} not implemented')
