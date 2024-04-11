@@ -136,7 +136,7 @@ if __name__ == '__main__':
     model.load_state_dict(torch.load(args.ckpt))
     model.to(device)
     model.eval()
-
+    os.makedirs(args.output_folder, exist_ok=True)
     for audio_file, input_file in tqdm(zip(input_audio_list, input_file_list),
                                        desc=f'Evaluate {args.dataset}', dynamic_ncols=True, position=1):
         tmp_output_folder = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')) + '_'.join(os.path.splitext(audio_file)[0].split('/')))
