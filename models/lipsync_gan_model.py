@@ -58,7 +58,7 @@ class LipSyncGAN(BasicModel):
         # self.ema_d_model = self.create_ema(self.d_model, power=0.75)
 
     def compile_model(self):
-        self.compile(self.g_model, self.d_model)
+        self.g_model, self.d_model = self.compile(self.g_model, self.d_model)
 
     def training_epoch(self, epoch):
 

@@ -54,7 +54,7 @@ face_detector = init_detection_model(model_name='retinaface_resnet50', half=True
 
 def extract_frames(audio_file_path, video_file_path, output_folder):
     streams = ffmpeg.input(video_file_path)
-    streams.video.output(os.path.join(output_folder, f'%06d.{EXT}'),
+    streams.video.output(os.path.join(output_folder, 'frames', f'%06d.{EXT}'),
                          **{'qscale:v': 0, 'r': FPS}).run(overwrite_output=True, quiet=True)
     streams = ffmpeg.input(audio_file_path)
     streams.audio.output(os.path.join(output_folder, f'audio.wav'),
@@ -69,7 +69,8 @@ def face_crop(output_folder, face_detector):
     bsz = dataset.max_bsz_retinaface(0)
     dataloader = DataLoader(dataset, batch_size=bsz, num_workers=8, prefetch_factor=10)
     with open(os.path.join(output_folder, 'meta.txt'), 'w') as f:
-        for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True, position=2, leave=False):
+        for data in tqdm(dataloader, total=len(dataloader), desc='face extraction', dynamic_ncols=True, position=2,
+                         leave=False):
             names, imgs = data['name'], data['img']
             batched_bboxes, _ = face_detector.batched_detect_faces(imgs,
                                                                    conf_threshold=0.97,
@@ -90,7 +91,7 @@ def face_crop(output_folder, face_detector):
 
             for name, bbox, img in zip(names, batched_det_faces, imgs):
                 output_path = os.path.join(output_folder, 'crop_face', f'{name}.{EXT}')
-                if args.dataset == 'lrs':
+                if args.dataset == 'lrs2':
                     y1, y2, x1, x2 = 0, 120, 20, 140
                     cropped_face = img.numpy()[y1:y2, x1:x2, :]
                     cv2.imwrite(output_path, cropped_face)
@@ -143,15 +144,16 @@ if __name__ == '__main__':
     model.to(device)
     model.eval()
 
-    for audio_file, input_file in tqdm(zip(input_audio_list, input_file_list),
+    for audio_file, input_file in tqdm(zip(input_audio_list, input_file_list), total=len(input_audio_list),
                                        desc=f'Evaluate {args.dataset}', dynamic_ncols=True, position=1):
-        tmp_output_folder = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')) + '_'.join(os.path.splitext(audio_file)[0].split('/')))
+        tmp_output_folder = os.path.join(TMP_FOLDER, '_'.join(os.path.splitext(input_file)[0].split('/')) + '_'.join(
+            os.path.splitext(audio_file)[0].split('/')))
 
         if not os.path.exists(tmp_output_folder):
             os.makedirs(os.path.join(tmp_output_folder, 'frames'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'crop_face'), exist_ok=True)
             os.makedirs(os.path.join(tmp_output_folder, 'align_face'), exist_ok=True)
-            extract_frames(input_file, output_folder=tmp_output_folder)
+            extract_frames(audio_file, input_file, output_folder=tmp_output_folder)
             h, w = face_crop(output_folder=tmp_output_folder, face_detector=face_detector)
         else:
             frame_dir = os.path.join(tmp_output_folder, 'frames')

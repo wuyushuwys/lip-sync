@@ -48,12 +48,17 @@ class BasicModel(ABC):
 
     def compile(self, *models, mode='max-autotune'):
         if torch.cuda.is_available():
+            output_model = []
             logger = get_logger()
             device_cap = torch.cuda.get_device_capability()
             if device_cap in ((7, 0), (8, 0), (9, 0)):
                 for m in models:
                     logger.info(f"Compile {self.model_no_ddp(m)} in mode {mode}")
                     m = torch.compile(model=m, mode=mode)
+                    output_model.append(m)
+                return output_model
+        else:
+            return models
 
     def load_ckpt(self, ckpt_path, **kwargs):
         """

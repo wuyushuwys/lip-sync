@@ -44,7 +44,7 @@ class SyncMageModel(BasicModel):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
     def compile_model(self):
-        self.compile(self.model)
+        self.model = self.compile(self.model)
 
     def training_epoch(self, epoch):
         losses_meter = common.meters.LossesMeter(fmt='.04e')

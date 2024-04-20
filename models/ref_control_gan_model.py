@@ -68,7 +68,7 @@ class RefControlGANModel(BasicModel):
         pass
 
     def compile_model(self):
-        self.compile(self.g_model, self.d_model)
+        self.g_model, self.d_model = self.compile(self.g_model, self.d_model)
 
     def training_epoch(self, epoch):
 

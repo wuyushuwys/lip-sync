@@ -51,7 +51,7 @@ class LipSyncModel(BasicModel):
         # self.ema_model = self.create_ema(model, power=0.75)
 
     def compile_model(self):
-        self.compile(self.model)
+        self.model = self.compile(self.model)
 
     def training_epoch(self, epoch):
 
