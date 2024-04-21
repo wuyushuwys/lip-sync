@@ -56,7 +56,7 @@ class BasicModel(ABC):
                     logger.info(f"Compile {self.model_no_ddp(m)} in mode {mode}")
                     m = torch.compile(model=m, mode=mode)
                     output_model.append(m)
-                return output_model
+                return output_model if len(output_model) > 1 else output_model[0]
             else:
                 return models
         else:

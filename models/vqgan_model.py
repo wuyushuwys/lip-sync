@@ -62,7 +62,8 @@ class VQGANModel(BasicModel):
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
     def compile_model(self):
-        self.g_model, self.d_model = self.compile(self.g_model, self.d_model)
+        pass
+        # self.g_model, self.d_model = self.compile(self.g_model, self.d_model, mode='default')
 
     @staticmethod
     def calculate_adaptive_weight(recon_loss, g_loss, last_layer, disc_weight_max):
