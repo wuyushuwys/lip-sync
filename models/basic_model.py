@@ -57,6 +57,8 @@ class BasicModel(ABC):
                     m = torch.compile(model=m, mode=mode)
                     output_model.append(m)
                 return output_model
+            else:
+                return models
         else:
             return models
 
