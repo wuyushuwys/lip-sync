@@ -86,7 +86,8 @@ def main(args):
     trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
 
     # optimize model graph
-    trainer.compile_model()
+    if args.get('compile_model', False):
+        trainer.compile_model()
 
     logger.info(attr_extractor(args))
 
