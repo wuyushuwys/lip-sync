@@ -13,6 +13,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from torch.utils.data import DataLoader
+from torch.distributed.optim import ZeroRedundancyOptimizer
 
 from omegaconf.listconfig import ListConfig
 from omegaconf.dictconfig import DictConfig
@@ -24,7 +25,7 @@ from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 
 __all__ = ["create_dataloader",
-           "create_criterions",
+           "create_criteria",
            "load_ckpt",
            "state_dict_saver",
            "ckpt_loader",
@@ -38,6 +39,11 @@ def create_dataloader(args):
     dataset_modules = [importlib.import_module(f'datasets.{dataset}') for dataset in args.dataset]
     train_dataset = ConcatDataset([module.get_dataset(utils.mode.TRAIN, args) for module in dataset_modules])
     logger.info(f"Total training data:{len(train_dataset)}")
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset,
+                                                                    num_replicas=args.world_size,
+                                                                    rank=args.rank,
+                                                                    shuffle=True) if args.distributed else None
+
     # Load eval dataset
     if args.eval_datasets:
         eval_datasets = []
@@ -56,7 +62,6 @@ def create_dataloader(args):
         for name, dataset in eval_datasets:
             eval_samplers[name] = torch.utils.data.distributed.DistributedSampler(dataset) if args.distributed else None
 
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
     prefetch_factor = args.data_spec['prefetch_factor'] if 'prefetch_factor' in args.data_spec.keys() else 2
 
     _, world_size = get_dist_info()
@@ -90,23 +95,31 @@ def create_dataloader(args):
 
 
 def subdict(dict: Union[Dict, DictConfig], *exceptions) -> Dict:
+    """
+    Return a dictionary exclude specific keys without modifying original dict
+    Args:
+        dict: dictionary
+        *exceptions: keys that exclude
+
+    Returns: Sub-Dictionary
+
+    """
     return {k: v for k, v in dict.items() if k not in exceptions}
 
 
-def create_criterions(args: argparse.Namespace):
-    # assert isinstance(args, argparse.Namespace), 'args should be an argparse.Namespace object'
+def create_criteria(args: argparse.Namespace):
     assert hasattr(args, 'losses'), "Missing losses in model config"
-    # assert isinstance(args.losses, dict), "Losses in model config should be a dictionary"
     losses_module = importlib.import_module("losses")
-    criterions = OrderedDict()
+    criteria = OrderedDict()
     logger = get_logger()
     if args.losses is not None:
         for name, kwargs in args.losses.items():
             if 'type' in kwargs:
+                logger.info(f"Create Loss[{name}]:{kwargs}")
                 loss = getattr(losses_module, kwargs.get('type'))
-                criterions[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
+                criteria[name] = loss(**subdict(kwargs, 'type')).to(args.local_rank)
 
-        return criterions
+        return criteria
     else:
         logger.info('No criterion initialized')
         return None
@@ -115,9 +128,19 @@ def create_criterions(args: argparse.Namespace):
 def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namespace, num_batches: int):
     logger = get_logger()
 
+    def _get_optim(optim_type):
+        if optim_type == 'SM3':
+            try:
+                from SM3 import SM3
+            except ImportError:
+                raise ImportError("No SM3 found. Please install SM3 via pip install torch-SM3")
+            return SM3
+        else:
+            return getattr(torch.optim, optim_type)
+
     assert hasattr(args, 'optim'), "Missing optim in model config"
     if isinstance(args.optim, ListConfig):
-        optim_module = [getattr(torch.optim, optim_args.get('type')) for optim_args in args.optim]
+        optim_module = [_get_optim(optim_args.get('type')) for optim_args in args.optim]
         optim_dict = [subdict(optim_args, 'type') for optim_args in args.optim]
         if args.distributed and args.scale_lr:
             for optim_arg in optim_dict:
@@ -126,7 +149,7 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
                 optim_arg['lr'] *= scalar
                 logger.info(f"Scale learning rate from {original_lr} --> {optim_arg.get('lr')}")
     elif isinstance(args.optim, DictConfig):
-        optim_module = getattr(torch.optim, args.optim.get('type'))
+        optim_module = _get_optim(args.optim.get('type'))
         optim_dict = subdict(args.optim, 'type')
         if args.distributed and args.scale_lr:
             original_lr = optim_dict.get('lr')
@@ -170,10 +193,14 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
     optimizer_list = []
     scheduler_list = []
     if isinstance(args.optim, ListConfig):
+        logger.info(f'Create {len(optim_dict)} optim configs for {len(model_list)} models')
         for model, optim, optim_args in zip(model_list, optim_module, optim_dict):
             # todo: modify if needed
-            optimizer = optim(filter(lambda p: p.requires_grad, model.parameters()),
-                              **optim_args)
+
+            params_group = filter(lambda p: p.requires_grad, model.parameters())
+
+            optimizer = optim(params_group, **optim_args)
+
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:
@@ -184,10 +211,27 @@ def create_optim_scheduler(*model_list: [torch.nn.Module], args: argparse.Namesp
             optimizer_list.append(optimizer)
             scheduler_list.append(scheduler)
     else:
+        logger.info(f'Create same optim configs for {len(model_list)} models')
         for model in model_list:
             # todo: modify if needed
-            optimizer = optim_module(filter(lambda p: p.requires_grad, model.parameters()),
-                                     **optim_dict)
+            if optim_dict.get('weight_decay', False):
+                decay = []
+                no_decay = []
+                for name, p in model.named_parameters():
+                    if not p.requires_grad:
+                        continue
+                    if p.ndim <= 1 or name.endswith(".bias") or name:
+                        no_decay.append(p)
+                    else:
+                        decay.append(p)
+                params_group = [
+                    {'params': no_decay, 'weight_decay': 0.},
+                    {'params': decay, 'weight_decay': optim_dict.pop("weight_decay")}]
+            else:
+                params_group = filter(lambda p: p.requires_grad, model.parameters())
+
+            optimizer = optim_module(params_group, **optim_dict)
+
             scheduler = scheduler_module(optimizer, **subdict(args.scheduler, 'type'))
 
             if args.warmup_lr:
@@ -225,14 +269,15 @@ def load_ckpt(ckpt, **kwargs):
             v.load_state_dict(ckpt[k])
 
 
-@master_only
+# @master_only  # not using master_only for FSDP support
 def state_dict_saver(path, model):
     dir_checker(path)
     state_dict = model.state_dict() if not hasattr(model, 'module') else model.module.state_dict()
-    torch.save(state_dict, path)
+    if get_dist_info()[0] == 0:
+        torch.save(state_dict, path)
 
 
-@master_only
+# @master_only  # not using master_only for FSDP support
 def ckpt_saver(path, **kwargs):
     dir_checker(path)
     ckpt = {}
@@ -246,7 +291,8 @@ def ckpt_saver(path, **kwargs):
         if hasattr(v, 'state_dict'):
             v = v.state_dict()
         ckpt[k] = v
-    torch.save(ckpt, path)
+    if get_dist_info()[0] == 0:
+        torch.save(ckpt, path)
 
 
 def ckpt_loader(ckpt, **kwargs):

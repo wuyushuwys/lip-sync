@@ -143,15 +143,17 @@ class MultiScaleEncoder(nn.Module):
         self.blocks = nn.ModuleList()
         self.up_blocks = nn.ModuleList()
         self.max_depth = max_depth
+        self.num_resblock = 2
+        self.latent_out_ch = []
         res = input_res
         for i in range(max_depth):
             in_ch, out_ch = channel_query_dict[res], channel_query_dict[res // 2]
             tmp_down_block = [
                 nn.Conv2d(in_ch, out_ch, ksz, stride=2, padding=1),
-                ResBlock(out_ch, out_ch, norm_type, act_type),
-                ResBlock(out_ch, out_ch, norm_type, act_type),
             ]
+            tmp_down_block.extend(ResBlock(out_ch, out_ch, norm_type, act_type) for _ in range(self.num_resblock))
             self.blocks.append(nn.Sequential(*tmp_down_block))
+            self.latent_out_ch.append(out_ch)
             res = res // 2
         self.latent_resolution = res
 
@@ -521,7 +523,8 @@ class FaceCoderNet(nn.Module):
 
         if self.quantizer_type == "nearest":
             self.beta = beta  # 0.25
-            self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+            # self.quantizer = VectorQuantizer(self.codebook_size, self.embed_dim, self.beta)
+            self.quantizer = VectorQuantizer2(self.codebook_size, self.embed_dim, self.beta, legacy=False)
         elif self.quantizer_type == "nearest2":
             self.beta = beta  # 0.25
             self.quantizer = VectorQuantizer2(self.codebook_size, self.embed_dim, self.beta)
@@ -555,9 +558,11 @@ class FaceCoderNet(nn.Module):
         z_q, codebook_loss, quantizer_info = self.quantizer(z)
         return z_q, codebook_loss, quantizer_info
 
-    def decode(self, z_q):
+    def decode(self, z_q, control_latent=None):
         x = self.after_quant(z_q)
-        for decoder_layer in self.decoder_group:
+        for idx, decoder_layer in enumerate(self.decoder_group):
+            if control_latent is not None:
+                x = control_latent[idx](dec_feat=x)
             x = decoder_layer(x)
         x = self.out_conv(x)
         return x

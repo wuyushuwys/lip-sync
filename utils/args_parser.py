@@ -5,8 +5,8 @@ def arguments_parser(parser):
     parser.add_argument('--config_file', default=None, type=str, required=True,
                         help='path to config file')
 
-    parser.add_argument('--model', default=None, type=str, required=True,
-                        choices=['syncnet', 'lipsync', 'vqgan', 'mage'],
+    parser.add_argument('--arch', default=None, type=str, required=True,
+                        choices=['syncnet', 'lipsync', 'vqgan', 'mage', 'sync_mage'],
                         help='model to train')
 
     # Dataset
@@ -25,8 +25,8 @@ def arguments_parser(parser):
                         help='Directory to write ckpt and export models.')
     parser.add_argument('--ckpt', default=None, type=str,
                         help='Dir path to load ckpt.')
-    parser.add_argument('--weight', default=None, type=str,
-                        help='path to load model weight')
+    # parser.add_argument('--weight', default=None, type=str,
+    #                     help='path to load model weight')
     parser.add_argument('--profile', action='store_true',
                         help='profile model')
     # parser.add_argument('--prefetcher', action='store_true',

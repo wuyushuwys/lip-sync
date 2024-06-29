@@ -12,23 +12,22 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-# from arch.codeformer_vqgan_arch import VQAutoEncoder, VQGANDiscriminator
-# from arch.adacode_arch import AdaCodeSRNet
 from arch.fema_vqgan_arch import FeMaSRNet, FaceCoderNet
 from arch.discriminator_arch import UNetDiscriminatorSN
 from models.vqgan_model import VQGANModel
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
-    if args.rank == 0:
+    if args.rank == 0 and args.get("use_wandb", True):
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1],
                    config=OmegaConf.to_container(args))
     # Create job and tb_writer
@@ -40,9 +39,6 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    # g_model = VQAutoEncoder(**args.g_model)
-    # d_model = VQGANDiscriminator(**args.d_model)
-    # g_model = AdaCodeSRNet(**args.g_model)
     g_model = FaceCoderNet(**args.g_model)
     d_model = UNetDiscriminatorSN(**args.d_model)
 
@@ -53,7 +49,7 @@ def main(args):
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
@@ -68,17 +64,16 @@ def main(args):
     [g_optimizer, d_optimizer], [g_scheduler, d_scheduler] = create_optim_scheduler(g_model, d_model,
                                                                                     args=args,
                                                                                     num_batches=len(train_data_loader))
-    trainer = VQGANModel(g_model=g_model,
+    trainer = VQGANModel(opt=args,
+                         g_model=g_model,
                          g_optimizer=g_optimizer,
                          g_scheduler=g_scheduler,
                          d_model=d_model,
                          d_optimizer=d_optimizer,
                          d_scheduler=d_scheduler,
-                         criterion=criterion,
+                         criteria=criteria,
                          train_data_loader=train_data_loader,
                          eval_data_loaders=eval_data_loaders,
-                         logger=logger,
-                         args=args,
                          writer=writer)
 
     # Load ckpt
@@ -87,12 +82,16 @@ def main(args):
                                     d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
 
     # Load state_dict
-    trainer.load_model(model=g_model, ckpt_path=args.g_weight)
-    trainer.load_model(model=d_model, ckpt_path=args.d_weight)
+    trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
+    trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
+
+    # optimize model graph
+    if args.get('compile_model', False):
+        trainer.compile_model()
 
     logger.info(attr_extractor(args))
 
-    if args.weight or args.ckpt:
+    if args.g_weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
         if args.eval_only:
             return logger.info('Finish evaluation')
@@ -122,8 +121,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

@@ -2,8 +2,12 @@ from functools import partial
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+from torch.jit import Final
 
 from timm.models.vision_transformer import PatchEmbed, DropPath, Mlp
+from timm.layers import use_fused_attn
 
 from omegaconf import OmegaConf
 import numpy as np
@@ -92,6 +96,8 @@ def interpolate_pos_embed(model, checkpoint_model):
 
 
 class CrossAttention(nn.Module):
+    fused_attn: Final[bool]
+
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super(CrossAttention, self).__init__()
         self.num_heads = num_heads
@@ -106,16 +112,17 @@ class CrossAttention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+        self.fused_attn = use_fused_attn()
 
-    def forward(self, x_query, x_key=None, x_value=None):
+    def forward(self, x_query, x_kv=None, return_attn=False):
         """
         when both x_key and x_value are None then self-attention
         """
 
         # Linear transformations for query, key, and value
         q = self.query(x_query)
-        k = self.key(x_key if x_key is not None else x_query)
-        v = self.value(x_value if x_value is not None else x_query)
+        k = self.key(x_kv if x_kv is not None else x_query)
+        v = self.value(x_kv if x_kv is not None else x_query)
 
         # Reshape and permute for multi-head attention
         B, N_query, C = q.shape
@@ -127,33 +134,46 @@ class CrossAttention(nn.Module):
         v = v.reshape(B, N_value, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
 
         # Attention computation
-        attn = (q @ k.transpose(-2, -1)) * self.scale
-        attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
+        if self.fused_attn and not return_attn:
+            x = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_drop.p if self.training else 0.,
+            )
+            x = x.transpose(1, 2).reshape(B, N_query, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x
+        else:
+            attn = (q @ k.transpose(-2, -1)) * self.scale
+            attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
+            attn = attn.softmax(dim=-1)
+            attn = self.attn_drop(attn)
 
-        # Weighted sum of values
-        x = (attn @ v).transpose(1, 2).reshape(B, N_query, C)
+            # Weighted sum of values
+            x = (attn @ v).transpose(1, 2).reshape(B, N_query, C)
 
-        # Linear projection and dropout
-        x = self.proj(x)
-        x = self.proj_drop(x)
+            # Linear projection and dropout
+            x = self.proj(x)
+            x = self.proj_drop(x)
 
-        return x, attn
+            return x, attn
 
 
 class CrossBlock(nn.Module):
 
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+                 drop=0., attn_drop=0., drop_path=0.,
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,
+                 modulation=False, modulate_type='msa'):
         super(CrossBlock, self).__init__()
+        self.modulation = modulation
         self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         # self attention module
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
-        # CrossAttention module for LQ reference info
+        # CrossAttention module for reference info
         self.cross_attn = CrossAttention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
@@ -163,30 +183,87 @@ class CrossBlock(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-    def forward(self, x, x_key, x_query, return_attention=False):
+        if modulation:
+            assert modulate_type in ['msa', 'mlp', 'all'], f"{modulate_type} not support"
+            self.modulate_type = modulate_type
+            # todo: check modulation for cross_attn
+            if modulate_type in ['msa', 'mlp']:
+                self.num_modulation = 3
+            else:
+                self.num_modulation = 6
+            self.adaLN = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(dim, self.num_modulation * dim, bias=True),
+                # nn.Dropout(drop)
+            )
+            for m in self.adaLN.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.constant_(m.weight, 0)
+                    torch.nn.init.constant_(m.bias, 0)
+
+    def forward(self, x, kv, cond=None, return_attention=False):
         if return_attention:
-            _, attn = self.attn(self.norm1(x))
-            _, attn = self.cross_attn(self.norm1(x), x_key, x_query)
+            _, attn = self.attn(self.norm1(x), return_attention)
+            _, attn = self.cross_attn(self.norm1(x), kv, return_attention)
             return attn
         else:
-            # self-attention
-            y, _ = self.attn(self.norm1(x))
-            x = x + self.drop_path(y)
+            if self.modulation:
+                if self.modulate_type == 'msa':
+                    msa_gated, msa_shift, msa_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                elif self.modulate_type == 'mlp':
+                    mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+                elif self.modulate_type == 'all':
+                    msa_gated, msa_shift, msa_scale, mlp_gated, mlp_shift, mlp_scale = self.adaLN(cond).chunk(
+                        self.num_modulation, dim=-1)
+                else:
+                    # but you shall never reach here
+                    raise NotImplementedError(f"{self.modulate_type} is not implemented.")
 
-            # cross-attention with lq
-            y, _ = self.cross_attn(self.norm2(x), x_key, x_query)
-            x = x + self.drop_path(y)
+                # modulate self-attention
+                if self.modulate_type in ['msa', 'all']:
+                    y = msa_gated * self.attn(self.modulate(x=self.norm1(x), shift=msa_shift, scale=msa_scale))
+                else:
+                    y = self.attn(self.norm1(x))
+                x = x + self.drop_path(y)
 
-            # mlp forward
-            x = x + self.drop_path(self.mlp(self.norm3(x)))
-        return x
+                # cross-attention with reference
+                y = self.cross_attn(self.norm2(x), kv)
+                x = x + self.drop_path(y)
+
+                # modulate mlp forward
+                if self.modulate_type in ['mlp', 'all']:
+                    y = mlp_gated * self.drop_path(
+                        self.mlp(self.modulate(x=self.norm3(x), shift=mlp_shift, scale=mlp_scale)))
+                else:
+                    y = self.mlp(self.norm3(x))
+                x = x + self.drop_path(y)
+
+            else:
+                # self-attention
+                y = self.attn(self.norm1(x), return_attention)
+                x = x + self.drop_path(y)
+
+                # cross-attention with reference
+                y = self.cross_attn(self.norm2(x), kv, return_attention)
+                x = x + self.drop_path(y)
+
+                # mlp forward
+                x = x + self.drop_path(self.mlp(self.norm3(x)))
+            return x
+
+    @staticmethod
+    def modulate(x, shift, scale):
+        return x * (1 + scale) + shift
 
 
 class Block(nn.Module):
 
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None,
+                 drop=0., attn_drop=0., drop_path=0.,
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,
+                 modulation=False, modulate_type='msa'):
         super().__init__()
+        self.modulation = modulation
         self.norm1 = norm_layer(dim)
         self.attn = Attention(
             dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
@@ -196,18 +273,57 @@ class Block(nn.Module):
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-    def forward(self, x, return_attention=False):
+        if modulation:
+            assert modulate_type in ['msa', 'mlp'], f"{modulate_type} not support"
+            self.modulate_type = modulate_type
+            self.num_modulation = 3
+            self.adaLN = nn.Sequential(
+                nn.SiLU(),
+                nn.Linear(dim, self.num_modulation * dim, bias=True),
+                # nn.Dropout(drop)
+            )
+            for m in self.adaLN.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.constant_(m.weight, 0)
+                    torch.nn.init.constant_(m.bias, 0)
+
+    def forward(self, x, cond=None, return_attention=False):
         if return_attention:
-            _, attn = self.attn(self.norm1(x))
-            return attn
-        else:
-            y, _ = self.attn(self.norm1(x))
+            y, attn = self.attn(self.norm1(x), return_attention)
             x = x + self.drop_path(y)
             x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
+            return x, attn
+        else:
+            if self.modulation:
+                gated, shift, scale = self.adaLN(cond).chunk(self.num_modulation, dim=-1)
+
+                # modulate self-attention
+                if self.modulate_type == 'msa':
+                    y = gated * self.attn(self.modulate(x=self.norm1(x), shift=shift, scale=scale))
+                else:
+                    y = self.attn(self.norm1(x))
+                x = x + self.drop_path(y)
+                # modulate Mlp
+                if self.modulate_type == 'mlp':
+                    y = gated * self.drop_path(self.mlp(self.modulate(x=self.norm3(x), shift=shift, scale=scale)))
+                else:
+                    y = self.mlp(self.norm2(x))
+                x = x + self.drop_path(y)
+            else:
+                y = self.attn(self.norm1(x), return_attention)
+                x = x + self.drop_path(y)
+                x = x + self.drop_path(self.mlp(self.norm2(x)))
+
+            return x
+
+    @staticmethod
+    def modulate(x, shift, scale):
+        return x * (1 + scale) + shift
 
 
 class Attention(nn.Module):
+    fused_attn: Final[bool]
+
     def __init__(self, dim, num_heads=8, qkv_bias=False, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.num_heads = num_heads
@@ -219,48 +335,33 @@ class Attention(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
+        self.fused_attn = use_fused_attn()
 
-    def forward(self, x):
+    def forward(self, x, return_attn=False):
         B, N, C = x.shape
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        # q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        q, k, v = qkv.unbind(0)
 
-        with torch.cuda.amp.autocast(enabled=False):
-            attn = (q.float() @ k.float().transpose(-2, -1)) * self.scale
-
-        attn = attn - torch.max(attn, dim=-1, keepdim=True)[0]
-        attn = attn.softmax(dim=-1)
-        attn = self.attn_drop(attn)
-
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
-        x = self.proj(x)
-        x = self.proj_drop(x)
-        return x, attn
-
-
-class Block(nn.Module):
-
-    def __init__(self, dim, num_heads, mlp_ratio=4., qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.,
-                 drop_path=0., act_layer=nn.GELU, norm_layer=nn.LayerNorm):
-        super().__init__()
-        self.norm1 = norm_layer(dim)
-        self.attn = Attention(
-            dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-        # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
-        self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm2 = norm_layer(dim)
-        mlp_hidden_dim = int(dim * mlp_ratio)
-        self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
-
-    def forward(self, x, return_attention=False):
-        if return_attention:
-            _, attn = self.attn(self.norm1(x))
-            return attn
+        if self.fused_attn and not return_attn:
+            x = F.scaled_dot_product_attention(
+                q, k, v,
+                dropout_p=self.attn_drop.p if self.training else 0.,
+            )
+            x = x.transpose(1, 2).reshape(B, N, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x
         else:
-            y, _ = self.attn(self.norm1(x))
-            x = x + self.drop_path(y)
-            x = x + self.drop_path(self.mlp(self.norm2(x)))
-        return x
+            q = q * self.scale
+            attn = q @ k.transpose(-2, -1)
+            attn = attn.softmax(dim=-1)
+            attn = self.attn_drop(attn)
+            x = attn @ v
+            x = x.transpose(1, 2).reshape(B, N, C)
+            x = self.proj(x)
+            x = self.proj_drop(x)
+            return x, attn
 
 
 class LabelSmoothingCrossEntropy(nn.Module):
@@ -300,9 +401,8 @@ class BertEmbeddings(nn.Module):
         torch.nn.init.normal_(self.word_embeddings.weight, std=.02)
         torch.nn.init.normal_(self.position_embeddings.weight, std=.02)
 
-    def forward(
-            self, input_ids
-    ):
+    def forward(self, input_ids):
+
         input_shape = input_ids.size()
 
         seq_length = input_shape[1]

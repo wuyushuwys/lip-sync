@@ -17,7 +17,7 @@ from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset, EMA
 from arch.wav2lip_arch import Wav2Lip
-from models.modules.masking import Masking
+from arch.modules import Masking
 from utils import audio
 
 EXT = 'jpg'
@@ -153,14 +153,16 @@ if __name__ == '__main__':
         pbar = tqdm(enumerate(dataloader), total=len(dataloader), desc='lip-sync', dynamic_ncols=True)
     for i, (x, indiv_mels, ori_window, meta) in pbar:
         x = x.to(device, non_blocking=True)
+        x = x * 2 - 1
         indiv_mels = indiv_mels.to(device, non_blocking=True)
         bsz = x.size(0)
         if args.dynamic_mask:
-            x = mask(x)
+            with torch.no_grad():
+                x = mask(x)
             masked_flag = mask.inverse_mask.cpu()
         with torch.no_grad():
-            g = model(indiv_mels.half(), x.half()).clamp(0, 1)
-
+            g = model(indiv_mels.half(), x.half())
+            g = g.clamp(-1, 1) / 2 - 0.5
         for batch_id, (face, frame, name) in enumerate(zip(g.unbind(0), ori_window.unbind(0), meta)):
             frame_idx = i * bsz + batch_id
             x1, y1, x2, y2 = coords[name]
@@ -168,8 +170,18 @@ if __name__ == '__main__':
             face = (face * 255).to(torch.uint8).permute(1, 2, 0).cpu().numpy()
             if args.dynamic_mask:
                 ori_face = cv2.resize(frame[y1:y2, x1:x2], dsize=(256, 256), interpolation=cv2.INTER_CUBIC)
-                face_mask = masked_flag[batch_id, ...].permute(1, 2, 0).numpy()
-                face = (face * face_mask + ori_face * (1 - face_mask)).astype(np.uint8)
+                face_mask = masked_flag[batch_id, ...].squeeze().cpu().numpy().astype(np.float32)
+                inv_mask_erosion = cv2.erode(face_mask, np.ones((2, 2), np.uint8))
+                pasted_face = inv_mask_erosion[:, :, None] * face
+                total_face_area = np.sum(inv_mask_erosion)  # // 3
+                w_edge = int(total_face_area ** 0.5) // 20
+                erosion_radius = w_edge * 2
+                inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
+                blur_size = w_edge * 2
+                inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
+                inv_soft_mask = inv_soft_mask[:, :, None]
+                face = (inv_soft_mask * pasted_face + (1 - inv_soft_mask) * ori_face).astype(np.uint8)
+                # face = (face * face_mask + ori_face * (1 - face_mask)).astype(np.uint8)
             #     face = (face * face_mask).astype(np.uint8)
             if args.verbose:
                 g = face.copy()

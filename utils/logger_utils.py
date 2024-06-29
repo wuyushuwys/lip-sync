@@ -5,8 +5,8 @@ from logging import Logger
 
 from torch.utils import tensorboard
 from thop import profile, clever_format
-
-from omegaconf.dictconfig import DictConfig
+import pprint
+import omegaconf
 
 import arch
 
@@ -17,26 +17,28 @@ __all__ = ["attr_extractor", "loss_printer", "tb_writer", "profile_model"]
 
 @master_only
 def attr_extractor(obj):
+    total_len = 80
+    string = f"\n{'INFO':{'*'}{'^'}{total_len}s}\n"
+
+    # customize version
     attrs = list(filter(lambda x: not x.startswith('_'), dir(obj)))  # Remove default and help attributes
     attr_dict = dict()
     info_len = 40
-    total_len = 80
-    string = f"\n{'INFO':{'*'}{'^'}{total_len}s}\n"
     str_head = '** '
 
     def attrs2dict(attr):
         for k, v in attr.items():
-            if isinstance(v, DictConfig) and 'type' in v:
+            if isinstance(v, omegaconf.dictconfig.DictConfig) and 'type' in v:
                 k = f"{k}[{v.pop('type')}]"
             attr_dict[k] = v
 
     for name in attrs:
         attr = getattr(obj, name)
         if name == "losses":
-            if isinstance(attr, DictConfig):
+            if isinstance(attr, omegaconf.dictconfig.DictConfig):
                 attrs2dict(attr)
         else:
-            if isinstance(attr, DictConfig) and 'type' in attr:
+            if isinstance(attr, omegaconf.dictconfig.DictConfig) and 'type' in attr:
                 name = f"{name}[{attr.pop('type')}]"
             attr_dict[name] = attr
 
@@ -47,6 +49,10 @@ def attr_extractor(obj):
         string += f"{str_head}{f'{k}:':{''}{'<'}{info_len}s}{v_str}\n"
 
     string += f"{'':{'*'}{'^'}{total_len}s}\n"
+
+    # pprint version
+    # string += pprint.pformat(omegaconf.OmegaConf.to_object(obj))
+    # string += f"\n{'':{'*'}{'^'}{total_len}s}\n"
     return string
 
 
@@ -76,7 +82,7 @@ def eval_tb_writer(writer: tensorboard.writer,
                    eval_data_name: str = 'dataset'):
     log_string = f"Eval: {eval_data_name}"
     if wandb.run is not None:
-        wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()})
+        wandb.log({f'eval_{eval_data_name}/{k}': v.avg for k, v in loss_dict.items()}, commit=False)
     for k, v in loss_dict.items():
         log_string += f" {k}: {v.avg:.04e}"
         writer.add_scalar(f'eval_{eval_data_name}/{k}', v.avg, nb)

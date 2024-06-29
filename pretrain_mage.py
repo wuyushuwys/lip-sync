@@ -12,16 +12,17 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler, subdict
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from arch.conditioned_mage_arch import lip_mage_vit_small
+from arch import conditioned_mage_arch
 from models.mage_pretrain_model import MageModel
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
@@ -38,14 +39,14 @@ def main(args):
     # Create generator
     logger.info(f"Create Model")
 
-    model = lip_mage_vit_small(**args.model)
+    model = conditioned_mage_arch.__dict__[args.model.get("type")](**subdict(args.model, 'type'))
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
@@ -60,14 +61,13 @@ def main(args):
     [optimizer], [scheduler] = create_optim_scheduler(model,
                                                       args=args,
                                                       num_batches=len(train_data_loader))
-    trainer = MageModel(model=model,
+    trainer = MageModel(opt=args,
+                        model=model,
                         optimizer=optimizer,
                         scheduler=scheduler,
-                        criterion=criterion,
+                        criteria=criteria,
                         train_data_loader=train_data_loader,
                         eval_data_loaders=eval_data_loaders,
-                        logger=logger,
-                        args=args,
                         writer=writer)
 
     # Load ckpt
@@ -75,7 +75,11 @@ def main(args):
                                     model=model, optimizer=optimizer, scheduler=scheduler)
 
     # Load state_dict
-    trainer.load_model(model=model, ckpt_path=args.weight)
+    trainer.load_model(model=model, ckpt_path=args.get("weight", None))
+
+    # optimize model graph
+    if args.get('compile_model', False):
+        trainer.compile_model()
 
     logger.info(attr_extractor(args))
 
@@ -109,8 +113,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

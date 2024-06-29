@@ -5,7 +5,7 @@ import h5py
 
 class Hdf5:
 
-    def __init__(self, fname, lib='h5py', overwrite=False):
+    def __init__(self, fname, overwrite=False):
         self.fname = fname
         self.file = None
         if overwrite and os.path.exists(fname):

@@ -12,7 +12,7 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler, ckpt_loader
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
@@ -22,11 +22,12 @@ from models.lipsync_gan_model import LipSyncGAN
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
-    if args.rank == 0:
+    if args.rank == 0 and args.get("use_wandb", True):
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1],
                    config=OmegaConf.to_container(args))
     # Create job and tb_writer
@@ -38,7 +39,8 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    g_model = Wav2Lip()
+    kwargs_model = args.get("model", dict(norm='bn', sigmoid=False))
+    g_model = Wav2Lip(**kwargs_model)
     d_model = UNetDiscriminatorSN()
 
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
@@ -48,11 +50,13 @@ def main(args):
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
+        g_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(g_model)
+        d_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(d_model)
         g_model = DDP(g_model.to(device), device_ids=[device], output_device=device)
         d_model = DDP(d_model.to(device), device_ids=[device], output_device=device)
     else:
@@ -64,17 +68,16 @@ def main(args):
                                                                                     args=args,
                                                                                     num_batches=len(train_data_loader))
 
-    trainer = LipSyncGAN(g_model=g_model,
+    trainer = LipSyncGAN(opt=args,
+                         g_model=g_model,
                          g_optimizer=g_optimizer,
                          g_scheduler=g_scheduler,
                          d_model=d_model,
                          d_optimizer=d_optimizer,
                          d_scheduler=d_scheduler,
-                         criterion=criterion,
+                         criteria=criteria,
                          train_data_loader=train_data_loader,
                          eval_data_loaders=eval_data_loaders,
-                         logger=logger,
-                         args=args,
                          writer=writer)
 
     # Load ckpt
@@ -83,12 +86,16 @@ def main(args):
                                     d_model=d_model, d_optimizer=d_optimizer, d_scheduler=d_scheduler)
 
     # Load state_dict
-    trainer.load_model(model=g_model, ckpt_path=args.g_weight)
-    trainer.load_model(model=d_model, ckpt_path=args.d_weight)
+    trainer.load_model(model=g_model, ckpt_path=args.get("g_weight", None))
+    trainer.load_model(model=d_model, ckpt_path=args.get("d_weight", None))
+
+    # optimize model graph
+    if args.get('compile_model', False):
+        trainer.compile_model()
 
     logger.info(attr_extractor(args))
 
-    if args.weight or args.ckpt:
+    if args.g_weight or args.ckpt:
         trainer.evaluating_epoch(epoch=start_epoch)
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
@@ -116,8 +123,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

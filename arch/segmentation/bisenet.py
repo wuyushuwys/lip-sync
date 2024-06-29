@@ -196,9 +196,10 @@ class FeatureFusionModule(nn.Module):
 
 
 class BiSeNet(nn.Module):
-    def __init__(self, n_classes, *args, **kwargs):
+    def __init__(self, n_classes, norm=True, *args, **kwargs):
         super(BiSeNet, self).__init__()
         self.cp = ContextPath()
+        self.norm = norm
         self.ffm = FeatureFusionModule(256, 256)
         self.conv_out = BiSeNetOutput(256, 256, n_classes)
         self.conv_out16 = BiSeNetOutput(128, 64, n_classes)
@@ -210,7 +211,8 @@ class BiSeNet(nn.Module):
 
     def forward(self, x):
         H, W = x.size()[2:]
-        x = (x - self.image_mean) / self.image_std
+        if self.norm:
+            x = (x - self.image_mean) / self.image_std
         feat_res8, feat_cp8, feat_cp16 = self.cp(x)  # here return res3b1 feature
         feat_sp = feat_res8  # use res3b1 feature to replace spatial path feature
         feat_fuse = self.ffm(feat_sp, feat_cp8)

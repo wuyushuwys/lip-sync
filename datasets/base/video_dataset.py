@@ -1,6 +1,8 @@
 import math
 import os
 import random
+import tarfile
+import numpy as np
 
 from pathlib import Path
 from typing import Dict, AnyStr
@@ -8,27 +10,21 @@ from argparse import Namespace
 from datetime import timedelta
 from tqdm import tqdm
 
-import numpy as np
-
 import torch
 import torchvision
 
 torchvision.disable_beta_transforms_warning()
-from torch.utils.data.dataset import Dataset
+from torch.utils.data import Dataset
 from torchvision.transforms.functional import resize, InterpolationMode
-from torchvision.transforms.v2 import (Compose, ColorJitter,
-                                       RandomAutocontrast,
-                                       RandomGrayscale, RandomAdjustSharpness,
+from torchvision.transforms.v2 import (Compose, Normalize,
                                        RandomRotation, RandomHorizontalFlip)
-from torchvision.io import read_image
+from torchvision.io import read_image, decode_image
 
 import common
 import utils
 from utils.audio import load_wav, melspectrogram
 from utils.logging_tool import get_logger
 from utils.init_utils import get_dist_info
-
-from datasets.utils import exists
 
 
 class FrameMelDataset(Dataset):
@@ -38,7 +34,8 @@ class FrameMelDataset(Dataset):
                  audio_cache_path: AnyStr = None,
                  video_cache_path: AnyStr = None,
                  skip_offset: float = None,
-                 bottom_half: bool = True) -> None:
+                 crop: list = None,
+                 extent_factor: int = None) -> None:
         super().__init__()
 
         logger = get_logger()
@@ -58,16 +55,21 @@ class FrameMelDataset(Dataset):
         self.video_spec = args.video_spec
         self.audio_spec = args.audio_spec
         self.data_spec = args.data_spec
+        self.fake_audio = self.data_spec.get('fake_audio', False)
         self.window_size = args.data_spec['window_size']
-        self.model = args.model
+        self.arch = args.arch
         self.mode = mode
         self.data_mode = data_mode
         self.skip_offset = skip_offset
-        self.bottom_half = bottom_half
+        self.crop = crop
+        self.bottom_half = args.video_spec.get("bottom_half", False)
+
         if self.mode == utils.mode.TRAIN:
-            self.num_samples = args.num_samples  # number of samples from each video
+            self.num_samples = self.data_spec.num_samples  # number of samples from each video
+            if extent_factor:
+                self.num_samples = int(self.num_samples * extent_factor)
         elif self.mode == utils.mode.EVAL:
-            self.num_samples = args.eval_samples  # number of samples from each video
+            self.num_samples = self.data_spec.eval_samples  # number of samples from each video
 
         # if self.model == 'syncnet':
         #     # Indexing eval list
@@ -86,15 +88,19 @@ class FrameMelDataset(Dataset):
         #
         #         self.eval_filelist = eval_filelist
         #         self.eval_length = eval_length
+        if self.data_mode == 'tar':
+            self.tar_files = dict()  # FixSizeTarDict(max_length=1000)
+            self.tarfile_worker_tree = {k: {} for k in self.root_key}
+
         if video_cache_path:
             self.video_cache = common.io.Hdf5(video_cache_path)
             logger.info(f"{self}: Loading video cache: {video_cache_path}")
         else:
             self.video_cache = None
-            if 'verbose' in self.data_spec.keys() and self.data_spec['verbose']:
+            if self.data_spec.get('verbose', False):
                 rank, _ = get_dist_info()
                 iterator = tqdm(folder_tree.values(), dynamic_ncols=True) if rank == 0 else folder_tree.values()
-                if self.data_mode == 'image':
+                if self.data_mode == 'image' or self.data_mode == 'tar':
                     load_frames = sum(len(v) for v in iterator)
                 elif self.data_mode == 'h5':
                     load_frames = sum(len(v.keys) for v in iterator)
@@ -111,54 +117,45 @@ class FrameMelDataset(Dataset):
             self.audio_cache = None
             logger.info(f"{self}: Loading audio from file")
 
-        if 'aug' in self.data_spec.keys():
-            aug_spec = self.data_spec['aug']
-            transforms = []
-            if exists('rotate', aug_spec):
-                transforms.append(RandomRotation(**aug_spec['rotate'],
-                                                 interpolation=InterpolationMode.BILINEAR,
-                                                 fill=1))
-            if exists('flip', aug_spec):
-                transforms.append(RandomHorizontalFlip(**aug_spec['flip']))
-            if exists('contrast', aug_spec):
-                transforms.append(RandomAutocontrast(**aug_spec['contrast']))
-            if exists('grayscale', aug_spec):
-                transforms.append(RandomGrayscale(**aug_spec['grayscale']))
-            if exists('sharpness', aug_spec):
-                transforms.append(RandomAdjustSharpness(**aug_spec['sharpness']))
-            if exists('color_jitter', aug_spec):
-                transforms.append(ColorJitter(**aug_spec['color_jitter']))
-            self.transform = Compose(transforms)
+        transforms = []
+        if self.mode == utils.mode.TRAIN:
+            if self.data_spec.get('aug', False):
+                aug_spec = self.data_spec.aug
+                if aug_spec.get('rotate', False):
+                    transforms.append(RandomRotation(**aug_spec.rotate,
+                                                     interpolation=InterpolationMode.BILINEAR,
+                                                     fill=1))
+                if aug_spec.get('flip', False):
+                    transforms.append(RandomHorizontalFlip(**aug_spec.flip))
+        if self.data_spec.get('normalize', False):
+            transforms.append(Normalize(**self.data_spec.normalize))
+        self.transform = Compose(transforms)
 
     def __len__(self):
-        # if self.model == 'syncnet' and self.mode == utils.mode.EVAL:
-        #     return len(self.eval_filelist) // self.window_size - 1
-        # else:
         return len(self.folder_tree) * self.num_samples
 
     def __getitem__(self, index):
-        if self.model == 'syncnet':
-            # if self.mode == utils.mode.TRAIN:
+        if self.arch == 'syncnet' or self.arch == 'sync_mage':
             frame_list, audio_file = self._load_index(index)
-            img_window, mel, label = self._load_sync_train_data(frame_list, audio_file)
+            img_window, mel, label = self._load_sync_data(frame_list, audio_file, index=index)
             return img_window, mel, label
-            # else:
-            #     frame_window = self.eval_filelist[index * self.window_size: (index + 1) * self.window_size]
-            #     assert len(frame_window) == self.window_size
-            #     audio_file = Path(frame_window[0]).parent / 'audio.wav'
-            #     img_window, mel, label = self._load_sync_eval_data(frame_window, audio_file)
-            #     return img_window, mel, label
-        elif self.model == 'lipsync':
+        elif self.arch in ['lipsync', 'mage']:
+            """
+            x: (ch, T, H, W)
+            indiv_mels: (1, T, 80, mel_step_size)
+            mel: (1, 80, mel_step_size)
+            y: (ch, T, H, W)
+            """
             frame_list, audio_file = self._load_index(index)
-            x, indiv_mels, mel, y = self._load_lipsync_train_data(frame_list, audio_file)
+            x, indiv_mels, mel, y = self._load_lipsync_data(frame_list, audio_file, index=index)
             return x, indiv_mels, mel, y
         else:
-            raise NotImplementedError()
+            raise NotImplementedError(f"{self.arch} is not implemented")
 
     def _load_index(self, item):
         index_folder = self.root_key[item // self.num_samples]
         frame_list = self.folder_tree[index_folder]
-        if self.data_mode == 'image':
+        if self.data_mode == 'image' or self.data_mode == 'tar':
             frame_list = [os.path.join(index_folder, fname) for fname in frame_list]
         elif self.data_mode == 'h5':
             if self.video_cache:
@@ -175,10 +172,24 @@ class FrameMelDataset(Dataset):
             return read_image(fname)
         elif self.data_mode == 'h5':
             if self.video_cache:
-                return torch.from_numpy(np.ascontiguousarray(self.video_cache.get(fname)))
+                cache_data = torch.from_numpy(np.ascontiguousarray(self.video_cache.get(fname)))
             else:
                 root, key = os.path.split(fname)
-                return torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+                cache_data = torch.from_numpy(np.ascontiguousarray(self.folder_tree[root].get(key)))
+            if cache_data.dim() == 1:
+                cache_data = decode_image(cache_data)
+            if self.crop is not None:
+                _, H, W = cache_data.shape
+                y1, y2, x1, x2 = self.crop
+                cache_data = cache_data[:, int(H * y1):int(H * y2), int(W * x1):int(W * x2)]
+            return cache_data
+        elif self.data_mode == 'tar':
+            root, key = os.path.split(fname)
+            if root not in self.tar_files:
+                self.tar_files[root] = tarfile.open(os.path.join(root, 'data.tar'), mode='r', bufsize=0)
+            tar_file = self.tar_files[root]
+            img_bytes = tar_file.extractfile(key)
+            return decode_image(torch.frombuffer(img_bytes.read(), dtype=torch.uint8))
         else:
             raise NotImplementedError()
 
@@ -200,43 +211,56 @@ class FrameMelDataset(Dataset):
             window.append(img)
         return window
 
-    def _load_lipsync_train_data(self, frame_list, audio_file):
-        false_offset = random.randint(self.video_spec.fps, self.video_spec.fps * 2)  # range for false frame
+    def _load_lipsync_data(self, frame_list, audio_file, sync=False, index=None):
+
         if self.skip_offset:
             skip_start = 2 + int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size) - 3
             if skip_end - skip_start < self.window_size + 1:
                 skip_start = 2
                 skip_end = len(frame_list) - self.window_size - 3
-            # idx = random.sample(range(skip_start, skip_end), 1)
-            # idx = random.choice(range(skip_start, skip_end))
-            # if idx + false_offset < len(frame_list) - self.window_size:
-            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            # else:
-            #     false_idx = idx + false_offset
-
         else:
             skip_start = 2
             skip_end = len(frame_list) - self.window_size - 3
-            # idx = random.sample(range(skip_start, skip_end), 1)
-            # idx = random.choice(range(skip_start, skip_end))
-            # if idx + false_offset < len(frame_list) - self.window_size:
+        if self.mode == utils.mode.TRAIN or self.data_spec.get("random_eval", False):
             idx, false_idx = random.sample(range(skip_start, skip_end), 2)
-            # else:
-            #     false_idx = idx + false_offset
+        else:
+            interval = max((skip_end - skip_start) // self.num_samples, 1)
+            if interval > 1:
+                offset = (index % self.num_samples) * interval
+            else:
+                offset = (index % self.num_samples) // (skip_end - skip_start)
+            idx = skip_start + offset
+            false_idx = random.randint(skip_start, skip_end)
+            while idx == false_idx:
+                false_idx = random.randint(skip_start, skip_end)
 
         true_window = self._load_frame_window(frame_list, idx)
         wrong_window = self._load_frame_window(frame_list, false_idx)
-        data = self._load_lipsync_data(idx, true_window=true_window, wrong_window=wrong_window,
-                                       audio_file=audio_file)
 
-        return data
+        x, indiv_mels, mel, gt = self._gather_lipsync_data(idx=idx,
+                                                           true_window=true_window,
+                                                           wrong_window=wrong_window,
+                                                           audio_file=audio_file)
+        if sync:
+            if random.random() > 0.5:
+                gt = torch.ones(self.window_size)
+            else:
+                # swap reference image and input image x[ch, t, h, w]
+                x[[0, 1, 2, 3, 4, 5], ...] = x[[3, 4, 5, 0, 1, 2], ...]
+                gt = torch.zeros(self.window_size)
 
-    def _load_lipsync_data(self, idx, true_window, wrong_window, audio_file):
+        return x, indiv_mels, mel, gt
+
+    def _gather_lipsync_data(self, idx, true_window, wrong_window, audio_file):
         assert idx - 2 >= 0
-        audio_mel = self._load_audio_melspec(audio_file)
-        mel = self._crop_audio_window(audio_mel.copy(), idx)
-        indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
+        if not self.fake_audio:
+            audio_mel = self._load_audio_melspec(audio_file)
+            mel = self._crop_audio_window(audio_mel.copy(), idx)
+            indiv_mels = self._segmented_mels(audio_mel.copy(), idx)
+        else:
+            mel = torch.zeros(1)
+            indiv_mels = torch.zeros(1)
 
         true_window = torch.stack(true_window, dim=1) / 255
         wrong_window = torch.stack(wrong_window, dim=1) / 255
@@ -270,22 +294,38 @@ class FrameMelDataset(Dataset):
         #     true_window[:, :, true_window.size(2) // 2:] = 0
 
         x = torch.cat([true_window, wrong_window], dim=0)
-        indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
-        mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
+        if not self.fake_audio:
+            indiv_mels = torch.tensor(indiv_mels, dtype=torch.float).unsqueeze(1)
+            mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
         y = gt
 
         return x, indiv_mels, mel, y
 
-    def _load_sync_train_data(self, frame_list, audio_file):
+    def _load_sync_data(self, frame_list, audio_file, index=None):
         if self.skip_offset:
             skip_start = int(self.skip_offset * len(frame_list))
             skip_end = int(len(frame_list) - self.skip_offset * len(frame_list) - self.window_size - 1)
             if skip_end - skip_start < self.window_size + 1:
-                skip_start = 0
-                skip_end = len(frame_list) - self.window_size - 1
-            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+                skip_start = 2
+                skip_end = len(frame_list) - self.window_size - 3
         else:
-            idx, false_idx = random.sample(range(len(frame_list) - self.window_size - 1), 2)
+            skip_start = 2
+            skip_end = len(frame_list) - self.window_size - 3
+
+        if self.mode == utils.mode.TRAIN or self.data_spec.get("random_eval", False):
+            idx, false_idx = random.sample(range(skip_start, skip_end), 2)
+        # fix data in evaluation (need more testing to verify correctness)
+        else:
+            interval = max((skip_end - skip_start) // self.num_samples, 1)
+            if interval > 1:
+                offset = (index % self.num_samples) * interval
+            else:
+                offset = (index % self.num_samples) // (skip_end - skip_start)
+            idx = skip_start + offset
+            false_idx = random.randint(skip_start, skip_end)
+            while idx == false_idx:
+                false_idx = random.randint(skip_start, skip_end)
+
         img_window = self._load_frame_window(frame_list, idx)
 
         return self._load_colorsync_data(idx, false_idx, img_window, audio_file)
@@ -313,8 +353,11 @@ class FrameMelDataset(Dataset):
             audio_idx = false_idx
             label = torch.zeros(1)
 
-        mel = self._load_audio_melspec(audio_file)
-        mel = self._crop_audio_window(mel.copy(), audio_idx)
+        if not self.fake_audio:
+            mel = self._load_audio_melspec(audio_file)
+            mel = self._crop_audio_window(mel.copy(), audio_idx)
+        else:
+            mel = torch.zeros(1)
 
         if 'aug' in self.data_spec.keys() and self.data_spec['aug']:
             if self.mode == utils.mode.TRAIN:
@@ -325,15 +368,20 @@ class FrameMelDataset(Dataset):
                 t, c, h, w = img_window.size()
                 img_window = img_window.reshape(t * c, h, w)
             else:
-                img_window = torch.cat(img_window, dim=0) / 255
+                img_window = torch.stack(img_window, dim=0) / 255
+                # img_window = torch.cat(img_window, dim=0) / 255
+                img_window = self.transform(img_window)
+                t, c, h, w = img_window.size()
+                img_window = img_window.reshape(t * c, h, w)
                 if self.bottom_half:
-                    img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
+                    img_window = img_window[..., h // 2:, :].contiguous()
         else:
             img_window = torch.cat(img_window, dim=0) / 255
             if self.bottom_half:
                 img_window = img_window[..., img_window.size(1) // 2:, :].contiguous()
 
-        mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
+        if not self.fake_audio:
+            mel = torch.tensor(mel.T, dtype=torch.float).unsqueeze(0)
 
         return img_window, mel, label
 
@@ -360,6 +408,7 @@ class FrameMelDataset(Dataset):
             if not os.path.isfile(npy_name):
                 wav = load_wav(path=file_name, sr=self.audio_spec['sample_rate'])
                 mel = melspectrogram(wav).T
+                np.save(npy_name, mel)
             else:
                 mel = np.load(npy_name)
         else:

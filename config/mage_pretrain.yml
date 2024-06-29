@@ -4,7 +4,7 @@ d_weight: null
 
 warmup_lr: true
 warmup_iters: 0.1
-
+use_amp: true
 data_spec:
   max_datasize: 500000
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
@@ -21,6 +21,7 @@ data_spec:
     mean: [ 0.5, 0.5, 0.5 ]
 
 model:
+  type: lip_mage_vit_base
   vq_config_path: config/vqgan.yml
   use_audio_reference: false
   use_image_reference: false
@@ -31,7 +32,7 @@ optim:
   type: AdamW
   lr: !!float 1.5e-4  # adjust by effective bsz as mage
   weight_decay: 0.05
-  betas: [ 0.9, 0.999 ]
+  betas: [ 0.9, 0.95 ]
 
 scheduler:
  type: MultiStepLR

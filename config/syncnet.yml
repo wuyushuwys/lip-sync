@@ -1,49 +1,65 @@
 manual_seed: 1234
 
+# weight: runs/train_syncnet_mix_lrs2/weights/syncnet_best.pt
+weight: ~
+# ckpt: runs/train_syncnet_mix_lrs2/ckpt/latest.pt
+# warmup_lr: true
+# warmup_iters: 0.05
+scale_lr: true
 data_spec:
-  mode: 'h5'  # h5 or image
-  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
-  verbose: False  # might be super-slow for large scale datasets
+  mode: h5
+  num_samples: 1
+  eval_samples: 10
   window_size: 5
-
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  train_size: 256
+  eval_size: 256
   aug:
-    rotate:
-      degrees: 5
-      center: [ 128, 128 ]
-    sharpness:
-      sharpness_factor: 2
-      p: 0.1
     flip:
-      p: 0.1
-    contrast:
-      p: 0.1
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+  # dataset extension factor
+  ft_ext: 20
+  hdtf_ext: 100
 
 
 video_spec:
-  fps: 25
+  bottom_half: false
+  fps: 20
   size: [ 256, 256 ]
 
 audio_spec:
   mel_step_size: 16
   sample_rate: 16000
 
+model:
+  dropout: 0.1
+  norm: bn
 
-num_samples: 1000
-eval_samples: 50
+mask:
+  half_precision: true
+  half_face: false
+  norm: false
 
 optim:
   type: Adam
   lr: 1.0e-5
   betas: [ 0.9, 0.999 ]
 
-scheduler:
-  type: MultiStepLR
-  milestones: [ 0.4, 0.8 ]
-  gamma: 0.5
+# scheduler:
+#   type: MultiStepLR
+#   milestones: [ 0.9 ]
+#   gamma: 0.5
 
-#scheduler:
-#  type: CosineAnnealingLR
-#  eta_min: 1.0e-5
+scheduler:
+ type: CosineAnnealingLR
+ eta_min: 1.0e-7
+
+# scheduler:
+#   type: PolynomialLR
+#   power: 0.9
 
 
 losses:

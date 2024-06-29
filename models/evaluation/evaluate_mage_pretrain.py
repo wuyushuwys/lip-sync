@@ -12,22 +12,21 @@ from torchvision.utils import save_image, make_grid
 import wandb
 
 from common.meters import AverageMeter
+from utils.helpers import reduce_all
 from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 
-from .utils import reduce_all
-
 
 @torch.no_grad()
-def evaluation(model, eval_data_loaders, epoch, criterions,
+def evaluation(model, eval_data_loaders, epoch, criteria,
                writer: SummaryWriter, args: argparse.Namespace, logger: Logger):
     """
     Evaluate Generator in eval datasets
     :param model: Generator model
     :param eval_data_loaders: list of eval dataloader
     :param epoch: current epoch
-    :param criterions: criterions for evaluation
+    :param criteria: criteria for evaluation
     :param writer: tb_writer
     :param args: params
     :param logger: logger
@@ -65,7 +64,7 @@ def test(dataloader: DataLoader,
         loss_dict['mage_loss'].update(mage_loss.item(), bsz)
         loss_dict['acc'].update(mage_accuracy.item(), bsz)
 
-        # scale image from [-1, 1] to [0 ,1]
+        # scale image from [-1, 1] to [0, 1] for saving
         imgs = (imgs + 1) / 2
         y = (y + 1) / 2
 
@@ -83,4 +82,4 @@ def save_sample_images(g, gt, batch_num, epoch, folder_path):
     save_image(outputs, fp=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1 and wandb.run is not None:
         image = wandb.Image(outputs, file_type='jpg')
-        wandb.log({f"{Path(folder_path).stem}": image})
+        wandb.log({f"{Path(folder_path).stem}": image}, commit=False)

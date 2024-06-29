@@ -1,4 +1,5 @@
 from abc import ABC
+from enum import Enum
 
 import torch
 import torch.distributed as dist
@@ -6,26 +7,39 @@ from torch.nn.parallel import DataParallel, DistributedDataParallel
 
 from ema_pytorch import EMA
 
+from common.meters import AverageMeter, TimeMeter
 from utils.logging_tool import get_logger
 from utils import ckpt_loader, get_dist_info
 
 
+class CompileMode(Enum):
+    DEFAULT = 'default'
+    REDUCE_OVERHEAD = 'reduce-overhead'
+    MAX_AUTOTUNE = 'max-autotune'
+
+
 class BasicModel(ABC):
 
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, opt, total_iterations=None, torch_compile=False, *args, **kwargs):
+        self.logger = get_logger(file_path=opt.job_dir)
+        self.opt = opt
+        self.eta_timer = TimeMeter(total_iterations=total_iterations)
 
     def init_trainer(self, *args, **kwargs):
-        pass
+        raise NotImplementedError
 
     def training_epoch(self, epoch):
-        pass
+        raise NotImplementedError
+
+    # @torch.compile()
+    def training_step(self, batch, epoch):
+        raise NotImplementedError
 
     def evaluating_epoch(self, epoch):
-        pass
+        raise NotImplementedError
 
     def save_model(self, path, best=False):
-        pass
+        raise NotImplementedError
 
     def load_model(self, model, ckpt_path):
         if ckpt_path:
@@ -35,8 +49,23 @@ class BasicModel(ABC):
 
             logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
 
-    @staticmethod
-    def load_ckpt(ckpt_path, **kwargs):
+    def compile(self, *models, mode='max-autotune'):
+        if torch.cuda.is_available():
+            output_model = []
+            logger = get_logger()
+            device_cap = torch.cuda.get_device_capability()
+            if device_cap in ((7, 0), (8, 0), (9, 0)):
+                for m in models:
+                    logger.info(f"Compile {self.model_no_ddp(m)} in mode {mode}")
+                    m = torch.compile(model=m, mode=mode)
+                    output_model.append(m)
+                return output_model if len(output_model) > 1 else output_model[0]
+            else:
+                return models
+        else:
+            return models
+
+    def load_ckpt(self, ckpt_path, **kwargs):
         """
         Load ckpt if ckpt_path is not None
         Args:
@@ -53,6 +82,7 @@ class BasicModel(ABC):
             ckpt_loader(ckpt, **kwargs)
             start_epoch = ckpt['epoch'] - 1
             logger.info(f'Load checkpoint from {ckpt_path}. Resume from epoch {start_epoch}')
+            # self.eta_timer.total_iterations = start_epoch * len(self.train_data_loader)
         else:
             start_epoch = 0
         return start_epoch

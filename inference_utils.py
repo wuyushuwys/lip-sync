@@ -57,19 +57,31 @@ class GenerateDataset(Dataset):
                  window_size=5,
                  fps=25, mel_step_size=16,
                  ext='jpg', face_size=(256, 256),
-                 dynamic_mask=False) -> None:
+                 dynamic_mask=False, landmark=False, mage=False) -> None:
         super().__init__()
-
-        self.face_lists = sorted(glob(f"{folder}/crop_face/*.{ext}"))
+        face_folder = 'crop_face' if not landmark else 'align_face'
+        self.face_lists = sorted(glob(os.path.join(folder, face_folder, f"*.{ext}")))
         self.frame_lists = sorted(glob(f"{folder}/frames/*.{ext}"))
         self.num_video_frames = len(self.frame_lists)
         self.dynamic_mask = dynamic_mask
+        self.landmark = landmark
+        self.mage = mage
         self.coords = dict()
+        self.landmarks = dict()
+        self.inv_affine_matrices = dict()
         with open(os.path.join(folder, 'meta.txt'), 'r') as f:
             lines = f.readlines()
             for line in lines:
-                name, bbox = line.rstrip('\n').split(' ')
+                if landmark:
+                    name, bbox, lm, inv_affine = line.rstrip('\n').split(' ')
+                    self.landmarks[name] = np.split(np.fromstring(lm, dtype=np.float32, sep=','), 5, axis=0)
+                    self.inv_affine_matrices[name] = np.array(
+                        np.split(np.fromstring(inv_affine, dtype=np.float32, sep=','), 2, axis=0))
+                else:
+                    name, bbox = line.rstrip('\n').split(' ')
                 self.coords[name] = list(map(lambda v: eval(v), bbox.split(',')))
+
+                # print(np.fromstring(lm, dtype=np.float32, sep=',').reshape(5, 2))
         # self.mel_spec = mel_spec
 
         self.window_size = window_size
@@ -87,7 +99,7 @@ class GenerateDataset(Dataset):
                 break
             self.mel_chunks.append(mel_spec[start_idx: start_idx + mel_step_size, :])
             i += 1
-        print("Length of mel chunks: {}".format(len(self.mel_chunks)))
+        # print("Length of mel chunks: {}".format(len(self.mel_chunks)))
 
     def __len__(self):
         return len(self.mel_chunks)
@@ -109,8 +121,10 @@ class GenerateDataset(Dataset):
             y1, y2, x1, x2 = [16, -16, 48, -48]
             mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
         # mask[:, mask.size(1) // 2:, :] = 0
-
-        x = torch.cat([mask, ref], dim=0)
+        if not self.mage:
+            x = torch.cat([mask, ref], dim=0)
+        else:
+            x = ref * 2 - 1
 
         mel = torch.tensor(self.mel_chunks[index].T, dtype=torch.float).unsqueeze(0)
         # mel = torch.tensor(self._crop_audio_window(self.mel_spec, index).T, dtype=torch.float).unsqueeze(0)

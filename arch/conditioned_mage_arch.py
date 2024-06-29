@@ -1,3 +1,4 @@
+import os
 from functools import partial
 
 import numpy as np
@@ -9,65 +10,96 @@ import scipy.stats as stats
 
 from omegaconf import OmegaConf
 from einops import rearrange
+from timm.layers import use_fused_attn
 
 from utils.logging_tool import get_logger
 
-from .mage_basic_arch import LabelSmoothingCrossEntropy, MlmLayer, Block, CrossBlock, BertEmbeddings
+from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings, LabelSmoothingCrossEntropy
 from .fema_vqgan_arch import FaceCoderNet
-from .audionet_arch import AudioNet
+from .ref_control_net_arch import RefControlNet
+from .auxiliary_arch import AudioNet, AudioEncoder, AudioPretrainedEncoder
+from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
 
 class DoubleConditionedMAGE(nn.Module):
     """
         Masked Autoencoder with VisionTransformer backbone
-
-        # for lip-sync work, extra CrossattentionBlock would be inserted into MAGE_Decoder.
-
-        # Solution1:
-        # wav2lip like way of info concatenation:
-        # concate (reference float_latent(output from your pretrained VQGAN_Encoder), audioMel)
-        # treat this chunk altogether into a single CrossattentionBlock
-
-        # Solution2:
-        # treat reference float_latent and audio mel seperately
-        # two adjacent crossattention blocks are inserted, and two conditional info treated sequentially
-
-
-        # here with the Solution1 version, but if required, we could easily formulate Solution2.
-
-        # make sure you replace the import and initialization for our FACE_VQGAN
-
+        for lip-sync work, extra CrossAttentionBlock would be inserted into MAGE_Decoder.
     """
 
-    def __init__(self, img_size=256, patch_size=16, in_chans=3,
-                 embed_dim=1024, depth=24, num_heads=16,
-                 decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
-                 mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False,
-                 mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25,
-                 vq_config_path='config/vqgan.yml', vq_state_dict=None,
-                 use_audio_reference=True, use_image_reference=True):
+    def __init__(
+            self,
+            # some image related arguments. not in use
+            img_size=256, patch_size=16, in_chans=3,
+            # transformer encoder config
+            embed_dim=1024, depth=24, num_heads=16,
+            # transformer decoder config
+            decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+            # attention config
+            mlp_ratio=4., norm_layer=nn.LayerNorm,
+            # pixel level loss related
+            norm_pix_loss=False, gumble_softmax=False,
+            # mask modeling related
+            mask_ratio_min=0.5, mask_ratio_max=1.0, mask_ratio_mu=0.55, mask_ratio_std=0.25, eval_mask_ratio=0.5,
+            # vqgan config
+            vq_config_path='config/vqgan.yml', vq_state_dict=None,
+            mage_pretrain_ckpt_path=None,
+            # reference information config
+            use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024, modulate_type='all',
+            use_image_reference=True,
+            tokenize_reference=False,
+            # reference control model config
+            ref_control=False, ref_controller_state_dict=None, ref_control_adaptive=False
+    ):
         super().__init__()
+
+        assert modulate_type in ['msa', 'mlp', 'all'], f"got unexpected modulation {modulate_type}"
+
         logger = get_logger()
         # --------------------------------------------------------------------------
-        # VQGAN specifics
-        # replace this part with our face_vqgan specifications
-        vq_config = OmegaConf.load(vq_config_path)
-        self.vqgan = FaceCoderNet(**vq_config.g_model)
-        if vq_state_dict:
-            self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
-            logger.info(f"Load vq model weight from {vq_state_dict}")
+        # VQGAN with reference control specifics
+        self.ref_control = ref_control
+        if ref_control:
+            self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
+                                                vq_state_dict=vq_state_dict)
+            if ref_controller_state_dict:
+                self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
+                logger.info(f"Enable reference control: {ref_control}")
+            else:
+                logger.warning("No ref_controller_state_dict")
+            setattr(self, 'vqgan', self.ref_controller.vqgan)
+
+            # frozen the pretrained ref_controller model
+            logger.info("Frozen reference controller")
+            for p in self.ref_controller.parameters():
+                p.requires_grad = False
+
+        else:
+            # VQGAN specifics
+            vq_config = OmegaConf.load(vq_config_path)
+            self.vqgan = FaceCoderNet(**vq_config.g_model)
+            if vq_state_dict is not None:
+                if os.path.exists(vq_state_dict):
+                    self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
+                    logger.info(f"Load vq model weight from {vq_state_dict}")
+                else:
+                    raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
+            else:
+                logger.info(f"Not pretrain vq model weight provided")
+
+            # froze the pretrained vqgan model
+            for p in self.vqgan.parameters():
+                p.requires_grad = False
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
         # [0, ..., codebook_size - 1, fake_class_label, mask_token_label]
         vocab_size = self.codebook_size + 1 + 1  # codebook size, 1 for mask token, 1 for fake_label
-        self.fake_class_label = self.codebook_size
+        self.fake_class_label = self.codebook_size  # fake token is said to gather global information among all tokens
         self.mask_token_label = self.codebook_size + 1
+        self.encoder_embed_dim = embed_dim
 
-        # froze the pretrained vqgan model
-        for param in self.vqgan.parameters():
-            param.requires_grad = False
-
+        logger.info(f"Use Flash Attention: {use_fused_attn()}")
         logger.info(f"MAGE_encoder_related_embeddingindex: "
                     f"Codebook Size: {self.codebook_size} "
                     f"Vocab Size: {vocab_size} "
@@ -77,39 +109,37 @@ class DoubleConditionedMAGE(nn.Module):
         # create audio encoder based on decoder_embed_dim
         self.use_audio_reference = use_audio_reference
         if use_audio_reference:
-            self.audio_net = AudioNet(emb_dim=decoder_embed_dim)
+            # self.audio_net = AudioEncoder(emb_dim=1024)
+            self.audio_net = AudioPretrainedEncoder(audio_weight_path=audio_weight_path)
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
         if use_image_reference:
-            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim)
+            if not tokenize_reference:
+                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+
+        self.tokenize_reference = tokenize_reference
 
         logger.info(f"use_audio_reference:{use_audio_reference}")
         logger.info(f"use_image_reference:{use_image_reference}")
+        logger.info(f"tokenize_reference:{tokenize_reference}")
 
         # MAGE variant masking ratio
         self.mask_ratio_min = mask_ratio_min
         self.mask_ratio_generator = stats.truncnorm((mask_ratio_min - mask_ratio_mu) / mask_ratio_std,
                                                     (mask_ratio_max - mask_ratio_mu) / mask_ratio_std,
                                                     loc=mask_ratio_mu, scale=mask_ratio_std)
+        self.eval_mask_ratio = eval_mask_ratio
 
         # --------------------------------------------------------------------------
         # MAGE encoder specifics
-        # patch_embed, cls_token, pos_embed is never used in MAGE Encoder
-        # check whether need to apply pos_embed for Encoder, not sure about this
         dropout_rate = 0.1
-        # self.patch_embed = PatchEmbed(img_size, patch_size, in_chans, embed_dim)
-        # num_patches = self.patch_embed.num_patches
         num_patches = self.vqgan.latent_resolution ** 2
 
         self.token_emb = BertEmbeddings(vocab_size=vocab_size,
                                         hidden_size=embed_dim,
                                         max_position_embeddings=num_patches + 1,
                                         dropout=0.1)
-
-        # self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
-        # self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, embed_dim),
-        #                               requires_grad=False)  # fixed sin-cos embedding
 
         self.transformer_encoder = TransformerEncoder(embed_dim, num_heads, depth=depth, mlp_ratio=mlp_ratio,
                                                       qkv_bias=True, qk_scale=None,
@@ -126,14 +156,21 @@ class DoubleConditionedMAGE(nn.Module):
         if not self.pad_with_cls_token:
             self.mask_token = nn.Parameter(torch.zeros(1, 1, decoder_embed_dim))
 
-        # self.decoder_pos_embed = nn.Parameter(torch.zeros(1, num_patches + 1, decoder_embed_dim), requires_grad=False)  # fixed sin-cos embedding
         self.decoder_pos_embed_learned = nn.Parameter(
             torch.zeros(1, num_patches + 1, decoder_embed_dim))  # learnable pos embedding
 
-        self.transformer_decoder = TransformerDecoder(decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
-                                                      mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
-                                                      norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
-                                                      cross_attn=self.use_image_reference or self.use_audio_reference)
+        image_embed_dim = embed_dim if self.tokenize_reference else self.vqgan_embed_dim
+
+        self.transformer_decoder = TransformerDecoder(
+            decoder_embed_dim, decoder_num_heads, depth=decoder_depth,
+            mlp_ratio=mlp_ratio, qkv_bias=True, qk_scale=None,
+            norm_layer=norm_layer, drop=dropout_rate, attn_drop=dropout_rate,
+            cross_attn=self.use_image_reference,  # add information in cross attention
+            modulation=self.use_audio_reference,  # add information in modulation
+            audio_dim=num_audio_embed if use_audio_reference else None,  # embedding for audio
+            img_dim=image_embed_dim if use_image_reference else None,
+            modulate_type=modulate_type,
+        )
 
         self.decoder_norm = norm_layer(decoder_embed_dim)
         # self.decoder_pred = nn.Linear(decoder_embed_dim, patch_size ** 2 * in_chans, bias=True)  # decoder to patch
@@ -144,28 +181,52 @@ class DoubleConditionedMAGE(nn.Module):
         self.mlm_layer = MlmLayer(feat_emb_dim=decoder_embed_dim, word_emb_dim=embed_dim, vocab_size=vocab_size)
 
         self.norm_pix_loss = norm_pix_loss
+        self.gumble_softmax = gumble_softmax
 
-        self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+        self.criterion = nn.CrossEntropyLoss(label_smoothing=0.1, reduction='none')
+        # self.criterion = LabelSmoothingCrossEntropy(smoothing=0.1)
+        if not mage_pretrain_ckpt_path:
+            self.initialize_weights()
+        else:
+            logger.info(f"Load pretrain weight from {mage_pretrain_ckpt_path}")
+            mage_pretrain_weight = torch.load(mage_pretrain_ckpt_path, map_location='cpu')
+            incompatible_keys = self.load_state_dict(mage_pretrain_weight, strict=False)
+            assert len(
+                incompatible_keys.unexpected_keys) == 0, f"do not expected unexpected_keys {incompatible_keys.unexpected_keys}"
+            # logger.info(incompatible_keys)
 
-        self.initialize_weights()
+            for name, p in self.named_parameters():
+                # first, we only unfreeze new parameters
+                if name in incompatible_keys.missing_keys:
+                    continue
+                # then, we unfreeze mlp parameters in decoder
+                elif 'decoder_blocks' in name and 'mlp' in name:
+                    continue
+                p.requires_grad = False
+
+        # unfreeze decoder_norm layer
+        for p in self.decoder_norm.parameters():
+            p.requires_grad = True
+
+        # unfreeze mlm layer
+        for p in self.mlm_layer.parameters():
+            p.requires_grad = True
+
+        if ref_control_adaptive:
+            # only train controller
+            for p in self.parameters():
+                p.requires_grad = False
+            for p in self.ref_controller.controller.parameters():
+                p.requires_grad = True
+
+    def reload_controller(self, state_dict_path):
+        logger = get_logger()
+        if hasattr(self, 'ref_controller'):
+            logger.info(f"Load control weight from {state_dict_path}")
+            self.ref_controller.load_state_dict(torch.load(state_dict_path, map_location='cpu'))
 
     def initialize_weights(self):
         # initialization
-        # initialize (and freeze) pos_embed by sin-cos embedding
-        # pos_embed = get_2d_sincos_pos_embed(self.pos_embed.shape[-1], int(self.patch_embed.num_patches ** .5),
-        #                                     cls_token=True)
-        # self.pos_embed.data.copy_(torch.from_numpy(pos_embed).float().unsqueeze(0))
-
-        # decoder_pos_embed = get_2d_sincos_pos_embed(self.decoder_pos_embed.shape[-1],
-        #                                             int(self.patch_embed.num_patches ** .5), cls_token=True)
-        # self.decoder_pos_embed.data.copy_(torch.from_numpy(decoder_pos_embed).float().unsqueeze(0))
-
-        # initialize patch_embed like nn.Linear (instead of nn.Conv2d)
-        # w = self.patch_embed.proj.weight.data
-        # torch.nn.init.xavier_uniform_(w.view([w.shape[0], -1]))
-
-        # timm's trunc_normal_(std=.02) is effectively normal_(std=0.02) as cutoff is too big (2.)
-        # torch.nn.init.normal_(self.cls_token, std=.02)
         if not self.pad_with_cls_token:
             torch.nn.init.normal_(self.mask_token, std=.02)
         torch.nn.init.normal_(self.decoder_pos_embed_learned, std=.02)
@@ -183,16 +244,28 @@ class DoubleConditionedMAGE(nn.Module):
             nn.init.constant_(m.bias, 0)
             nn.init.constant_(m.weight, 1.0)
 
-    @torch.no_grad()
-    def encode_reference(self, ref):
+    def encode_reference(self, ref, tokenize=False):
         # encode reference image to latent feature
-        z_ref = self.vqgan.encode(ref)
-        z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape from bsz, c, h, w --> bsz, h*w, c
-        z_map = self.decoder_embed_mapping(z)
-        return z_map
+        with torch.no_grad():
+            z_ref = self.vqgan.encode(ref)
+            if tokenize:
+                z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
+                ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
+                # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
+                z = self.token_emb(ref_indices.long())
+                # z = self.decoder_embed(z)  # unified mapping
+            else:
+                z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
+                z = self.decoder_embed_mapping(z)
+        return z
 
-    def forward_encoder(self, x, gt=None):
-        # tokenization
+    def add_class_token(self, x):
+        x = torch.cat(
+            [torch.zeros(x.size(0), 1, device=x.device), x], dim=1)
+        x[:, 0] = self.fake_class_label
+        return x
+
+    def index_generator(self, x, gt=None):
         bsz = x.size(0)
 
         with torch.no_grad():
@@ -207,18 +280,18 @@ class DoubleConditionedMAGE(nn.Module):
                 z_q_gt, _, quantizer_info_gt = self.vqgan.quantize(z_gt)
                 gt_indices = quantizer_info_gt['min_encoding_indices'].reshape(bsz, -1)
                 token_all_mask = x_indices.not_equal(gt_indices).float()
-
+                token_drop_mask = torch.zeros_like(token_all_mask)
             # if no gt then self-supervised learning, in this case x should be a complete image
             else:
                 gt_indices = x_indices.clone().detach().long()
 
                 # random masking
                 bsz, seq_len = x_indices.size()
-                mask_ratio_min = self.mask_ratio_min
+                mask_ratio_min = self.mask_ratio_min if self.training else 0
                 if self.training:
                     mask_rate = self.mask_ratio_generator.rvs(1)[0]
                 else:
-                    mask_rate = 0.75  # fix for testing
+                    mask_rate = self.eval_mask_ratio  # fix for testing
                 num_dropped_tokens = int(np.ceil(seq_len * mask_ratio_min))
                 num_masked_tokens = int(np.ceil(seq_len * mask_rate))
 
@@ -232,14 +305,16 @@ class DoubleConditionedMAGE(nn.Module):
                         num_subseq = seq_len // 4  # typically seq_len is a multiple of 4
                         fake_noise = torch.arange(0, 4, device=x.device)[None, :] / 4
                         noise = fake_noise.repeat(bsz, num_subseq)
-                        # print(noise.shape)
+
                     sorted_noise, _ = torch.sort(noise, dim=1)  # ascend: small is remove, large is keep
-                    cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
+                    if self.training:
+                        cutoff_drop = sorted_noise[:, num_dropped_tokens - 1:num_dropped_tokens]
+                        token_drop_mask = noise.less_equal(cutoff_drop).float()
+                    else:
+                        token_drop_mask = torch.zeros_like(noise)
                     cutoff_mask = sorted_noise[:, num_masked_tokens - 1:num_masked_tokens]
-                    token_drop_mask = noise.less_equal(cutoff_drop).float()
                     token_all_mask = noise.less_equal(cutoff_mask).float()
-                    # if not self.training:
-                    #     break
+
                     if token_drop_mask.sum() == bsz * num_dropped_tokens and token_all_mask.sum() == bsz * num_masked_tokens:
                         break
                     else:
@@ -250,12 +325,11 @@ class DoubleConditionedMAGE(nn.Module):
         # print("Masekd num token:", torch.sum(x_indices == self.mask_token_label, dim=1))
 
         # concate class token
-        x_indices = torch.cat(
-            [torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), x_indices], dim=1)
-        x_indices[:, 0] = self.fake_class_label
-        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_drop_mask],
+        x_indices = self.add_class_token(x_indices)
+
+        token_drop_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_drop_mask],
                                     dim=1)
-        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1).to(device=x_indices.device), token_all_mask],
+        token_all_mask = torch.cat([torch.zeros(x_indices.size(0), 1, device=x_indices.device), token_all_mask],
                                    dim=1)
         x_indices = x_indices.long()
         # bert embedding
@@ -268,10 +342,20 @@ class DoubleConditionedMAGE(nn.Module):
         input_embeddings_after_drop = input_embeddings[token_keep_mask.nonzero(as_tuple=True)].reshape(bsz, -1, emb_dim)
         # print("Input embedding after drop shape:", input_embeddings_after_drop.shape)
 
+        return input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask
+
+    def forward_encoder(self, x, gt=None, return_attn=False):
+
+        input_embeddings_after_drop, gt_indices, token_drop_mask, token_all_mask = self.index_generator(x, gt)
+
         # apply Transformer blocks
         x = input_embeddings_after_drop
-        x = self.transformer_encoder(x)
-        x = self.norm(x)
+        if return_attn:
+            x, attn = self.transformer_encoder(x, return_attn)
+            x = self.norm(x), attn
+        else:
+            x = self.transformer_encoder(x)
+            x = self.norm(x)
         # print("Encoder representation shape:", x.shape)
 
         return x, gt_indices, token_drop_mask, token_all_mask
@@ -295,17 +379,12 @@ class DoubleConditionedMAGE(nn.Module):
         # add pos embed
         x = x_after_pad + self.decoder_pos_embed_learned
 
-        if self.use_audio_reference and self.use_image_reference:
-            assert audio_emb.size(-1) == ref_emb.size(-1)
-            ref = torch.cat([audio_emb, ref_emb], dim=1)
-        elif self.use_audio_reference:
-            ref = audio_emb
-        elif self.use_image_reference:
+        if self.use_image_reference:
             ref = ref_emb
         else:
             ref = x
         # apply Transformer blocks
-        x = self.transformer_decoder(x, ref, ref)
+        x = self.transformer_decoder(x, kv=ref, cond=audio_emb if self.use_audio_reference else None)
 
         x = self.decoder_norm(x)
 
@@ -328,35 +407,59 @@ class DoubleConditionedMAGE(nn.Module):
             _, pred = torch.topk(logits[:, 1:, :self.codebook_size].reshape(bsz * seq_len, -1), k=1)
             acc = pred.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)].eq(
                 gt_indices.flatten()[mask[:, 1:].flatten().nonzero(as_tuple=True)]).sum() / mask[:, 1:].sum()
-            # acc = 0
-            # for pred_seq, gt_seq, mask_seq in zip(pred.reshape(bsz, seq_len), gt_indices, mask[:, 1:]):
-            #     masked_idx = mask_seq.nonzero(as_tuple=True)
-            #     acc += pred_seq[masked_idx].eq(gt_seq[masked_idx]).float().sum() / mask_seq.sum()
             return loss, acc
 
-    def forward(self, imgs, gt=None, ref=None, audio=None, generate=False):
+    def forward(self, imgs, gt=None, ref=None, audio=None, generate=False, return_loss=True):
         # encoder
         latent, gt_indices, token_drop_mask, token_all_mask = self.forward_encoder(imgs, gt)
         bsz = latent.size(0)
-        # todo: generate audio embedding, reference embedding
 
-        ref_emb = self.encode_reference(ref=ref) if self.use_image_reference else None
+        # generate ref_emb and audio_emb when use_image/audio_reference
+        ref_emb = self.encode_reference(ref=ref, tokenize=self.tokenize_reference) if self.use_image_reference else None
         audio_emb = self.audio_net(audio) if self.use_audio_reference else None
+
         # decoder
         logits = self.forward_decoder(latent, audio_emb=audio_emb, ref_emb=ref_emb,
                                       token_drop_mask=token_drop_mask, token_all_mask=token_all_mask)
+
         # compute prediction_masked_token_loss
-        loss = self.forward_loss(gt_indices, logits, token_all_mask)
+        loss = self.forward_loss(gt_indices, logits, token_all_mask) if return_loss else None
+
         if generate:
             latent_res = self.vqgan.latent_resolution
             vq_emb = self.vqgan_embed_dim
             logits = logits[:, 1:, :self.vqgan.codebook_size]
+
             _, pred_indices = torch.topk(logits, k=1)
             pred_indices = pred_indices * token_all_mask[:, 1:, None] + gt_indices[..., None] * (
                     1 - token_all_mask[:, 1:, None])
             z_q = self.vqgan.quantizer.get_codebook_entry(pred_indices.long(),
                                                           shape=(bsz, latent_res, latent_res, vq_emb))
-            imgs = self.vqgan.decode(z_q)
+            if self.training and self.norm_pix_loss:
+                if self.gumble_softmax:
+                    # get hard gumble softmax one_hot
+                    soft_one_hot = torch.nn.functional.gumbel_softmax(logits, tau=1, hard=True)
+                else:
+                    # get straight through one_hot
+                    y_soft = logits.softmax(dim=-1)
+                    y_hard = torch.zeros_like(logits).scatter_(-1, pred_indices.long(), 1.0)
+                    soft_one_hot = y_hard - y_soft.detach() + y_soft
+
+                b, seq_len, n_dim = logits.size()
+                h = int(np.sqrt(seq_len))
+                assert h == seq_len / h, f"{h}, {seq_len / h}"
+                soft_one_hot = rearrange(soft_one_hot, 'b (h w) n -> b n h w', h=h)
+                reshape_mask = rearrange(token_all_mask[:, 1:, None], 'b (h w) n -> b n h w', h=h)
+
+                z_q_soft = torch.einsum("b n h w, n d -> b d h w", soft_one_hot, self.vqgan.quantizer.embedding.weight)
+                z_q = z_q_soft * reshape_mask + z_q * (1 - reshape_mask)
+
+            if self.ref_control:
+                control_latent = self.ref_controller.control_signal(ref)
+                imgs = self.vqgan.decode(z_q, control_latent=control_latent)
+            else:
+                imgs = self.vqgan.decode(z_q)
+
         return loss, imgs, token_all_mask
 
     def __str__(self):
@@ -372,31 +475,54 @@ class TransformerEncoder(nn.Module):
             Block(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                   norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x):
-        for blk in self.blocks:
-            x = blk(x)
+    def forward(self, x, return_attn=False):
+        for idx, blk in enumerate(self.blocks, start=1):
+            if return_attn and idx == len(self.blocks):
+                x, attn = blk(x, return_attn)
+                return x, attn
+            else:
+                x = blk(x)
         return x
 
 
 class TransformerDecoder(nn.Module):
 
     def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True):
+                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
+                 modulation=False, modulate_type='msa', audio_dim=None, img_dim=None):
         super().__init__()
-        module = CrossBlock if cross_attn else Block
+        module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
         self.cross_attn = cross_attn
         self.decoder_blocks = nn.ModuleList([
             module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
                    norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
 
-    def forward(self, x, key, query):
-        assert key.size() == query.size()
-        for blk in self.decoder_blocks:
-            x = blk(x, key, query) if self.cross_attn else blk(x)
+        self.proj_audio = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(audio_dim, embed_dim),
+                nn.LayerNorm(embed_dim),
+                nn.SiLU(),
+            ) for _ in range(depth)]) if audio_dim else None
+
+        self.proj_img = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(img_dim, embed_dim),
+                nn.LayerNorm(embed_dim),
+            ) for _ in range(depth)]) if img_dim else None
+
+    def forward(self, x, kv, cond=None):
+
+        for i, blk in enumerate(self.decoder_blocks):
+            proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
+            kv = self.proj_img[i](kv) if self.proj_img is not None else None
+            if self.cross_attn:
+                x = blk(x, kv, proj_audio)
+            else:
+                x = blk(x, proj_audio)
         return x
 
 
-def lip_mage_vit_base_patch16(**kwargs):
+def lip_mage_vit_base(**kwargs):
     model = DoubleConditionedMAGE(
         patch_size=32, embed_dim=768, depth=12, num_heads=12,
         decoder_embed_dim=768, decoder_depth=8, decoder_num_heads=16,

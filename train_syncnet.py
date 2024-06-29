@@ -12,20 +12,21 @@ import config
 
 from utils.args_parser import arguments_parser
 from utils.init_utils import init_process
-from utils.train_utils import create_dataloader, create_criterions, create_optim_scheduler, ckpt_loader
+from utils.train_utils import create_dataloader, create_criteria, create_optim_scheduler
 from utils.logger_utils import attr_extractor
 from utils.logging_tool import get_logger
 
-from models.syncnet_whole_model import SyncNetModel
-from arch.syncnet_arch import SyncNet, SyncNetWhole
+from models.syncnet_model import SyncNetModel
+from arch.syncnet_arch import SyncNet
 
 
 def main(args):
-    logger = get_logger()
+    # create logger
+    logger = get_logger(file_path=args.job_dir)
     device = args.local_rank
 
     # init wandb
-    if args.rank == 0:
+    if args.rank == 0 and args.get("use_wandb", True):
         wandb.init(project='lip-sync', dir=args.job_dir, name=args.job_dir.split('/')[-1],
                    config=OmegaConf.to_container(args))
 
@@ -38,18 +39,19 @@ def main(args):
 
     # Create generator
     logger.info(f"Create Model")
-    model = SyncNet()
+    model = SyncNet(**args.model)
 
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model {model} :[Trainable Parameters: {trainable_params}]")
 
     # Loss function
     logger.info(f"Load loss function")
-    criterion = create_criterions(args)
+    criteria = create_criteria(args)
 
     # allocate model to gpu
     if args.distributed:
         logger.info("Distributed Training")
+        model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = DDP(model.to(device), device_ids=[device], output_device=device)
     else:
         model.to(device)
@@ -57,23 +59,24 @@ def main(args):
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model, args=args, num_batches=len(train_data_loader))
 
-    best_loss = 1000
-
-    trainer = SyncNetModel(model=model,
+    trainer = SyncNetModel(opt=args,
+                           model=model,
                            optimizer=optimizer,
                            scheduler=scheduler,
-                           criterion=criterion,
+                           criteria=criteria,
                            train_data_loader=train_data_loader,
                            eval_data_loaders=eval_data_loaders,
-                           logger=logger,
-                           args=args,
                            writer=writer)
 
     # Load ckpt
     start_epoch = trainer.load_ckpt(args.ckpt, model=model, optimizer=optimizer, scheduler=scheduler)
 
     # Load state_dict
-    trainer.load_model(model=model, ckpt_path=args.weight)
+    trainer.load_model(model=model, ckpt_path=args.get("weight", None))
+
+    # optimize model graph
+    if args.get('compile_model', False):
+        trainer.compile_model()
 
     logger.info(attr_extractor(args))
 
@@ -85,12 +88,9 @@ def main(args):
         if train_sampler is not None:
             train_sampler.set_epoch(epoch)
         trainer.training_epoch(epoch=epoch)
-        loss = trainer.evaluating_epoch(epoch=epoch)
+        trainer.evaluating_epoch(epoch=epoch)
         # save model weight
         trainer.save_model(os.path.join(args.job_dir, 'weights'))
-        if best_loss > loss:
-            trainer.save_model(os.path.join(args.job_dir, 'weights'), best=best_loss > loss)
-            best_loss = loss
         trainer.save_ckpt(os.path.join(args.job_dir, "ckpt"), epoch=epoch)
 
     logger.info(f"Finish Training")
@@ -106,8 +106,5 @@ if __name__ == '__main__':
 
     # read from config file
     args = config.update_params(args)
-
-    # create logger
-    logger = get_logger(file_path=args.job_dir)
 
     main(args)

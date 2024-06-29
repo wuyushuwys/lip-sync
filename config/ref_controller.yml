@@ -1,0 +1,88 @@
+manual_seed: 1234
+g_weight: null
+d_weight: null
+#ckpt: runs/train_vqgan_ffhq_femasr/ckpt/latest.pt
+#warmup_lr: true
+#warmup_iters: 100
+scale_lr: true
+gan_starts: 0
+#clip_grad: 5
+data_spec:
+  mode: image
+  num_samples: 2
+  eval_samples: 10
+  window_size: 5
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  train_size: 256
+  eval_size: 256
+  aug:
+    flip:
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+
+video_spec:
+  fps: 25
+  size: [ 256, 256 ]
+
+audio_spec:
+  mel_step_size: 16
+  sample_rate: 16000
+
+#d_model:
+#  nc: 3
+#  ndf: 64
+#  n_layers: 4
+
+#g_model:
+#  gt_resolution: 256
+#  norm_type: 'gn'
+#  act_type: 'silu'
+#  codebook_params: # has to order from low to high
+#    - [ 32, 512, 256 ]
+
+model:
+  vq_config_path: config/vqgan.yml
+  vq_state_dict: pretrained/vq_model_512_256.pt
+
+optim:
+  - type: Adam
+    lr: !!float 1e-4
+    betas: [ 0.9, 0.999 ]
+#
+#scheduler:
+#  type: MultiStepLR
+#  milestones: [ 1 ]
+#  gamma: 1
+
+#scheduler:
+#  type: PolynomialLR
+#  power: 0.9
+
+scheduler:
+  type: CosineAnnealingLR
+#  eta_min: 1.0e-5
+
+
+losses:
+  recon_loss:
+    type: PixelLoss
+    criterion: l1
+    loss_weight: 1
+  perceptual_loss:
+    type: LPIPSLoss
+    loss_weight: 1
+    lpips_loss_arch: 'vgg'
+  #  perceptual_loss:
+  #    type: PerceptualLoss
+  #    layer_weights: { '2': 0.1, '7': 0.1, '16': 1, '25': 1, '34': 1, }
+  #    vgg_type: 'vgg19'
+  #    norm_img: true
+  #    criterion: 'l1'
+  #    perceptual_weight: 1
+
+#  adversarial:
+#    type: GANLoss
+#    gan_type: hinge
+#    loss_weight: 0.1  # using adaptive loss_weight

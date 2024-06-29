@@ -1,19 +1,31 @@
 manual_seed: 1234
 
+# g_weight: ~
+g_weight: runs/train_lipsync_mix_lrs2_l1/weights/wav2lip.pt
+# weight: runs/train_lipsync_lrs2_adaptive/weights/wav2lip.pt
+# ckpt: runs/train_lipsync_lrs2_adaptive/ckpt/latest.pt
+use_amp: false
+use_mask: true
+scale_lr: false
+warmup_iters: 0.01
+warmup_lr: true
 data_spec:
+  num_samples: 1
+  eval_samples: 2
   mode: h5  # h5 or image
-  prefetch_factor: 2  # prefetch_factor for dataloader (default: 2)
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
-
   aug:
-    # sharpness:
-    #   sharpness_factor: 2
-    #   p: 0.1
     flip:
-      p: 0.3
-    # contrast:
-    #   p: 0.1
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+  # dataset extension factor
+  ft_ext: 10
+  hdtf_ext: 20
+
 
 
 video_spec:
@@ -24,13 +36,13 @@ audio_spec:
   mel_step_size: 16
   sample_rate: 16000
 
-num_samples: 10
-eval_samples: 10
-
 optim:
-  type: Adam
-  lr: 1.0e-5
-  betas: [ 0.9, 0.999 ]
+  - type: Adam
+    lr: 1.0e-4
+    betas: [ 0.9, 0.999 ]
+  - type: Adam
+    lr: 1.0e-4
+    betas: [ 0.9, 0.999 ]
 
 #scheduler:
 #  type: MultiStepLR
@@ -46,18 +58,18 @@ losses:
   recon_loss:
     type: PixelLoss
     criterion: l1
-    loss_weight: 0.1
-  perceptual_loss:
-    type: LPIPSLoss
     loss_weight: 1
-    lpips_loss_arch: vgg
+  # perceptual_loss:
+  #   type: LPIPSLoss
+  #   loss_weight: 1
+  #   lpips_loss_arch: alex
 
   adversarial:
     type: GANLoss
     gan_type: vanilla
-    loss_weight: 0.1
+    loss_weight: 0.01
 
   sync_loss:
     type: SyncLoss
-    ckpt_path: syncnet_best.pt
+    ckpt_path: runs/train_syncnet_mix_lrs2/weights/syncnet.pt
     loss_weight: 0

@@ -33,7 +33,7 @@ printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT train_vqgan.py \
   --config vqgan.yml \
   --dataset ffhq celeba hdtf_images \
-  --model vqgan \
+  --arch vqgan \
   --job_dir "${job_dir}" \
   --batch_size 8 \
   --num_workers 8 \

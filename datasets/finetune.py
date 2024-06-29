@@ -31,7 +31,8 @@ class Finetune(FrameMelDataset):
         if not os.path.isfile(audio_cache_path):
             audio_cache_path = None
         super(Finetune, self).__init__(folder_tree=folder_tree, mode=mode, args=args, data_mode=args.data_spec['mode'],
-                                       audio_cache_path=audio_cache_path, video_cache_path=video_cache_path)
+                                       audio_cache_path=audio_cache_path, video_cache_path=video_cache_path,
+                                       extent_factor=args.data_spec.get('ft_ext', None))
 
     def __str__(self):
         return self.__class__.__name__.lower()
