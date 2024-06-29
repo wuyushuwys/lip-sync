@@ -20,23 +20,26 @@ class CompileMode(Enum):
 
 class BasicModel(ABC):
 
-    def __init__(self, opt, total_iterations=None, *args, **kwargs):
+    def __init__(self, opt, total_iterations=None, torch_compile=False, *args, **kwargs):
         self.logger = get_logger(file_path=opt.job_dir)
         self.opt = opt
         self.eta_timer = TimeMeter(total_iterations=total_iterations)
-        pass
 
     def init_trainer(self, *args, **kwargs):
-        pass
+        raise NotImplementedError
 
     def training_epoch(self, epoch):
-        pass
+        raise NotImplementedError
+
+    # @torch.compile()
+    def training_step(self, batch, epoch):
+        raise NotImplementedError
 
     def evaluating_epoch(self, epoch):
-        pass
+        raise NotImplementedError
 
     def save_model(self, path, best=False):
-        pass
+        raise NotImplementedError
 
     def load_model(self, model, ckpt_path):
         if ckpt_path:

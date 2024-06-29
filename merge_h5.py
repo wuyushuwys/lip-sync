@@ -5,6 +5,7 @@ import logging
 from glob import glob
 import h5py
 
+
 class Hdf5:
 
     def __init__(self, fname, lib='h5py', overwrite=False):
@@ -76,9 +77,8 @@ class Merge:
 
         for file in files:
             folder_tree[file] = Hdf5(file)
-                
-        self.tree = folder_tree
 
+        self.tree = folder_tree
 
     def runner(self):
         # for folder, cache in tqdm(self.tree.items(), total=len(self.tree), position=1):
@@ -88,12 +88,10 @@ class Merge:
 
         #     cache.file.close()
         for path, cache in tqdm(self.tree.items(), total=len(self.tree), position=1):
-            
             self.cache.add_subset(path.replace('cache.h5', ''), path)
             del cache
 
 
-Merge(ROOT_PATH='data/HDTF/', output_dir='data/HDTF/data.h5').runner()
-Merge(ROOT_PATH='data/LRS2/', output_dir='data/LRS2/data.h5').runner()
-
-# Merge(ROOT_PATH='data/finetune/', output_dir='data/finetune/data.h5').runner()
+if __name__ == '__main__':
+    Merge(ROOT_PATH='data/HDTF/', output_dir='data/HDTF/data.h5').runner()
+    Merge(ROOT_PATH='data/LRS2/', output_dir='data/LRS2/data.h5').runner()
