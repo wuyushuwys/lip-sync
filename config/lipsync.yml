@@ -1,9 +1,17 @@
 manual_seed: 1234
 
+# weight: runs/train_lipsync_mix_lrs2/weights/wav2lip.pt
+# weight: runs/train_lipsync_lrs2_tuning/weights/wav2lip.pt
+# weight: runs/train_lipsync_mix_lrs2_l1lpips/weights/wav2lip_sync.pt
+weight: ~
+# ckpt: runs/train_lipsync_mix_lrs2_l1/ckpt/latest.pt
+use_amp: false
+use_mask: true
+scale_lr: false
 data_spec:
-  num_samples: 300
-  eval_samples: 50
-  mode: 'image'  # h5 or image
+  num_samples: 1
+  eval_samples: 2
+  mode: h5  # h5 or image
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   verbose: False  # might be super-slow for large scale datasets
   window_size: 5
@@ -13,13 +21,13 @@ data_spec:
   normalize:
     std: [ 0.5, 0.5, 0.5 ]
     mean: [ 0.5, 0.5, 0.5 ]
-
+  # dataset extension factor
+  ft_ext: 30
+  hdtf_ext: 30
 
 video_spec:
   fps: 25
   size: [ 256, 256 ]
-  crop_pad: [ 16, -16, 48, -48 ]
-  random_crop: true
 
 audio_spec:
   mel_step_size: 16
@@ -28,17 +36,22 @@ audio_spec:
 
 optim:
   type: Adam
-  lr: 1.0e-5
-  betas: [ 0.9, 0.999 ]
+  lr: 1.0e-4
+  betas: [ 0.9, 0.95 ]
 
-#scheduler:
-#  type: MultiStepLR
-#  milestones: [0.8]
-#  gamma: 0.5
+model:
+  norm: bn
+  sigmoid: false
+  finetune: false
+
+# scheduler:
+#   type: PolynomialLR
+#   power: 0.9
+
 
 scheduler:
   type: CosineAnnealingLR
-  eta_min: 1.0e-7
+#   eta_min: 1.0e-7
 
 
 losses:
@@ -49,16 +62,9 @@ losses:
   perceptual_loss:
     type: LPIPSLoss
     loss_weight: 0.1
-    lpips_loss_arch: 'vgg'
-  #  perceptual_loss:
-  #    type: PerceptualLoss
-  #    layer_weights: { '2': 0.1, '7': 0.1, '16': 1, '25': 1, '34': 1, }
-  #    vgg_type: 'vgg19'
-  #    norm_img: False
-  #    criterion: 'l1'
-  #    perceptual_weight: 1
+    lpips_loss_arch: vgg
 
   sync_loss:
     type: SyncLoss
-    ckpt_path: syncnet_best.pt
-    loss_weight: 0
+    ckpt_path: runs/train_syncnet_mix_lrs2/weights/syncnet.pt
+    loss_weight: 0.07
