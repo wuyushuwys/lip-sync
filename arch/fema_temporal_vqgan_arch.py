@@ -119,6 +119,12 @@ class FaceCoderTemporalNet(FaceCoderNet):
 
         self.out_conv = nn.Conv2d(out_ch, 3, 3, 1, 1)
 
+    def freeze_spatial(self):
+        self.requires_grad_(False)
+        for m in self.modules():
+            if isinstance(m, TemporalResBlock):
+                m.temporal_conv.requires_grad_(True)
+
     def decode(self, z_q, num_batch=1, control_latent=None):
         x = self.after_quant(z_q)
         for idx, decoder_layer in enumerate(self.decoder_group):

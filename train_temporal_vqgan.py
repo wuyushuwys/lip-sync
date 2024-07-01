@@ -42,11 +42,7 @@ def main(args):
     # Create generator
     logger.info(f"Create Model")
     g_model = FaceCoderTemporalNet(**args.g_model)
-    for n, p in g_model.named_parameters():
-        if 'temporal_conv' in n:
-            p.requires_grad = True
-        else:
-            p.requires_grad = False
+    g_model.freeze_spatial()
     d_model = UNetDiscriminatorSN(**args.d_model)
 
     trainable_params = sum(p.numel() for p in g_model.parameters() if p.requires_grad)
