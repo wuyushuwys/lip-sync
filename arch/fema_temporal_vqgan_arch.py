@@ -62,10 +62,15 @@ class TemporalDecoderBlock(nn.Module):
             TemporalResBlock(out_channel, out_channel, norm_type, act_type),
         ]
 
-        self.block = nn.Sequential(*self.block)
+        self.block = nn.ModuleList(self.block)
 
     def forward(self, x, num_batch=1):
-        return self.block(x, num_batch)
+        for module in self.block:
+            if isinstance(TemporalResBlock):
+                x = module(x, num_batch)
+            else:
+                x = module(x)
+        return x
 
 
 class FaceCoderTemporalNet(FaceCoderNet):
