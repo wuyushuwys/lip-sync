@@ -34,7 +34,7 @@ class TemporalResBlock(ResBlock):
             nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
         )
         self.temporal_conv_out_proj = nn.Conv2d(out_channel, out_channel, 1, stride=1, padding=0)
-        nn.init.zeros_(self.out_proj.weight)
+        nn.init.zeros_(self.temporal_conv_out_proj.weight)
 
     def forward(self, x: torch.FloatTensor, num_batch: int = 5):
         res = x
