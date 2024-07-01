@@ -88,8 +88,8 @@ class TemporalVQGANModel(BasicModel):
             perceptual_loss = self.criteria['perceptual_loss'](pred_y, y, normalize=False)
         else:
             perceptual_loss = 0
-
-        g_loss = recon_loss + perceptual_loss
+        codebook_loss = vq_info.codebook_loss * self.codebook_weight if self.codebook_weight else 0
+        g_loss = recon_loss + perceptual_loss + codebook_loss
         if self.curr_iterations > self.gan_starts:
             fake_g_pred = self.d_model(pred_y)
 
@@ -188,9 +188,8 @@ class TemporalVQGANModel(BasicModel):
 
             self.eta_timer.update()
             losses_meter.update(log_vars, x.size(0))
-
+            tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
             if batch_idx % self.opt.log_steps == 0:
-                tb_writer(writer=self.writer, loss_dict=log_vars, nb=total_batches, tag='train')
                 s = f"Epoch:{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} " \
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
