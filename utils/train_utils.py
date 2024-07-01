@@ -308,8 +308,7 @@ def ckpt_loader(ckpt, **kwargs):
 
 def dir_checker(file_path):
     path = Path(file_path).parent
-    if not os.path.exists(path):
-        os.makedirs(path)
+    os.makedirs(path, exist_ok=True)
 
 
 if __name__ == "__main__":
