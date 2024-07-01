@@ -3,7 +3,7 @@ import numpy as np
 
 
 def export_fig(frames, output_file, fps=5):
-    _, h, w = frames[0].shape
+    h, w, _ = frames[0].shape
     process = (
         ffmpeg
         .input('pipe:',
