@@ -132,13 +132,6 @@ class FaceCoderTemporalNet(FaceCoderNet):
         x = self.out_conv(x)
         return x
 
-    def decode_indices(self, indices):
-        assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
-
-        z_q = self.quantizer.get_codebook_entry(indices)
-        out_img = self.decode(z_q)
-        return out_img
-
     def forward(self, x, num_batch=1):
 
         z = self.encode(x)
