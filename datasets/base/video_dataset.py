@@ -139,7 +139,7 @@ class FrameMelDataset(Dataset):
             frame_list, audio_file = self._load_index(index)
             img_window, mel, label = self._load_sync_data(frame_list, audio_file, index=index)
             return img_window, mel, label
-        elif self.arch in ['lipsync', 'mage']:
+        elif self.arch in ['lipsync', 'mage', 'vqgan']:
             """
             x: (ch, T, H, W)
             indiv_mels: (1, T, 80, mel_step_size)
