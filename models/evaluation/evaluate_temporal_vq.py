@@ -105,7 +105,7 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
     frames = []
     for output in outputs:
-        output = make_grid(output, nrow=4, padding=10).permute(1, 2, 0)
+        output = make_grid(output, nrow=4, padding=10).permute(1, 2, 0).clamp(0, 1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
     export_fig(frames, output_file=f"{folder_path}/{batch_num}.gif")

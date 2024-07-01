@@ -33,17 +33,20 @@ class TemporalResBlock(ResBlock):
             ActLayer(out_channel, act_type),
             nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
         )
+        self.out_proj = nn.Conv2d(out_channel, out_channel, 1, stride=1, padding=0)
+        nn.init.zeros_(self.out_proj.weight)
 
     def forward(self, x: torch.FloatTensor, num_batch: int = 5):
         res = x
         x = self.conv(x)
-
+        x = x + res
         batch_frames, channels, height, width = x.shape
         num_frames = batch_frames // num_batch
-
+        res = x
         x = rearrange(x, '(b f) c h w -> b c f h w', f=num_frames)
         x = self.temporal_conv(x)
         x = rearrange(x, 'b c f h w -> (b f) c h w')
+        x = self.out_proj(x)
         out = x + res
 
         return out
