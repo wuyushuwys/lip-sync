@@ -66,7 +66,7 @@ class TemporalDecoderBlock(nn.Module):
 
     def forward(self, x, num_batch=1):
         for module in self.block:
-            if isinstance(TemporalResBlock):
+            if isinstance(module, TemporalResBlock):
                 x = module(x, num_batch)
             else:
                 x = module(x)
