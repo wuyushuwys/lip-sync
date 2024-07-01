@@ -82,7 +82,7 @@ class FaceCoderTemporalNet(FaceCoderNet):
                  act_type='silu',
                  use_quantize=True,
                  **ignore_kwargs):
-        super(FaceCoderNet, self).__init__(
+        super(FaceCoderTemporalNet, self).__init__(
             in_channel=in_channel,
             codebook_scale=codebook_scale, codebook_size=codebook_size, emb_dim=emb_dim,
             quantizer_type=quantizer_type,
