@@ -115,15 +115,15 @@ class FaceCoderTemporalNet(FaceCoderNet):
         for i in range(self.max_depth):
             res = gt_resolution // 2 ** self.max_depth * 2 ** i
             in_ch, out_ch = channel_query_dict[res], channel_query_dict[res * 2]
-            self.decoder_group.append(DecoderBlock(in_ch, out_ch, norm_type, act_type))
+            self.decoder_group.append(TemporalDecoderBlock(in_ch, out_ch, norm_type, act_type))
 
         self.out_conv = nn.Conv2d(out_ch, 3, 3, 1, 1)
 
     def freeze_spatial(self):
         self.requires_grad_(False)
-        for m in self.modules():
-            if isinstance(m, TemporalResBlock):
-                m.temporal_conv.requires_grad_(True)
+        for n, p in self.named_parameters():
+            if 'temporal_conv' in n:
+                p.requires_grad = True
 
     def decode(self, z_q, num_batch=1, control_latent=None):
         x = self.after_quant(z_q)
