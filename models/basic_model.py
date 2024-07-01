@@ -113,6 +113,12 @@ class BasicModel(ABC):
             losses = []
             for name, value in loss_dict.items():
                 if torch.is_tensor(value):
-                    loss_dict[name] = dist.all_reduce(value, op=dist.ReduceOp.AVG)
+                    keys.append(name)
+                    losses.append(value)
+            losses = torch.stack(losses, 0)
+            dist.all_reduce(losses)
+            losses /= world_size
+            for key, loss in zip(keys, losses):
+                loss_dict[key] = loss
 
         return loss_dict
