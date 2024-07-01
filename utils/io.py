@@ -23,3 +23,29 @@ def export_fig(frames, output_file, fps=5):
         )
     process.stdin.close()
     process.wait()
+
+
+def export_video(frames, output_file, fps=5):
+    h, w, _ = frames[0].shape
+    process = (
+        ffmpeg
+        .input('pipe:', format='rawvideo',
+               pix_fmt='rgb24',
+               s='{}x{}'.format(w, h),
+               r=fps,
+               thread_queue_size=1024)
+        .output(output_file,
+                pix_fmt="yuv420p",
+                vcodec="libx264",
+                r=fps,
+                crf=18,
+                )
+        .overwrite_output()
+        .run_async(pipe_stdin=True, quiet=True)
+    )
+    for frame in frames:
+        process.stdin.write(
+            np.asarray(frame, dtype=np.uint8).tobytes()
+        )
+    process.stdin.close()
+    process.wait()

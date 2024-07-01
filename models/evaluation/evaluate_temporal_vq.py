@@ -16,7 +16,7 @@ from pytorch_msssim import SSIM, MS_SSIM
 from common.meters import AverageMeter
 from utils.helpers import compute_per_image, reduce_all
 from utils.init_utils import master_only
-from utils.io import export_fig
+from utils.io import export_video
 from utils.logger_utils import eval_tb_writer
 from logging import Logger
 from losses import LPIPSLoss
@@ -108,7 +108,7 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
         output = make_grid(output, nrow=4, padding=10).permute(1, 2, 0).clamp(0, 1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
-    export_fig(frames, output_file=f"{folder_path}/{batch_num}.gif")
+    export_video(frames, output_file=f"{folder_path}/{batch_num}.mp4")
     if batch_num == 1 and wandb.run is not None:
-        video = wandb.Video(f"{folder_path}/{batch_num}.gif")
+        video = wandb.Video(f"{folder_path}/{batch_num}.mp4")
         wandb.log({f"{Path(folder_path).stem}": video}, commit=False)
