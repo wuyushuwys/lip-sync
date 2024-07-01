@@ -106,7 +106,6 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
     frames = []
     for output in outputs:
         output = make_grid(output, nrow=4, padding=10)
-        output = output.permute(0, 1).transpose(1, 2).squeeze(-1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
     export_fig(frames, output_file=f"{folder_path}/{batch_num}.gif")
