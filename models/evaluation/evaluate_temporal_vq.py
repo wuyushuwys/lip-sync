@@ -107,7 +107,7 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
     for output in outputs:
         output = make_grid(output, nrow=4, padding=10)
         output = output.transpose(0, 1).transpose(1, 2).squeeze(-1)
-        output = (output * 255).numpy().astype(np.uint8)
+        output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
     export_fig(frames, output_file=f"{folder_path}/{batch_num}.jpg")
     if batch_num == 1 and wandb.run is not None:
