@@ -75,11 +75,8 @@ class TemporalVQGANModel(BasicModel):
 
     @torch.compile()
     def training_g_step(self, batch):
-        x, _, _, y = batch
+        x, y = batch
         num_batch = x.size(0)
-        x, _ = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                   torch.split(x, 3, dim=1))
-        y = rearrange(y, 'b c t h w -> (b t) c h w')
         pred_y, vq_info = self.g_model(x, num_batch=num_batch)
 
         if 'recon_loss' in self.criteria.keys():
@@ -116,10 +113,12 @@ class TemporalVQGANModel(BasicModel):
             self.curr_iterations = total_batches
 
             x, _, _, y = batch
-
+            x, _ = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                       torch.split(x, 3, dim=1))
+            y = rearrange(y, 'b c t h w -> (b t) c h w')
             x = x.to(self.local_rank, non_blocking=True)
             y = y.to(self.local_rank, non_blocking=True)
-
+            batch = x, y
             ############################################
             # optimize generator
             ############################################

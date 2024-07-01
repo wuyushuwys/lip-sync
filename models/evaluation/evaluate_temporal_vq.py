@@ -101,12 +101,12 @@ def test(dataloader: DataLoader,
 @master_only
 def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
     outputs = torch.cat([g, gt], dim=-1)
-    rearrange(outputs, '(b f) c h w -> f b c h w', b=num_batch)
+    outputs = rearrange(outputs, '(b f) c h w -> f b c h w', b=num_batch)
     if not os.path.exists(folder_path): os.makedirs(folder_path, exist_ok=True)
     frames = []
     for output in outputs:
         output = make_grid(output, nrow=4, padding=10)
-        output = output.transpose(0, 1).transpose(1, 2).squeeze(-1)
+        output = output.permute(0, 1).transpose(1, 2).squeeze(-1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
     export_fig(frames, output_file=f"{folder_path}/{batch_num}.gif")
