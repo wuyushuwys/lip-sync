@@ -19,6 +19,14 @@ data_spec:
     std: [ 0.5, 0.5, 0.5 ]
     mean: [ 0.5, 0.5, 0.5 ]
 
+video_spec:
+  fps: 25
+  size: [ 256, 256 ]
+
+audio_spec:
+  mel_step_size: 16
+  sample_rate: 16000
+
 g_model:
   gt_resolution: 256
   norm_type: 'gn'
