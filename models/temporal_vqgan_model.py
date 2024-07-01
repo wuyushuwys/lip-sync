@@ -89,7 +89,7 @@ class TemporalVQGANModel(BasicModel):
         else:
             perceptual_loss = 0
 
-        g_loss = recon_loss + perceptual_loss + vq_info.codebook_loss * self.codebook_weight
+        g_loss = recon_loss + perceptual_loss
         if self.curr_iterations > self.gan_starts:
             fake_g_pred = self.d_model(pred_y)
 
