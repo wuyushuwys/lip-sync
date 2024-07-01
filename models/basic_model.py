@@ -41,11 +41,11 @@ class BasicModel(ABC):
     def save_model(self, path, best=False):
         raise NotImplementedError
 
-    def load_model(self, model, ckpt_path):
+    def load_model(self, model, ckpt_path, strict=True):
         if ckpt_path:
             logger = get_logger()
             ckpt = torch.load(ckpt_path, map_location='cpu')
-            self.model_no_ddp(model).load_state_dict(ckpt)
+            self.model_no_ddp(model).load_state_dict(ckpt, strict=strict)
 
             logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
 
