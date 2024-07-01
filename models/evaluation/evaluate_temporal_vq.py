@@ -109,7 +109,7 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
         output = output.transpose(0, 1).transpose(1, 2).squeeze(-1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
-    export_fig(frames, output_file=f"{folder_path}/{batch_num}.jpg")
+    export_fig(frames, output_file=f"{folder_path}/{batch_num}.gif")
     if batch_num == 1 and wandb.run is not None:
-        video = wandb.Video(f"{folder_path}/{batch_num}.jpg")
+        video = wandb.Video(f"{folder_path}/{batch_num}.gif")
         wandb.log({f"{Path(folder_path).stem}": video}, commit=False)
