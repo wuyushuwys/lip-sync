@@ -34,12 +34,12 @@ class TemporalResBlock(ResBlock):
             nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
         )
 
-    def forward(self, x: torch.FloatTensor, batch_size: int = 5):
+    def forward(self, x: torch.FloatTensor, num_batch: int = 5):
         res = x
         x = self.conv(x)
 
         batch_frames, channels, height, width = x.shape
-        num_frames = batch_frames // batch_size
+        num_frames = batch_frames // num_batch
 
         x = rearrange(x, '(b f) c h w -> b c f h w', f=num_frames)
         x = self.temporal_conv(x)
@@ -64,8 +64,8 @@ class TemporalDecoderBlock(nn.Module):
 
         self.block = nn.Sequential(*self.block)
 
-    def forward(self, x):
-        return self.block(x)
+    def forward(self, x, num_batch=1):
+        return self.block(x, num_batch)
 
 
 class FaceCoderTemporalNet(FaceCoderNet):
@@ -131,6 +131,13 @@ class FaceCoderTemporalNet(FaceCoderNet):
             x = decoder_layer(x, num_batch=num_batch)
         x = self.out_conv(x)
         return x
+
+    def decode_indices(self, indices):
+        assert len(indices.shape) == 4, f'shape of indices must be (b, 1, h, w), but got {indices.shape}'
+
+        z_q = self.quantizer.get_codebook_entry(indices)
+        out_img = self.decode(z_q)
+        return out_img
 
     def forward(self, x, num_batch=1):
 
