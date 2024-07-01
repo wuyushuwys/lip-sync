@@ -108,7 +108,7 @@ def save_sample_fig(g, gt, batch_num, folder_path, num_batch):
         output = make_grid(output, nrow=4, padding=10).permute(1, 2, 0).clamp(0, 1)
         output = (output.cpu() * 255).numpy().astype(np.uint8)
         frames.append(output)
-    export_video(frames, output_file=f"{folder_path}/{batch_num}.mp4")
+    export_video(frames, output_file=f"{folder_path}/{batch_num}.mp4", fps=25)
     if batch_num == 1 and wandb.run is not None:
-        video = wandb.Video(f"{folder_path}/{batch_num}.mp4")
+        video = wandb.Video(f"{folder_path}/{batch_num}.mp4", fps=25)
         wandb.log({f"{Path(folder_path).stem}": video}, commit=False)
