@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-
+from einops import rearrange
 __all__ = [
     "PixelLoss",
     "CharbonnierLoss",
@@ -86,3 +86,33 @@ class WeightedPixelLoss(nn.Module):
             return pixel_loss
         else:
             return pixel_loss * self.loss_weight
+
+
+class ConsistencyLoss(nn.Module):
+
+    def __init__(self, criterion, loss_weight=1.0):
+        super(ConsistencyLoss, self).__init__()
+        self.loss_weight = loss_weight
+        reduction = 'none'
+        if criterion == 'l1':
+            self.criterion = torch.nn.L1Loss(reduction=reduction)
+        elif criterion == 'mse':
+            self.criterion = torch.nn.MSELoss(reduction=reduction)
+        elif criterion == 'charbonnier':
+            self.criterion = CharbonnierLoss()
+        else:
+            raise NotImplementedError(
+                f'{criterion} criterion has not been supported in this version.')
+
+    def forward(self, x, gt, num_batch=1, val=False):
+        assert x.ndim == 5, f"{x.shape}"
+        x = rearrange(x, '(b t) c h w -> b t c h w', b=num_batch)
+        gt = rearrange(gt, '(b t) c h w -> b t c h w', b=num_batch)
+        x_consistency = x[:, :-1] - x[:, 1:]
+        gt_consistency = gt[:, :-1] - gt[:, 1:]
+        loss = self.criterion(x_consistency, gt_consistency)
+
+        if val:
+            return loss
+        else:
+            return loss * self.loss_weight

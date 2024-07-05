@@ -8,7 +8,7 @@ data_spec:
   mode: h5
   num_samples: 100
   eval_samples: 10
-  window_size: 5
+  window_size: 10
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   train_size: 256
   eval_size: 256
@@ -63,7 +63,7 @@ losses:
     lpips_loss_arch: 'vgg'
 
   codebook_loss:
-    loss_weight: 1
+    loss_weight: 0
 
   adversarial:
     type: GANLoss
