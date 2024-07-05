@@ -64,6 +64,7 @@ losses:
 
   codebook_loss:
     loss_weight: 0
+    criterion: l1
 
   adversarial:
     type: GANLoss
