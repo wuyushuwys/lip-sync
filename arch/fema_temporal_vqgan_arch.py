@@ -36,10 +36,9 @@ class TemporalResBlock(ResBlock):
 
     def forward(self, x: torch.FloatTensor, num_batch: int = 1):
         # spatial
-        x = super()(x)
-        # res = x
-        # x = self.conv(x)
-        # x = x + res
+        res = x
+        x = self.conv(x)
+        x = x + res
         # temporal
         batch_frames, channels, height, width = x.shape
         res = x
