@@ -89,7 +89,7 @@ class TemporalVQGANModel(BasicModel):
             perceptual_loss = 0
         codebook_loss = vq_info.codebook_loss * self.codebook_weight if self.codebook_weight else 0
         if 'consistency_loss' in self.criteria.keys():
-            consistency_loss = self.criteria['consistency_loss'](pred_y, y, batch=num_batch)
+            consistency_loss = self.criteria['consistency_loss'](pred_y, y, num_batch=num_batch)
         else:
             consistency_loss = 0
 
