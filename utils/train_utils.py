@@ -271,15 +271,15 @@ def load_ckpt(ckpt, **kwargs):
 
 # @master_only  # not using master_only for FSDP support
 def state_dict_saver(path, model):
-    dir_checker(path)
     state_dict = model.state_dict() if not hasattr(model, 'module') else model.module.state_dict()
     if get_dist_info()[0] == 0:
+        dir_checker(path)
         torch.save(state_dict, path)
 
 
 # @master_only  # not using master_only for FSDP support
 def ckpt_saver(path, **kwargs):
-    dir_checker(path)
+
     ckpt = {}
     for k, v in kwargs.items():
         if isinstance(v, int):
@@ -292,6 +292,7 @@ def ckpt_saver(path, **kwargs):
             v = v.state_dict()
         ckpt[k] = v
     if get_dist_info()[0] == 0:
+        dir_checker(path)
         torch.save(ckpt, path)
 
 
