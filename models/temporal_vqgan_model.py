@@ -74,9 +74,8 @@ class TemporalVQGANModel(BasicModel):
         return d_weight
 
     @torch.compile()
-    def training_g_step(self, batch):
+    def training_g_step(self, batch, num_batch):
         x, y = batch
-        num_batch = x.size(0)
         pred_y, vq_info = self.g_model(x, num_batch=num_batch)
 
         if 'recon_loss' in self.criteria.keys():
@@ -118,6 +117,7 @@ class TemporalVQGANModel(BasicModel):
             self.curr_iterations = total_batches
 
             x, _, _, y = batch
+            num_batch = x.size(0)
             x, _ = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
                        torch.split(x, 3, dim=1))
             y = rearrange(y, 'b c t h w -> (b t) c h w')
@@ -133,8 +133,13 @@ class TemporalVQGANModel(BasicModel):
 
             self.g_optimizer.zero_grad()
             with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
-                vq_info, pred_y, recon_loss, perceptual_loss, adversarial_loss, consistency_loss, g_loss = self.training_g_step(
-                    batch)
+                (vq_info,
+                 pred_y,
+                 recon_loss,
+                 perceptual_loss,
+                 adversarial_loss,
+                 consistency_loss,
+                 g_loss) = self.training_g_step(batch, num_batch=num_batch)
 
             self.scaler.scale(g_loss).backward()
             if self.clip_grad:
