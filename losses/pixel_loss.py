@@ -107,6 +107,7 @@ class ConsistencyLoss(nn.Module):
             raise NotImplementedError(type)
 
         self.optical_flow.__class__ = OpticalFlow
+        self.optical_flow.eval()
 
     @staticmethod
     def unbatch_timestep(frames):
