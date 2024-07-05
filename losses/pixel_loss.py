@@ -5,6 +5,7 @@ __all__ = [
     "PixelLoss",
     "CharbonnierLoss",
     "WeightedPixelLoss",
+    "ConsistencyLoss",
 ]
 
 
