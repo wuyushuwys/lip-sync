@@ -100,9 +100,9 @@ class ConsistencyLoss(nn.Module):
         super(ConsistencyLoss, self).__init__()
         self.loss_weight = loss_weight
         if type == 'large':
-            self.optical_flow = raft_large(pretrained=True, progress=False)
+            self.optical_flow = raft_large(pretrained=True, progress=False).cuda()
         elif type == 'small':
-            self.optical_flow = raft_small(pretrained=True, progress=False)
+            self.optical_flow = raft_small(pretrained=True, progress=False).cuda()
         else:
             raise NotImplementedError(type)
 
