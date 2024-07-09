@@ -28,10 +28,10 @@ class TemporalResBlock(ResBlock):
         self.temporal_conv = nn.Sequential(
             NormLayer(in_channel, norm_type),
             ActLayer(in_channel, act_type),
-            nn.Conv3d(in_channel, out_channel, 3, stride=1, padding=1),
+            nn.Conv3d(in_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
             NormLayer(out_channel, norm_type),
             ActLayer(out_channel, act_type),
-            nn.Conv3d(out_channel, out_channel, 3, stride=1, padding=1),
+            nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
         )
         for m in self.temporal_conv:
             if isinstance(m, nn.Conv3d):

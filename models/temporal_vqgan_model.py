@@ -114,7 +114,7 @@ class TemporalVQGANModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
             total_batches = (epoch - 1) * nb + batch_idx
-            self.curr_iterations = total_batches
+            self.curr_iterations += 1
 
             x, _, _, y = batch
             num_batch = x.size(0)
