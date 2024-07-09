@@ -45,7 +45,7 @@ class TemporalResBlock(ResBlock):
             ActLayer(out_channel, act_type),
             nn.Conv3d(out_channel, out_channel, 3, stride=1, padding=1),
         )
-        for m in self.temporal_conv:
+        for m in self.modules():
             if isinstance(m, nn.Conv3d):
                 nn.init.kaiming_normal_(m.weight)
 
