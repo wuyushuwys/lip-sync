@@ -162,8 +162,8 @@ class FaceCoderTemporalNet(FaceCoderNet):
         }
 
         # build encoder
-        self.max_depth = int(np.log2(gt_resolution // self.codebook_scale[0]))
-        encode_depth = int(np.log2(gt_resolution // self.codebook_scale[0]))
+        self.max_depth = int(np.log2(gt_resolution // self.codebook_scale))
+        encode_depth = int(np.log2(gt_resolution // self.codebook_scale))
         self.multiscale_encoder = TemporalMultiScaleEncoder(
             in_channel,
             encode_depth,
