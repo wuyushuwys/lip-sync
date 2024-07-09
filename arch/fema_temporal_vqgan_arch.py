@@ -54,6 +54,52 @@ class TemporalResBlock(ResBlock):
         return out
 
 
+class TemporalMultiScaleEncoder(nn.Module):
+    def __init__(self,
+                 in_channel,
+                 max_depth,
+                 input_res=256,
+                 channel_query_dict=None,
+                 norm_type='gn',
+                 act_type='leakyrelu',
+                 ):
+        super().__init__()
+
+        ksz = 3
+
+        self.in_conv = nn.Conv2d(in_channel, channel_query_dict[input_res], 4, padding=1)
+
+        self.blocks = nn.ModuleList()
+        self.up_blocks = nn.ModuleList()
+        self.max_depth = max_depth
+        self.num_resblock = 2
+        self.latent_out_ch = []
+        res = input_res
+        for i in range(max_depth):
+            in_ch, out_ch = channel_query_dict[res], channel_query_dict[res // 2]
+            tmp_down_block = [nn.Conv2d(in_channels=in_ch, out_channels=out_ch, kernel_size=ksz, stride=2, padding=1), ]
+            tmp_down_block.extend(TemporalResBlock(in_channel=out_ch,
+                                                   out_channel=out_ch,
+                                                   norm_type=norm_type,
+                                                   act_type=act_type) for _ in range(self.num_resblock))
+            self.blocks.append(nn.Sequential(*tmp_down_block))
+            self.latent_out_ch.append(out_ch)
+            res = res // 2
+        self.latent_resolution = res
+
+    def forward(self, x, return_latent=False):
+        if return_latent:
+            outputs = []
+        x = self.in_conv(x)
+
+        for idx, m in enumerate(self.blocks):
+            x = m(x)
+            if return_latent:
+                outputs.append(x)
+
+        return outputs if return_latent else x
+
+
 class TemporalDecoderBlock(nn.Module):
 
     def __init__(self, in_channel, out_channel, norm_type='gn', act_type='leakyrelu'):
@@ -116,7 +162,15 @@ class FaceCoderTemporalNet(FaceCoderNet):
         }
 
         # build encoder
-        self.max_depth = int(np.log2(gt_resolution // self.codebook_scale))
+        self.max_depth = int(np.log2(gt_resolution // self.codebook_scale[0]))
+        encode_depth = int(np.log2(gt_resolution // self.codebook_scale[0]))
+        self.multiscale_encoder = TemporalMultiScaleEncoder(
+            in_channel,
+            encode_depth,
+            self.gt_res,
+            channel_query_dict,
+            norm_type, act_type
+        )
 
         self.latent_resolution = self.multiscale_encoder.latent_resolution
 
