@@ -25,51 +25,51 @@ class TemporalResBlock(ResBlock):
     def __init__(self, in_channel, out_channel, norm_type='gn', act_type='leakyrelu'):
         super(TemporalResBlock, self).__init__(in_channel, out_channel, norm_type, act_type)
 
-        # self.temporal_conv = nn.Sequential(
-        #     NormLayer(in_channel, norm_type),
-        #     ActLayer(in_channel, act_type),
-        #     nn.Conv3d(in_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
-        #     NormLayer(out_channel, norm_type),
-        #     ActLayer(out_channel, act_type),
-        #     nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
-        # )
+        self.temporal_conv = nn.Sequential(
+            NormLayer(in_channel, norm_type),
+            ActLayer(in_channel, act_type),
+            nn.Conv3d(in_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
+            NormLayer(out_channel, norm_type),
+            ActLayer(out_channel, act_type),
+            nn.Conv3d(out_channel, out_channel, (3, 1, 1), stride=1, padding=(1, 0, 0)),
+        )
         # for m in self.temporal_conv:
         #     if isinstance(m, nn.Conv3d):
         #         nn.init.zeros_(m.weight.data)
 
-        self.conv = nn.Sequential(
-            NormLayer(in_channel, norm_type),
-            ActLayer(in_channel, act_type),
-            nn.Conv3d(in_channel, out_channel, 3, stride=1, padding=1),
-            NormLayer(out_channel, norm_type),
-            ActLayer(out_channel, act_type),
-            nn.Conv3d(out_channel, out_channel, 3, stride=1, padding=1),
-        )
-        for m in self.modules():
-            if isinstance(m, nn.Conv3d):
-                nn.init.kaiming_normal_(m.weight)
+        # self.conv = nn.Sequential(
+        #     NormLayer(in_channel, norm_type),
+        #     ActLayer(in_channel, act_type),
+        #     nn.Conv3d(in_channel, out_channel, 3, stride=1, padding=1),
+        #     NormLayer(out_channel, norm_type),
+        #     ActLayer(out_channel, act_type),
+        #     nn.Conv3d(out_channel, out_channel, 3, stride=1, padding=1),
+        # )
+        # for m in self.modules():
+        #     if isinstance(m, nn.Conv3d):
+        #         nn.init.kaiming_normal_(m.weight)
 
     def forward(self, x: torch.FloatTensor, num_batch: int = 1):
-        res = x
-        batch_frames, channels, height, width = x.shape
-        num_frames = batch_frames // num_batch
-        x = rearrange(x, '(b f) c h w -> b c f h w', f=num_frames)
-        x = self.conv(x)
-        x = rearrange(x, 'b c f h w -> (b f) c h w')
-        out = x + res
-
-        # # spatial
         # res = x
-        # x = self.conv(x)
-        # x = x + res
-        # # temporal
         # batch_frames, channels, height, width = x.shape
-        # res = x
         # num_frames = batch_frames // num_batch
         # x = rearrange(x, '(b f) c h w -> b c f h w', f=num_frames)
-        # x = self.temporal_conv(x)
+        # x = self.conv(x)
         # x = rearrange(x, 'b c f h w -> (b f) c h w')
         # out = x + res
+
+        # spatial
+        res = x
+        x = self.conv(x)
+        x = x + res
+        # temporal
+        batch_frames, channels, height, width = x.shape
+        res = x
+        num_frames = batch_frames // num_batch
+        x = rearrange(x, '(b f) c h w -> b c f h w', f=num_frames)
+        x = self.temporal_conv(x)
+        x = rearrange(x, 'b c f h w -> (b f) c h w')
+        out = x + res
 
         return out
 
@@ -157,6 +157,7 @@ class FaceCoderTemporalNet(FaceCoderNet):
                  norm_type='gn',
                  act_type='silu',
                  use_quantize=True,
+                 use_temporal_encoder=False,
                  **ignore_kwargs):
         super(FaceCoderTemporalNet, self).__init__(
             in_channel=in_channel,
@@ -180,19 +181,20 @@ class FaceCoderTemporalNet(FaceCoderNet):
             256: 64,
             512: 32,
         }
-
-        # build encoder
         self.max_depth = int(np.log2(gt_resolution // self.codebook_scale))
-        encode_depth = int(np.log2(gt_resolution // self.codebook_scale))
-        self.multiscale_encoder = TemporalMultiScaleEncoder(
-            in_channel,
-            encode_depth,
-            self.gt_res,
-            channel_query_dict,
-            norm_type, act_type
-        )
 
-        self.latent_resolution = self.multiscale_encoder.latent_resolution
+        if use_temporal_encoder:
+            # build encoder
+            encode_depth = int(np.log2(gt_resolution // self.codebook_scale))
+            self.multiscale_encoder = TemporalMultiScaleEncoder(
+                in_channel,
+                encode_depth,
+                self.gt_res,
+                channel_query_dict,
+                norm_type, act_type
+            )
+
+            self.latent_resolution = self.multiscale_encoder.latent_resolution
 
         # build decoder
         self.decoder_group = nn.ModuleList()
