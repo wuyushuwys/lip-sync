@@ -57,7 +57,7 @@ class GenerateDataset(Dataset):
                  window_size=5,
                  fps=25, mel_step_size=16,
                  ext='jpg', face_size=(256, 256),
-                 dynamic_mask=False, landmark=False, mage=False) -> None:
+                 dynamic_mask=False, landmark=False, mage=False, chunk=False, chunk_size=None) -> None:
         super().__init__()
         face_folder = 'crop_face' if not landmark else 'align_face'
         self.face_lists = sorted(glob(os.path.join(folder, face_folder, f"*.{ext}")))
@@ -66,6 +66,8 @@ class GenerateDataset(Dataset):
         self.dynamic_mask = dynamic_mask
         self.landmark = landmark
         self.mage = mage
+        self.chunk = chunk
+        self.chunk_size = chunk_size
         self.coords = dict()
         self.landmarks = dict()
         self.inv_affine_matrices = dict()
@@ -102,37 +104,55 @@ class GenerateDataset(Dataset):
         # print("Length of mel chunks: {}".format(len(self.mel_chunks)))
 
     def __len__(self):
-        return len(self.mel_chunks)
+        if self.chunk:
+            return len(self.mel_chunks) // self.chunk_size
+        else:
+            return len(self.mel_chunks)
 
     def __getitem__(self, index: int) -> [torch.Tensor, torch.Tensor, torch.Tensor, AnyStr]:
-        index = index
-        fname = self.face_lists[index % self.num_video_frames]
-        ori_frame = self.frame_lists[index % self.num_video_frames]
+        if not self.chunk:
+            index = index
+            fname = self.face_lists[index % self.num_video_frames]
+            ori_frame = self.frame_lists[index % self.num_video_frames]
 
-        meta_name = Path(fname).stem
+            meta_name = Path(fname).stem
 
-        img = resize(read_image(fname), self.face_size,
-                     interpolation=InterpolationMode.BILINEAR,
-                     antialias=True)
+            img = resize(read_image(fname), self.face_size,
+                         interpolation=InterpolationMode.BILINEAR,
+                         antialias=True)
 
-        ref = img / 255
-        mask = ref.clone()
-        if not self.dynamic_mask:
-            y1, y2, x1, x2 = [16, -16, 48, -48]
-            mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
-        # mask[:, mask.size(1) // 2:, :] = 0
-        if not self.mage:
-            x = torch.cat([mask, ref], dim=0)
+            ref = img / 255
+            mask = ref.clone()
+            if not self.dynamic_mask:
+                y1, y2, x1, x2 = [16, -16, 48, -48]
+                mask[:, mask.size(1) // 2 + y1:y2, x1:x2] = 0
+            # mask[:, mask.size(1) // 2:, :] = 0
+            if not self.mage:
+                x = torch.cat([mask, ref], dim=0)
+            else:
+                x = ref * 2 - 1
+
+            mel = torch.tensor(self.mel_chunks[index].T, dtype=torch.float).unsqueeze(0)
+            # mel = torch.tensor(self._crop_audio_window(self.mel_spec, index).T, dtype=torch.float).unsqueeze(0)
+
+            ori = torch.tensor(cv2.imread(ori_frame))
+
+            return x, mel, ori, meta_name
         else:
-            x = ref * 2 - 1
-
-        mel = torch.tensor(self.mel_chunks[index].T, dtype=torch.float).unsqueeze(0)
-        # mel = torch.tensor(self._crop_audio_window(self.mel_spec, index).T, dtype=torch.float).unsqueeze(0)
-
-        ori = torch.tensor(cv2.imread(ori_frame))
-
-        return x, mel, ori, meta_name
-
+            assert self.chunk_size > 0, self.chunk_size
+            frames = []
+            cid = index * self.chunk_size
+            for i in range(self.chunk_size):
+                id = cid + i
+                fname = self.face_lists[id % self.num_video_frames]
+                img = resize(read_image(fname), self.face_size,
+                             interpolation=InterpolationMode.BILINEAR,
+                             antialias=True)
+                img = img / 255
+                frames.append(img)
+            frames = torch.stack(frames)
+            frames = frames * 2 - 1
+            return frames
 
 def get_largest_face(det_faces, h, w):
     def get_location(val, length):
