@@ -1,6 +1,7 @@
 import argparse
 import os
 from pathlib import Path
+import numpy as np
 
 import torch
 
@@ -17,6 +18,8 @@ from utils.logger_utils import eval_tb_writer
 from utils.init_utils import master_only
 from logging import Logger
 from einops import rearrange
+from utils.io import export_video
+
 
 
 @torch.no_grad()
