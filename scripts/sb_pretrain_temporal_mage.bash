@@ -31,7 +31,7 @@ fi
 printf '%s\n' "Training on ${num_gpus} GPU ${CUDA_VISIBLE_DEVICES}"
 
 srun torchrun --nproc_per_node $num_gpus --master_port $MASTER_PORT pretrain_temporal_mage.py \
-  --config temporal_vqgan.yml \
+  --config mage_temporal_pretrain.yml \
   --dataset hdtf finetune th1k lrs2 \
   --arch vqgan \
   --job_dir "${job_dir}" \
