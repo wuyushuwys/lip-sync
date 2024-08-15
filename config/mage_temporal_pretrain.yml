@@ -1,6 +1,6 @@
 manual_seed: 1234
-g_weight: null
-d_weight: null
+
+weight: null
 
 warmup_lr: true
 warmup_iters: 0.1
