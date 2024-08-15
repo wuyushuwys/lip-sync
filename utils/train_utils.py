@@ -20,7 +20,7 @@ from omegaconf.dictconfig import DictConfig
 
 import utils
 from utils import lr_scheduler, gradual_warmup_scheduler
-from utils.prefetch_dataloader import CUDAPrefetcher
+# from utils.prefetch_dataloader import CUDAPrefetcher
 from utils.init_utils import master_only, get_dist_info
 from utils.logging_tool import get_logger
 

@@ -7,10 +7,10 @@ from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from .evaluation import evaluate_mage_pretrain
+from .evaluation import evaluate_mage_temporal_pretrain
 from utils.train_utils import state_dict_saver, ckpt_saver
 
-from arch.conditioned_mage_arch import DoubleConditionedMAGE
+from arch.conditioned_temporal_mage_arch import DoubleTemporalConditionedMAGE
 from .basic_model import BasicModel
 
 
@@ -18,7 +18,7 @@ class MageModel(BasicModel):
 
     def __init__(self,
                  opt,
-                 model: DoubleConditionedMAGE,
+                 model: DoubleTemporalConditionedMAGE,
                  optimizer,
                  scheduler,
                  criteria,
@@ -59,20 +59,20 @@ class MageModel(BasicModel):
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
             total_batches = (epoch - 1) * nb + batch_idx
-            # typically we pretrain model with image only dataset, can be same as VQGAN
-            x, y = batch
 
+            x, _, _, _ = batch
+            bsz = x.size(0)
             x = x.to(self.local_rank, non_blocking=True)
-            if x.dim() == 5 and x.size(1) == 6:
-                x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
-                             torch.split(x, 3, dim=1))
+
+            x, ref = map(lambda data: rearrange(data, 'b c t h w -> (b t) c h w'),
+                         torch.split(x, 3, dim=1))
 
             assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
-                loss, imgs, token_all_mask = self.model(x)
+                loss, _, _ = self.model(x, num_batch=bsz)
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
@@ -98,10 +98,10 @@ class MageModel(BasicModel):
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        evaluate_mage_pretrain.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders,
-                                          criteria=self.criteria,
-                                          epoch=epoch,
-                                          writer=self.writer, args=self.opt, logger=self.logger)
+        evaluate_mage_temporal_pretrain.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders,
+                                                   criteria=self.criteria,
+                                                   epoch=epoch,
+                                                   writer=self.writer, args=self.opt, logger=self.logger)
 
     def save_model(self, path, *opt):
         state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)

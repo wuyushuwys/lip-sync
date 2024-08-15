@@ -1,0 +1,59 @@
+manual_seed: 1234
+g_weight: null
+d_weight: null
+
+warmup_lr: true
+warmup_iters: 0.1
+use_amp: true
+data_spec:
+  mode: h5
+  num_samples: 1
+  eval_samples: 1
+  window_size: 5
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  train_size: 256
+  eval_size: 256
+  aug:
+    flip:
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+
+video_spec:
+  fps: 25
+  size: [ 256, 256 ]
+
+audio_spec:
+  mel_step_size: 16
+  sample_rate: 16000
+
+model:
+  type: lip_mage_vit_base
+  vq_config_path: config/temporal_vqvae_512_256.yml
+  use_audio_reference: false
+  use_image_reference: false
+  vq_state_dict: runs/train_temporal_vqgan_consistency_all_512-256-setd/weights/facecodertemporalnet.pt
+
+
+optim:
+  type: AdamW
+  lr: !!float 1.5e-4  # adjust by effective bsz as mage
+  weight_decay: 0.05
+  betas: [ 0.9, 0.95 ]
+
+scheduler:
+ type: MultiStepLR
+ milestones: [ 1 ]
+ gamma: 1
+
+#scheduler:
+#  type: PolynomialLR
+#  power: 0.9
+
+# scheduler:
+#   type: CosineAnnealingLR
+#   eta_min: 1.0e-5
+
+
+losses: ~

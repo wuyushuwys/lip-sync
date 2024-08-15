@@ -1,14 +1,14 @@
 manual_seed: 1234
 g_weight: null
 d_weight: null
-use_amp: true
+use_amp: false
 gan_starts: 0
 clip_grad: 1
 data_spec:
   mode: h5
-  num_samples: 100
-  eval_samples: 10
-  window_size: 10
+  num_samples: 1
+  eval_samples: 1
+  window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   train_size: 256
   eval_size: 256
@@ -34,22 +34,22 @@ g_model:
   codebook_scale: 32
   codebook_size: 512
   emb_dim: 256
-  quantizer_type: nearest2
+  quantizer_type: nearest
 
 d_model:
   num_in_ch: 3
 
 optim:
   - type: Adam
-    lr: !!float 1e-4
+    lr: !!float 1.0e-4
     betas: [ 0.9, 0.999 ]
   - type: Adam
-    lr: !!float 4e-4
+    lr: !!float 4.0e-4
     betas: [ 0.9, 0.999 ]
 
 scheduler:
   type: CosineAnnealingLR
-  eta_min: 1.0e-5
+  eta_min: 1.0e-4
 
 
 losses:
@@ -61,10 +61,11 @@ losses:
     type: LPIPSLoss
     loss_weight: 1
     lpips_loss_arch: 'vgg'
-
+  # consistency_loss:
+  #   type: ConsistencyLoss
+  #   loss_weight: 1
   codebook_loss:
-    loss_weight: 0
-    criterion: l1
+    loss_weight: 1
 
   adversarial:
     type: GANLoss

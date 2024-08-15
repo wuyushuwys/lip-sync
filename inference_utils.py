@@ -154,6 +154,7 @@ class GenerateDataset(Dataset):
             frames = frames * 2 - 1
             return frames
 
+
 def get_largest_face(det_faces, h, w):
     def get_location(val, length):
         if val < 0:

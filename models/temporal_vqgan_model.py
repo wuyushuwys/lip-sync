@@ -132,7 +132,7 @@ class TemporalVQGANModel(BasicModel):
                 p.requires_grad = False
 
             self.g_optimizer.zero_grad()
-            with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+            with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
                 (vq_info,
                  pred_y,
                  recon_loss,
@@ -159,7 +159,7 @@ class TemporalVQGANModel(BasicModel):
                     p.requires_grad = True
 
                 self.d_optimizer.zero_grad()
-                with torch.autocast(device_type="cuda", dtype=torch.float16, enabled=self.use_amp):
+                with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
 
                     real_d_pred = self.d_model(y.contiguous().detach())
                     l_d_real = self.criteria['adversarial'](real_d_pred, True, is_disc=True)
