@@ -92,26 +92,7 @@ class MageModel(BasicModel):
                                                         generate=False)
 
                 log_vars['ce_loss'] = ce_loss
-                loss += ce_loss
-                # if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
-                #     if self.opt.model.get('ref_control_adaptive', False):
-                #         loss = 0
-                #
-                #     if 'recon_loss' in self.criteria.keys():
-                #         recon_loss = self.criteria['recon_loss'](g, y)
-                #         loss += recon_loss
-                #         log_vars['recon_loss'] = recon_loss
-                #     if 'perceptual_loss' in self.criteria.keys():
-                #         perceptual_loss = self.criteria['perceptual_loss'](g, y, normalize=False)
-                #         loss += perceptual_loss
-                #         log_vars['perceptual_loss'] = perceptual_loss
-                #
-                #     if 'sync_loss' in self.criteria.keys():
-                #         sync_weight = self.criteria['sync_loss'].loss_weight
-                #         sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
-                #                                                mask=self.mask) * sync_weight
-                #         loss += sync_loss
-                #         log_vars['sync_loss'] = sync_loss
+                loss = ce_loss
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

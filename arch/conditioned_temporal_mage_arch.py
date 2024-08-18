@@ -18,6 +18,7 @@ from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings, LabelS
 from .fema_temporal_vqgan_arch import FaceCoderTemporalNet
 from .ref_control_net_arch import RefControlNet
 from .auxiliary_arch import AudioNet, AudioEncoder, AudioPretrainedEncoder
+from .conditioned_mage_arch import TransformerEncoder, TransformerDecoder
 from .ops import PositionalEncoding, get_2d_sincos_pos_embed
 
 
@@ -442,62 +443,6 @@ class DoubleTemporalConditionedMAGE(nn.Module):
 
     def __str__(self):
         return self.__class__.__name__.lower()
-
-
-class TransformerEncoder(nn.Module):
-
-    def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0.):
-        super().__init__()
-        self.blocks = nn.ModuleList([
-            Block(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                  norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
-
-    def forward(self, x, return_attn=False):
-        for idx, blk in enumerate(self.blocks, start=1):
-            if return_attn and idx == len(self.blocks):
-                x, attn = blk(x, return_attn)
-                return x, attn
-            else:
-                x = blk(x)
-        return x
-
-
-class TransformerDecoder(nn.Module):
-
-    def __init__(self, embed_dim, num_heads, depth, mlp_ratio, norm_layer,
-                 qkv_bias=False, qk_scale=None, drop=0., attn_drop=0., cross_attn=True,
-                 modulation=False, modulate_type='msa', audio_dim=None, img_dim=None):
-        super().__init__()
-        module = partial(CrossBlock if cross_attn else Block, modulation=modulation, modulate_type=modulate_type)
-        self.cross_attn = cross_attn
-        self.decoder_blocks = nn.ModuleList([
-            module(embed_dim, num_heads, mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
-                   norm_layer=norm_layer, drop=drop, attn_drop=attn_drop) for _ in range(depth)])
-
-        self.proj_audio = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(audio_dim, embed_dim),
-                nn.LayerNorm(embed_dim),
-                nn.SiLU(),
-            ) for _ in range(depth)]) if audio_dim else None
-
-        self.proj_img = nn.ModuleList([
-            nn.Sequential(
-                nn.Linear(img_dim, embed_dim),
-                nn.LayerNorm(embed_dim),
-            ) for _ in range(depth)]) if img_dim else None
-
-    def forward(self, x, kv, cond=None):
-
-        for i, blk in enumerate(self.decoder_blocks):
-            proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
-            kv = self.proj_img[i](kv) if self.proj_img is not None else None
-            if self.cross_attn:
-                x = blk(x, kv, proj_audio)
-            else:
-                x = blk(x, proj_audio)
-        return x
 
 
 def lip_mage_vit_base(**kwargs):

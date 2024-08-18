@@ -514,7 +514,9 @@ class TransformerDecoder(nn.Module):
 
         for i, blk in enumerate(self.decoder_blocks):
             proj_audio = self.proj_audio[i](cond) if self.proj_audio is not None else None
+            print(kv.shape)
             kv = self.proj_img[i](kv) if self.proj_img is not None else None
+            print(kv.shape)
             if self.cross_attn:
                 x = blk(x, kv, proj_audio)
             else:
