@@ -49,7 +49,11 @@ class MageModel(BasicModel):
         # self.ema_model = self.create_ema(model, power=0.75)
 
     def compile_model(self):
-        self.model = self.compile(self.model)
+        self.forward = self.compile(self.forward)
+
+    def forward(self, x_masked, y, ref, audio_mel):
+        return self.model(x_masked, gt=y, ref=ref, audio=audio_mel,
+                                                generate=False)
 
     def training_epoch(self, epoch):
 
@@ -87,11 +91,10 @@ class MageModel(BasicModel):
 
             # use_pixel_loss = (self.criteria is not None and len(self.criteria) > 0) or self.no_ddp_model.norm_pix_loss
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
-                ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel,
-                                                        generate=False)
+                ce_loss, g, token_all_mask = self.forward(x_masked, gt=y, ref=ref, audio=audio_mel)
 
-                log_vars['ce_loss'] = ce_loss
-                loss = ce_loss
+            log_vars['ce_loss'] = ce_loss
+            loss = ce_loss
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)

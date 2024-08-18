@@ -265,6 +265,7 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         x[:, 0] = self.fake_class_label
         return x
 
+    @torch.compiler.disable()
     def index_generator(self, x, gt=None):
         bsz = x.size(0)
 
