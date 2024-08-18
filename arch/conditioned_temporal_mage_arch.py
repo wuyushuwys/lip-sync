@@ -115,8 +115,8 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
         if use_image_reference:
-            if not tokenize_reference:
-                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+            # if not tokenize_reference:
+            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         self.tokenize_reference = tokenize_reference
 
@@ -248,15 +248,15 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         # encode reference image to latent feature
         with torch.no_grad():
             z_ref = self.vqgan.encode(ref)
-            if tokenize:
-                z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
-                ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
-                # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
-                z = self.token_emb(ref_indices.long())
-                # z = self.decoder_embed(z)  # unified mapping
-            else:
-                z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
-                z = self.decoder_embed_mapping(z)
+            # if tokenize:
+            #     z_q_ref, _, quantizer_info_ref = self.vqgan.quantize(z_ref)
+            #     ref_indices = quantizer_info_ref['min_encoding_indices'].reshape(ref.size(0), -1)
+            #     # z = self.token_emb(self.add_class_token(ref_indices).long())  # we concat class token too
+            #     z = self.token_emb(ref_indices.long())
+            #     # z = self.decoder_embed(z)  # unified mapping
+            # else:
+            z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
+            z = self.decoder_embed_mapping(z)
         return z
 
     def add_class_token(self, x):
