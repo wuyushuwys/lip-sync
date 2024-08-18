@@ -86,7 +86,6 @@ class MageModel(BasicModel):
             self.optimizer.zero_grad()
 
             # use_pixel_loss = (self.criteria is not None and len(self.criteria) > 0) or self.no_ddp_model.norm_pix_loss
-            loss = 0
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
                 ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel,
                                                         generate=False)
