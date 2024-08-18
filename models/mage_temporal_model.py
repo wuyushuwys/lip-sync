@@ -1,16 +1,15 @@
 import os
-import time
 
 import torch
-
 from einops import rearrange
 import common
 
 from utils.logger_utils import tb_writer, loss_printer
-from .evaluation import evaluate_mage_temporal_pretrain
+from .evaluation import evaluate_mage_temporal
 from utils.train_utils import state_dict_saver, ckpt_saver
 
 from arch.conditioned_temporal_mage_arch import DoubleTemporalConditionedMAGE
+from arch.modules.masking import Masking
 from .basic_model import BasicModel
 
 
@@ -32,15 +31,17 @@ class MageModel(BasicModel):
 
         self.local_rank = opt.local_rank
 
-        self.model = model
+        self.model: DoubleTemporalConditionedMAGE = model
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.criteria = criteria
         self.train_data_loader = train_data_loader
         self.eval_data_loaders = eval_data_loaders
 
-        self.use_amp = opt.get('use_amp', False)
+        mask_kwargs = opt.get("mask", dict(half_precision=True, norm=False))
+        self.mask = Masking(**mask_kwargs).to(self.local_rank)
 
+        self.use_amp = opt.get('use_amp', False)
         self.scaler = torch.cuda.amp.GradScaler(enabled=self.use_amp)
 
         self.no_ddp_model = self.model_no_ddp(model)
@@ -51,16 +52,17 @@ class MageModel(BasicModel):
         self.model = self.compile(self.model)
 
     def training_epoch(self, epoch):
+
         losses_meter = common.meters.LossesMeter(fmt='.04e')
         self.model.train()
         nb = len(self.train_data_loader)
         log_vars = {}
-        start_time = time.monotonic()
+
         for batch_idx, batch in enumerate(self.train_data_loader, start=1):
 
             total_batches = (epoch - 1) * nb + batch_idx
 
-            x, _, _, _ = batch
+            x, indiv_mels, mel, y = batch
             bsz = x.size(0)
             x = x.to(self.local_rank, non_blocking=True)
 
@@ -69,10 +71,47 @@ class MageModel(BasicModel):
 
             assert x.dim() == 4 and x.size(1) == 3, f"Expected get BCHW input shape, but got {x.shape}"
 
+            indiv_mels = indiv_mels.to(self.local_rank, non_blocking=True)
+            audio_mel = rearrange(indiv_mels, 'b t c h w -> (b t) c h w')
+
+            # mel = mel.to(self.local_rank, non_blocking=True)
+
+            y = y.to(self.local_rank, non_blocking=True)
+            y = rearrange(y, 'b c t h w -> (b t) c h w')
+
+            # mask face
+            with torch.no_grad():
+                x_masked = self.mask(x.clone())
+
             self.optimizer.zero_grad()
 
+            # use_pixel_loss = (self.criteria is not None and len(self.criteria) > 0) or self.no_ddp_model.norm_pix_loss
+            loss = 0
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
-                loss, _, _ = self.model(x, num_batch=bsz)
+                ce_loss, g, token_all_mask = self.model(x_masked, gt=y, ref=ref, audio=audio_mel,
+                                                        generate=False)
+
+                log_vars['ce_loss'] = ce_loss
+                loss += ce_loss
+                # if use_pixel_loss or self.opt.model.get('ref_control_adaptive', False):
+                #     if self.opt.model.get('ref_control_adaptive', False):
+                #         loss = 0
+                #
+                #     if 'recon_loss' in self.criteria.keys():
+                #         recon_loss = self.criteria['recon_loss'](g, y)
+                #         loss += recon_loss
+                #         log_vars['recon_loss'] = recon_loss
+                #     if 'perceptual_loss' in self.criteria.keys():
+                #         perceptual_loss = self.criteria['perceptual_loss'](g, y, normalize=False)
+                #         loss += perceptual_loss
+                #         log_vars['perceptual_loss'] = perceptual_loss
+                #
+                #     if 'sync_loss' in self.criteria.keys():
+                #         sync_weight = self.criteria['sync_loss'].loss_weight
+                #         sync_loss = self.criteria['sync_loss'](mel, rearrange(g, '(b t) c h w -> b c t h w', b=bsz),
+                #                                                mask=self.mask) * sync_weight
+                #         loss += sync_loss
+                #         log_vars['sync_loss'] = sync_loss
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
@@ -94,13 +133,25 @@ class MageModel(BasicModel):
                     f"iter:{batch_idx:{' '}{'>'}{len(str(nb))}d}/{nb:d}({batch_idx / nb:.02%}) " \
                     f"est. {self.eta_timer.est(total_batches)} {loss_printer(log_vars, fmt='.04e')}"
                 self.logger.info(s)
+
         self.logger.info(f"Epoch{epoch:{' '}{'>'}{2}d}/{self.opt.epochs} finished. Loss: {losses_meter.avg}")
 
     def evaluating_epoch(self, epoch):
-        evaluate_mage_temporal_pretrain.evaluation(model=self.model, eval_data_loaders=self.eval_data_loaders,
-                                                   criteria=self.criteria,
-                                                   epoch=epoch,
-                                                   writer=self.writer, args=self.opt, logger=self.logger)
+        evaluate_mage_temporal.evaluation(model=self.model,
+                                          eval_data_loaders=self.eval_data_loaders,
+                                          epoch=epoch,
+                                          criteria=self.criteria,
+                                          writer=self.writer,
+                                          args=self.opt,
+                                          logger=self.logger,
+                                          mask=self.mask)
+
+    def load_model(self, model, ckpt_path):
+        if ckpt_path:
+            ckpt = torch.load(ckpt_path, map_location='cpu')
+            self.model_no_ddp(model).load_state_dict(ckpt, strict=False)
+
+            self.logger.info(f"{self.model_no_ddp(model)} load weight from {ckpt_path}")
 
     def save_model(self, path, *opt):
         state_dict_saver(os.path.join(path, f"{self.no_ddp_model}.pt"), self.no_ddp_model)
