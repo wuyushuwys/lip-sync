@@ -510,6 +510,7 @@ class TransformerDecoder(nn.Module):
                 nn.LayerNorm(embed_dim),
             ) for _ in range(depth)]) if img_dim else None
 
+
     def forward(self, x, kv, cond=None):
 
         for i, blk in enumerate(self.decoder_blocks):
