@@ -7,8 +7,8 @@ warmup_iters: 0.05
 use_amp: true
 data_spec:
   mode: h5
-  num_samples: 25
-  eval_samples: 10
+  num_samples: 8
+  eval_samples: 4
   window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   train_size: 256
