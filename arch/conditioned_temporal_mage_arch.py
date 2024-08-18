@@ -256,7 +256,7 @@ class DoubleTemporalConditionedMAGE(nn.Module):
             #     # z = self.decoder_embed(z)  # unified mapping
             # else:
             z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
-            z = self.decoder_embed_mapping(z)
+        z = self.decoder_embed_mapping(z)
         return z
 
     def add_class_token(self, x):
