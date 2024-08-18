@@ -30,7 +30,7 @@ audio_spec:
 
 model:
   type: lip_mage_vit_base
-  vq_config_path: config/temporal_vqgan_512_256.yml
+  vq_config_path: config/temporal_vqvae_512_256.yml
   use_audio_reference: true
   use_image_reference: true
   mage_pretrain_ckpt_path: pretrained/lip_mage_vit_base_temporal_pretrained.pt
