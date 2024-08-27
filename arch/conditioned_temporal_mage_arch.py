@@ -48,8 +48,6 @@ class DoubleTemporalConditionedMAGE(nn.Module):
             use_audio_reference=True, audio_weight_path=None, num_audio_embed=1024, modulate_type='all',
             use_image_reference=True,
             tokenize_reference=False,
-            # reference control model config
-            ref_control=False, ref_controller_state_dict=None, ref_control_adaptive=False
     ):
         super().__init__()
 
@@ -58,38 +56,21 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         logger = get_logger()
         # --------------------------------------------------------------------------
         # VQGAN with reference control specifics
-        self.ref_control = ref_control
-        if ref_control:
-            self.ref_controller = RefControlNet(vq_config_path=vq_config_path,
-                                                vq_state_dict=vq_state_dict)
-            if ref_controller_state_dict:
-                self.ref_controller.load_state_dict(torch.load(ref_controller_state_dict, map_location='cpu'))
-                logger.info(f"Enable reference control: {ref_control}")
+        # VQGAN specifics
+        vq_config = OmegaConf.load(vq_config_path)
+        self.vqgan = FaceCoderTemporalNet(**vq_config.g_model)
+        if vq_state_dict is not None:
+            if os.path.exists(vq_state_dict):
+                self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
+                logger.info(f"Load vq model weight from {vq_state_dict}")
             else:
-                logger.warning("No ref_controller_state_dict")
-            setattr(self, 'vqgan', self.ref_controller.vqgan)
-
-            # frozen the pretrained ref_controller model
-            logger.info("Frozen reference controller")
-            for p in self.ref_controller.parameters():
-                p.requires_grad = False
-
+                raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
         else:
-            # VQGAN specifics
-            vq_config = OmegaConf.load(vq_config_path)
-            self.vqgan = FaceCoderTemporalNet(**vq_config.g_model)
-            if vq_state_dict is not None:
-                if os.path.exists(vq_state_dict):
-                    self.vqgan.load_state_dict(torch.load(vq_state_dict, map_location='cpu'))
-                    logger.info(f"Load vq model weight from {vq_state_dict}")
-                else:
-                    raise FileNotFoundError(f"vq_model weight {vq_state_dict} not found")
-            else:
-                logger.info(f"Not pretrain vq model weight provided")
+            logger.info(f"Not pretrain vq model weight provided")
 
-            # froze the pretrained vqgan model
-            for p in self.vqgan.parameters():
-                p.requires_grad = False
+        # froze the pretrained vqgan model
+        for p in self.vqgan.parameters():
+            p.requires_grad = False
 
         self.vqgan_embed_dim = self.vqgan.embed_dim
         self.codebook_size = self.vqgan.codebook_size
@@ -212,12 +193,6 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         for p in self.mlm_layer.parameters():
             p.requires_grad = True
 
-        if ref_control_adaptive:
-            # only train controller
-            for p in self.parameters():
-                p.requires_grad = False
-            for p in self.ref_controller.controller.parameters():
-                p.requires_grad = True
 
     def reload_controller(self, state_dict_path):
         logger = get_logger()

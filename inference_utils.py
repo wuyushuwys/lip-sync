@@ -141,6 +141,8 @@ class GenerateDataset(Dataset):
         else:
             assert self.chunk_size > 0, self.chunk_size
             frames = []
+            meta_names = []
+            mels = []
             cid = index * self.chunk_size
             for i in range(self.chunk_size):
                 id = cid + i
@@ -149,10 +151,16 @@ class GenerateDataset(Dataset):
                              interpolation=InterpolationMode.BILINEAR,
                              antialias=True)
                 img = img / 255
+                meta_names.append(Path(fname).stem)
+                mels.append(torch.tensor(self.mel_chunks[index].T, dtype=torch.float).unsqueeze(0))
                 frames.append(img)
             frames = torch.stack(frames)
             frames = frames * 2 - 1
-            return frames
+            if self.mage:
+                mels = torch.stack(mels)
+                return frames, mels, frames, meta_names
+            else:
+                return frames
 
 
 def get_largest_face(det_faces, h, w):
