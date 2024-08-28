@@ -58,7 +58,7 @@ def main(args):
         model.to(device)
 
     # Scale learning rate based on effective batch_size (based on mage-pretrain)
-    args.optim.lr = args.optim.lr / 256 * args.batch_size * args.world_size
+    args.optim.lr = args.optim.lr / 256 * args.batch_size * args.world_size * args.data_spec.window_size
     # create optimizers and schedulers
     [optimizer], [scheduler] = create_optim_scheduler(model,
                                                       args=args,
