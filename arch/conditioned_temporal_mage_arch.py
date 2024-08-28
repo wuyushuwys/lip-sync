@@ -95,9 +95,9 @@ class DoubleTemporalConditionedMAGE(nn.Module):
 
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
-        if use_image_reference:
-            # if not tokenize_reference:
-            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+        # if use_image_reference:
+        # if not tokenize_reference:
+        # self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         self.tokenize_reference = tokenize_reference
 
@@ -193,7 +193,6 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         for p in self.mlm_layer.parameters():
             p.requires_grad = True
 
-
     def reload_controller(self, state_dict_path):
         logger = get_logger()
         if hasattr(self, 'ref_controller'):
@@ -231,7 +230,7 @@ class DoubleTemporalConditionedMAGE(nn.Module):
                 # z = self.decoder_embed(z)  # unified mapping
             else:
                 z = rearrange(z_ref, 'b c h w -> b (h w) c').contiguous()  # reshape bsz, c, h, w -> bsz, (h w), c
-        z = self.decoder_embed_mapping(z)
+        # z = self.decoder_embed_mapping(z)
         return z
 
     def add_class_token(self, x):
