@@ -96,8 +96,8 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         # create image reference mapping that map img ref emb_dim to decoder_embed_dim
         self.use_image_reference = use_image_reference
         if use_image_reference:
-            if not tokenize_reference:
-                self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
+            # if not tokenize_reference:
+            self.decoder_embed_mapping = nn.Linear(self.vqgan_embed_dim, decoder_embed_dim, bias=True)
 
         self.tokenize_reference = tokenize_reference
 
