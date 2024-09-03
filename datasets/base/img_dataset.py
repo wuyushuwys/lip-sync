@@ -13,9 +13,9 @@ torchvision.disable_beta_transforms_warning()
 from torch.utils.data import Dataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.transforms.functional import InterpolationMode
-from torchvision.transforms.v2 import (Compose, Resize, CenterCrop,
-                                       ToPureTensor, ToDtype, RandomCrop)
+from torchvision.transforms.v2 import (Compose, Resize, CenterCrop, RandomCrop)
 from torchvision.transforms.v2 import functional as tvf
+from torchvision.transforms.functional import to_tensor
 
 import utils
 from utils.logging_tool import get_logger
@@ -96,8 +96,8 @@ class ImageDataset(Dataset):
             cropper.append(Resize(size=args.data_spec.eval_size, antialias=True))
             cropper.append(CenterCrop(size=args.data_spec.eval_size))
 
-        to_tensor.extend([ToPureTensor(), ToDtype(torch.float32, scale=True)])
-        self.to_tensor = Compose(to_tensor)
+        # to_tensor.extend([ToPureTensor(), ToDtype(torch.float32, scale=True)])
+        # self.to_tensor = Compose(to_tensor)
 
         self.normalize = args.data_spec.get("normalize", None)
 
@@ -107,7 +107,7 @@ class ImageDataset(Dataset):
         return len(self.samples)
 
     def __getitem__(self, index):
-        img = self.to_tensor(Image.open(self.samples[index]).convert("RGB"))
+        img = to_tensor(Image.open(self.samples[index]).convert("RGB"))
 
         if self.mode == utils.mode.TRAIN:
             if self.use_random_size:
