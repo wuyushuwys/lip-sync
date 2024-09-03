@@ -14,7 +14,7 @@ from torch.utils.data import Dataset
 from torchvision.datasets.folder import is_image_file
 from torchvision.transforms.functional import InterpolationMode
 from torchvision.transforms.v2 import (Compose, Resize, CenterCrop,
-                                       ToImageTensor, ConvertImageDtype, RandomCrop)
+                                       ToPureTensor, ToDtype, RandomCrop)
 from torchvision.transforms.v2 import functional as tvf
 
 import utils
@@ -96,7 +96,7 @@ class ImageDataset(Dataset):
             cropper.append(Resize(size=args.data_spec.eval_size, antialias=True))
             cropper.append(CenterCrop(size=args.data_spec.eval_size))
 
-        to_tensor.extend([ToImageTensor(), ConvertImageDtype()])
+        to_tensor.extend([ToPureTensor(), ToDtype(torch.float32, scale=True)])
         self.to_tensor = Compose(to_tensor)
 
         self.normalize = args.data_spec.get("normalize", None)
