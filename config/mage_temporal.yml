@@ -7,15 +7,15 @@ warmup_iters: 0.05
 use_amp: true
 data_spec:
   mode: h5
-  num_samples: 8
-  eval_samples: 4
+  num_samples: 1
+  eval_samples: 1
   window_size: 5
   prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
   train_size: 256
   eval_size: 256
   aug:
     flip:
-      p: 0.5
+      p: 0
   normalize:
     std: [ 0.5, 0.5, 0.5 ]
     mean: [ 0.5, 0.5, 0.5 ]
@@ -33,8 +33,10 @@ model:
   vq_config_path: config/temporal_vqvae_512_256.yml
   use_audio_reference: true
   use_image_reference: true
+  tokenize_reference: true
   mage_pretrain_ckpt_path: pretrained/lip_mage_vit_base_temporal_pretrained.pt
   vq_state_dict: pretrained/temporal_vq_model_512_256.pt
+  audio_weight_path: pretrained/syncnet.pt
 #  ref_control: false
 #  ref_controller_state_dict: refcontrolnet_gated.pt
 
@@ -46,18 +48,18 @@ optim:
   weight_decay: 0.05
   betas: [ 0.9, 0.999 ]
 
-scheduler:
- type: MultiStepLR
- milestones: [ 0.5, 0.8 ]
- gamma: 0.5
+#scheduler:
+# type: MultiStepLR
+# milestones: [ 0.5, 0.8 ]
+# gamma: 0.5
 
 #scheduler:
 #  type: PolynomialLR
 #  power: 0.9
 
-# scheduler:
-#   type: CosineAnnealingLR
-#   eta_min: 1.0e-5
+ scheduler:
+   type: CosineAnnealingLR
+   eta_min: 1.0e-5
 
 
 losses: ~
