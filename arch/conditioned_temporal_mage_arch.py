@@ -181,7 +181,7 @@ class DoubleTemporalConditionedMAGE(nn.Module):
                 if name in incompatible_keys.missing_keys:
                     continue
                 # then, we unfreeze mlp parameters in decoder
-                elif 'decoder_blocks' in name and 'mlp' in name:
+                elif 'transformer_decoder' in name:
                     continue
                 p.requires_grad = False
 
