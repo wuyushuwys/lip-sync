@@ -17,7 +17,7 @@ import ffmpeg
 from facexlib.detection import init_detection_model
 
 from inference_utils import ImageFolder, get_largest_face, GenerateDataset
-from arch.conditioned_mage_arch import lip_mage_vit_base
+from arch.conditioned_temporal_mage_arch import lip_mage_vit_base
 from arch.modules.masking import Masking
 from utils import audio
 
@@ -124,12 +124,13 @@ if __name__ == '__main__':
     print(f"Audio Length:{datetime.timedelta(seconds=len(wav) // SAMPLE_RATE)}")
     print(f"Output file: {args.output}")
     mel = audio.melspectrogram(wav).T
-    batch_size = 16
+    batch_size = 4
     dataset = GenerateDataset(TMP_FOLDER,
                               mel,
                               dynamic_mask=True,
                               landmark=True,
-                              mage=True)
+                              mage=True,
+                              chunk_size=5)
     dataloader = DataLoader(dataset,
                             batch_size=batch_size,
                             shuffle=False,
@@ -202,13 +203,11 @@ if __name__ == '__main__':
             with torch.autocast(device_type="cuda" if torch.cuda.is_available() else 'cpu',
                                 dtype=torch.float16 if torch.cuda.is_available() else torch.bfloat16,
                                 enabled=True):
-                # g, _ = model.vqgan(x)
-                # g = model(x, x)
-                (loss, acc), g, token_all_mask = model(x_masked,
-                                                       gt=x,
-                                                       ref=x,
-                                                       audio=indiv_mels,
-                                                       generate=True)
+                (_, _), g, token_all_mask = model(x_masked,
+                                                  gt=x,
+                                                  ref=x,
+                                                  audio=indiv_mels,
+                                                  generate=True)
             g = g.to(torch.float32).clamp(-1, 1) / 2 + 0.5
         torch.cuda.synchronize()
         T_wav2lip.append(time.monotonic() - t_w2l)

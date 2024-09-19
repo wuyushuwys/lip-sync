@@ -1,0 +1,72 @@
+manual_seed: 1234
+g_weight: null
+d_weight: null
+use_amp: true
+gan_starts: 0
+clip_grad: 1
+data_spec:
+  mode: h5
+  num_samples: 100
+  eval_samples: 10
+  window_size: 10
+  prefetch_factor: 8  # prefetch_factor for dataloader (default: 2)
+  train_size: 256
+  eval_size: 256
+  aug:
+    flip:
+      p: 0.5
+  normalize:
+    std: [ 0.5, 0.5, 0.5 ]
+    mean: [ 0.5, 0.5, 0.5 ]
+
+video_spec:
+  fps: 25
+  size: [ 256, 256 ]
+
+audio_spec:
+  mel_step_size: 16
+  sample_rate: 16000
+
+g_model:
+  gt_resolution: 256
+  norm_type: 'gn'
+  act_type: 'silu'
+  codebook_scale: 32
+  codebook_size: 4096
+  emb_dim: 256
+  quantizer_type: kepler
+
+d_model:
+  num_in_ch: 3
+
+optim:
+  - type: Adam
+    lr: !!float 1e-4
+    betas: [ 0.9, 0.999 ]
+  - type: Adam
+    lr: !!float 4e-4
+    betas: [ 0.9, 0.999 ]
+
+scheduler:
+  type: CosineAnnealingLR
+  eta_min: 1.0e-5
+
+
+losses:
+  recon_loss:
+    type: PixelLoss
+    criterion: l1
+    loss_weight: 1
+  perceptual_loss:
+    type: LPIPSLoss
+    loss_weight: 1
+    lpips_loss_arch: 'vgg'
+
+  codebook_loss:
+    loss_weight: 0
+    criterion: l1
+
+  adversarial:
+    type: GANLoss
+    gan_type: hinge
+    loss_weight: 0.1  # using adaptive loss_weight

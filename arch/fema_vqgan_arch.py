@@ -12,7 +12,10 @@ from torchvision.utils import make_grid
 from utils.logging_tool import get_logger
 
 from arch.vgg_arch import PerceptualVGG
-from arch.quantizer_arch import VectorQuantizer, GumbelQuantizer, VectorQuantizer2
+from arch.quantizer_arch import (VectorQuantizer, GumbelQuantizer, VectorQuantizer2, EMAVectorQuantizer,
+                                 KeplerVectorQuantizer)
+from arch.partitions import GroupPartition
+from losses.kepler import KeplerLoss
 
 VQInfo = namedtuple('VQInfo', ['z', 'z_q', 'codebook_loss', 'semantic_loss', 'quantizer_info'])
 
@@ -469,6 +472,8 @@ class FaceCoderNet(nn.Module):
                  in_channel=3,
                  codebook_scale=32, codebook_size=1024, emb_dim=512,
                  quantizer_type="nearest",
+                 scale=1,
+                 num_partitions=4,
                  beta=0.25,
                  gumbel_kl_weight=1e-8,
                  gumbel_straight_through=False,
@@ -539,6 +544,21 @@ class FaceCoderNet(nn.Module):
                 self.straight_through,
                 self.kl_weight
             )
+        elif self.quantizer_type == "ema":
+            self.quantizer = EMAVectorQuantizer(
+                n_e=self.codebook_size, e_dim=self.embed_dim, beta=self.beta
+            )
+        elif self.quantizer_type == 'kepler':
+            self.keplerLoss = KeplerLoss(use=True, kl_weight=1e-8, n_e=self.codebook_size)
+            self.par = GroupPartition(num_partitions)
+            self.quantizer = KeplerVectorQuantizer(
+                self.par, self.keplerLoss, scale=scale, partitions=num_partitions,
+                n_e=self.codebook_size, e_dim=self.embed_dim, beta=0.25,
+                remap=None, sane_index_shape=None
+            )
+        else:
+            raise NotImplementedError("Not implemented")
+
         logger.info(f'VQAutoEncoder quantizer: {self.quantizer_type} '
                     f'codebook_size: {self.codebook_size} embed_dim: {self.embed_dim}')
         # build vector quantizer
