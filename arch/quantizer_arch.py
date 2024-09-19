@@ -557,6 +557,7 @@ class KeplerVectorQuantizer(nn.Module):
         if shape is None:
             b, _, h, w = indices.shape
             shape = (b, h, w, -1)
+            print(shape)
         indices = indices.to(self.embedding.weight.device)
 
         if self.remap is not None:
@@ -565,7 +566,7 @@ class KeplerVectorQuantizer(nn.Module):
             indices = indices.reshape(-1)  # flatten again
 
         # get quantized latent vectors
-        z_q = self.par.unpartition(self.embedding(indices), shape=shape)
+        z_q = self.par.unpartition(self.embedding(indices), shape=(self.n_e, self.n_embed, 1, 1))
         # z_q = self.embedding(indices)
 
         # if shape is not None:
