@@ -496,8 +496,8 @@ class KeplerVectorQuantizer(nn.Module):
         # reshape z -> (batch, height, width, channel) and flatten
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
 
-        z_flattened = z.view(-1, self.e_dim)
-        # z_flattened = self.par.partition(z)
+        # z_flattened = z.view(-1, self.e_dim)
+        z_flattened = self.par.partition(z)
         # print(z_flattened.shape)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         # print(z_flattened.shape)
@@ -510,8 +510,8 @@ class KeplerVectorQuantizer(nn.Module):
         self.update_encoding_usage(min_encoding_indices)
         codebook_utilization, used, total = self.compute_codebook_utilization()
 
-        z_q = self.embedding(min_encoding_indices).view(z.shape)
-        # z_q = self.par.unpartition(self.embedding(min_encoding_indices))
+        # z_q = self.embedding(min_encoding_indices).view(z.shape)
+        z_q = self.par.unpartition(self.embedding(min_encoding_indices))
         perplexity = None
         min_encodings = None
 
