@@ -19,7 +19,7 @@ class KeplerLoss(nn.Module):
         self.prior_prob = self.create_high_dimensional_grid()
 
     def create_high_dimensional_grid(self):
-        num_points = 4096
+        num_points = 2048
         dimensions = 64
         sub_dimensions = 16
 
@@ -37,6 +37,7 @@ class KeplerLoss(nn.Module):
         return torch.from_numpy(selected_points).float()
 
     def forward(self, z):
+        print(z.shape)
         p = z.view(z.shape[0], -1)
         p = (p - p.mean(dim=1, keepdim=True)) / p.var(dim=1, keepdim=True)
         p = F.softmax(p, dim=1)
