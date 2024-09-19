@@ -549,7 +549,7 @@ class FaceCoderNet(nn.Module):
                 n_e=self.codebook_size, e_dim=self.embed_dim, beta=self.beta
             )
         elif self.quantizer_type == 'kepler':
-            self.keplerLoss = KeplerLoss(use=False, kl_weight=1e-8, n_e=self.codebook_size)
+            self.keplerLoss = KeplerLoss(use=True, kl_weight=1e-8, n_e=self.codebook_size)
             self.par = GroupPartition(num_partitions)
             self.quantizer = KeplerVectorQuantizer(
                 self.par, self.keplerLoss, scale=scale, partitions=num_partitions,
