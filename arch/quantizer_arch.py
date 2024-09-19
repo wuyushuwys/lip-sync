@@ -508,7 +508,10 @@ class KeplerVectorQuantizer(nn.Module):
         min_encoding_indices = torch.argmin(d, dim=1)
 
         self.update_encoding_usage(min_encoding_indices)
-        # codebook_utilization, used, total = self.compute_codebook_utilization()
+        if not self.training:
+            codebook_utilization, used, total = self.compute_codebook_utilization()
+        else:
+            codebook_utilization = None
 
         # z_q = self.embedding(min_encoding_indices).view(z.shape)
         z_q = self.par.unpartition(self.embedding(min_encoding_indices))
@@ -546,7 +549,7 @@ class KeplerVectorQuantizer(nn.Module):
             "perplexity": perplexity,
             "min_encodings": min_encodings,
             "min_encoding_indices": min_encoding_indices,
-            # "codebook_utilization": codebook_utilization,
+            "codebook_utilization": codebook_utilization,
         }
 
     def get_codebook_entry(self, indices, shape=None):
