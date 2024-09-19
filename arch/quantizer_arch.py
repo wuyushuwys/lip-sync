@@ -510,8 +510,8 @@ class KeplerVectorQuantizer(nn.Module):
         self.update_encoding_usage(min_encoding_indices)
         codebook_utilization, used, total = self.compute_codebook_utilization()
 
-        # z_q = self.embedding(min_encoding_indices).view(z.shape)
-        z_q = self.par.unpartition(self.embedding(min_encoding_indices))
+        z_q = self.embedding(min_encoding_indices).view(z.shape)
+        # z_q = self.par.unpartition(self.embedding(min_encoding_indices))
         perplexity = None
         min_encodings = None
 
