@@ -496,8 +496,8 @@ class KeplerVectorQuantizer(nn.Module):
         # reshape z -> (batch, height, width, channel) and flatten
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
 
-        # z_flattened = z.view(-1, self.e_dim)
-        z_flattened = self.par.partition(z)
+        z_flattened = z.view(-1, self.e_dim)
+        # z_flattened = self.par.partition(z)
         # print(z_flattened.shape)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         # print(z_flattened.shape)
