@@ -1,9 +1,5 @@
-import torch.nn as nn
-
-
-class GroupPartition(nn.Module):
+class GroupPartition:
     def __init__(self, partitions):
-        super(GroupPartition, self).__init__()
         self.partitions = partitions
         self.shape = None
 
@@ -17,7 +13,7 @@ class GroupPartition(nn.Module):
         return x
 
 
-class LayerPartition(nn.Module):
+class LayerPartition:
     def __init__(self, partitions):
         super(LayerPartition, self).__init__()
         self.partitions = partitions
@@ -35,7 +31,7 @@ class LayerPartition(nn.Module):
         return x
 
 
-class CustomPartition(nn.Module):
+class CustomPartition:
     def __init__(self, partitions):
         super(CustomPartition, self).__init__()
         self.partitions = partitions
