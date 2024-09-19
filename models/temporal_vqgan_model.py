@@ -73,7 +73,7 @@ class TemporalVQGANModel(BasicModel):
         d_weight = torch.clamp(d_weight, 0.0, disc_weight_max).detach()
         return d_weight
 
-    @torch.compile()
+    # @torch.compile()
     def training_g_step(self, batch, num_batch):
         x, y = batch
         pred_y, vq_info = self.g_model(x, num_batch=num_batch)
