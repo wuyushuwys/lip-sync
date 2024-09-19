@@ -8,8 +8,11 @@ class GroupPartition:
         x = x.reshape(-1, x.shape[-1] // self.partitions)
         return x
 
-    def unpartition(self, x): # L C
-        x = x.reshape(self.shape)
+    def unpartition(self, x, shape=None): # L C
+        if shape is None:
+            x = x.reshape(self.shape)
+        else:
+            x = x.reshape(shape)
         return x
 
 
