@@ -473,7 +473,7 @@ class FaceCoderNet(nn.Module):
                  codebook_scale=32, codebook_size=1024, emb_dim=512,
                  quantizer_type="nearest",
                  scale=1,
-                 num_partitions=4,
+                 num_partitions=1,
                  beta=0.25,
                  gumbel_kl_weight=1e-8,
                  gumbel_straight_through=False,
@@ -481,7 +481,6 @@ class FaceCoderNet(nn.Module):
                  norm_type='gn',
                  act_type='silu',
                  use_quantize=True,
-
                  **ignore_kwargs):
         super(FaceCoderNet, self).__init__()
         logger = get_logger()
@@ -550,7 +549,7 @@ class FaceCoderNet(nn.Module):
             )
         elif self.quantizer_type == 'kepler':
             self.keplerLoss = KeplerLoss(use=True, kl_weight=1e-8, n_e=self.codebook_size)
-            self.par = GroupPartition(num_partitions)
+            self.par = None
             self.quantizer = KeplerVectorQuantizer(
                 self.par, self.keplerLoss, scale=scale, partitions=num_partitions,
                 n_e=self.codebook_size, e_dim=self.embed_dim, beta=0.25,

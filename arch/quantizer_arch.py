@@ -495,9 +495,11 @@ class KeplerVectorQuantizer(nn.Module):
         assert return_logits == False, "Only for interface compatible with Gumbel"
         # reshape z -> (batch, height, width, channel) and flatten
         z = rearrange(z, 'b c h w -> b h w c').contiguous()
+        if self.par is not None:
+            z_flattened = self.par.partition(z)
+        else:
+            z_flattened = z.view(-1, self.e_dim)
 
-        # z_flattened = z.view(-1, self.e_dim)
-        z_flattened = self.par.partition(z)
         # print(z_flattened.shape)
         # distances from z to embeddings e_j (z - e)^2 = z^2 + e^2 - 2 e * z
         # print(z_flattened.shape)
@@ -513,8 +515,10 @@ class KeplerVectorQuantizer(nn.Module):
         else:
             codebook_utilization = None
 
-        # z_q = self.embedding(min_encoding_indices).view(z.shape)
-        z_q = self.par.unpartition(self.embedding(min_encoding_indices))
+        if self.par is not None:
+            z_q = self.par.unpartition(self.embedding(min_encoding_indices))
+        else:
+            z_q = self.embedding(min_encoding_indices).view(z.shape)
         perplexity = None
         min_encodings = None
 
@@ -557,7 +561,7 @@ class KeplerVectorQuantizer(nn.Module):
         if shape is None:
             b, _, h, w = indices.shape
             shape = (b, h, w, -1)
-        indices = indices.repeat_interleave(self.par.partitions, dim=0)
+        # indices = indices.repeat_interleave(self.partitions, dim=0)
 
         indices = indices.to(self.embedding.weight.device)
 
@@ -567,7 +571,9 @@ class KeplerVectorQuantizer(nn.Module):
             indices = indices.reshape(-1)  # flatten again
 
         # get quantized latent vectors
-        z_q = self.par.unpartition(self.embedding(indices), shape)
+        z_q = self.embedding(indices)
+        if self.par is not None:
+            z_q = self.par.unpartition(z_q, shape)
         # z_q = self.embedding(indices)
         if shape is not None:
             z_q = z_q.view(shape)

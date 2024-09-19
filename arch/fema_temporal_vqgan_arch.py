@@ -151,7 +151,7 @@ class FaceCoderTemporalNet(FaceCoderNet):
                  codebook_scale=32, codebook_size=1024, emb_dim=512,
                  quantizer_type="nearest",
                  scale=1,
-                 num_partitions=4,
+                 num_partitions=1,
                  beta=0.25,
                  gumbel_kl_weight=1e-8,
                  gumbel_straight_through=False,
