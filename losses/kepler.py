@@ -19,7 +19,7 @@ class KeplerLoss(nn.Module):
         self.prior_prob = self.create_high_dimensional_grid()
 
     def create_high_dimensional_grid(self):
-        num_points = 2048
+        num_points = 4096
         dimensions = 64
         sub_dimensions = 16
 
