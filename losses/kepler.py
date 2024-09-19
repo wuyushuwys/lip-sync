@@ -6,7 +6,11 @@ import torch.nn.functional as F
 
 
 def kl_divergence(p, q):
-    return torch.sum(p * torch.log(p / q + 1e-5), dim=(1)).mean()
+    try:
+        return torch.sum(p * torch.log(p / q + 1e-5), dim=(1)).mean()
+    except Exception as exn:
+        raise ValueError(f"{p.shape}, {q.shape}")
+
 
 
 class KeplerLoss(nn.Module):
@@ -44,5 +48,8 @@ class KeplerLoss(nn.Module):
         q = self.prior_prob.reshape(1, -1).repeat(p.shape[0], 1)
         q = (q - q.mean(dim=1, keepdim=True)) / q.var(dim=1, keepdim=True)
         q = F.softmax(q[:, :p.shape[1]], dim=1).to(p.device)
-        kl_loss = kl_divergence(p, q) * self.kl_weight
+        try:
+            kl_loss = kl_divergence(p, q) * self.kl_weight
+        except Exception as exn:
+            raise ValueError(f"{z.shape}")
         return kl_loss
