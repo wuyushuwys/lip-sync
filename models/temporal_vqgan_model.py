@@ -88,12 +88,12 @@ class TemporalVQGANModel(BasicModel):
         else:
             perceptual_loss = 0
         codebook_loss = vq_info.codebook_loss * self.codebook_weight if self.codebook_weight else 0
-        if 'consistency_loss' in self.criteria.keys():
-            consistency_loss = self.criteria['consistency_loss'](pred_y, y, num_batch=num_batch)
-        else:
-            consistency_loss = 0
+        # if 'consistency_loss' in self.criteria.keys():
+        #     consistency_loss = self.criteria['consistency_loss'](pred_y, y, num_batch=num_batch)
+        # else:
+        #     consistency_loss = 0
 
-        g_loss = recon_loss + perceptual_loss + codebook_loss + consistency_loss
+        g_loss = recon_loss + perceptual_loss + codebook_loss
         if self.curr_iterations > self.gan_starts:
             fake_g_pred = self.d_model(pred_y)
 
@@ -101,7 +101,7 @@ class TemporalVQGANModel(BasicModel):
             g_loss += adversarial_loss
         else:
             adversarial_loss = None
-        return vq_info, pred_y, recon_loss, perceptual_loss, adversarial_loss, consistency_loss, g_loss
+        return vq_info, pred_y, recon_loss, perceptual_loss, adversarial_loss, g_loss
 
     def training_epoch(self, epoch):
 
@@ -138,7 +138,6 @@ class TemporalVQGANModel(BasicModel):
                  recon_loss,
                  perceptual_loss,
                  adversarial_loss,
-                 consistency_loss,
                  g_loss) = self.training_g_step(batch, num_batch=num_batch)
 
             self.scaler.scale(g_loss).backward()
@@ -178,7 +177,6 @@ class TemporalVQGANModel(BasicModel):
 
             log_vars['recon_loss'] = recon_loss
             log_vars['perceptual_loss'] = perceptual_loss
-            log_vars['consistency_loss'] = consistency_loss
             log_vars['@lr'] = self.g_scheduler.get_last_lr()[0]
             log_vars['codebook_loss'] = vq_info.codebook_loss
             log_vars['@g_loss'] = g_loss
