@@ -264,7 +264,7 @@ class DoubleConditionedMAGE(nn.Module):
             [torch.zeros(x.size(0), 1, device=x.device), x], dim=1)
         x[:, 0] = self.fake_class_label
         return x
-
+    @torch.compiler.disable()
     def index_generator(self, x, gt=None):
         bsz = x.size(0)
 

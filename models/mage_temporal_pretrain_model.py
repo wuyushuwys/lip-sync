@@ -47,8 +47,11 @@ class MageModel(BasicModel):
 
         # self.ema_model = self.create_ema(model, power=0.75)
 
+    def training_step(self, *args, **kwargs):
+        return self.model(*args, **kwargs)
+
     def compile_model(self):
-        self.model = self.compile(self.model)
+        self.training_step = torch.compile(self.training_step)
 
     def training_epoch(self, epoch):
         losses_meter = common.meters.LossesMeter(fmt='.04e')
@@ -72,7 +75,7 @@ class MageModel(BasicModel):
             self.optimizer.zero_grad()
 
             with torch.autocast(device_type="cuda", dtype=torch.bfloat16, enabled=self.use_amp):
-                loss, _, _ = self.model(x, num_batch=bsz)
+                loss, _, _ = self.training_step(x, num_batch=bsz)
 
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
