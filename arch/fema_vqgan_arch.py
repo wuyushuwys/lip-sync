@@ -549,11 +549,11 @@ class FaceCoderNet(nn.Module):
             )
         elif self.quantizer_type == 'kepler':
             self.keplerLoss = KeplerLoss(use=True, kl_weight=1e-8, n_e=self.codebook_size)
-            self.par = None
+            self.par = GroupPartition(partitions=num_partitions) if num_partitions > 1 else None
             self.quantizer = KeplerVectorQuantizer(
                 self.par, self.keplerLoss, scale=scale, partitions=num_partitions,
                 n_e=self.codebook_size, e_dim=self.embed_dim, beta=0.25,
-                remap=None, sane_index_shape=None
+                remap=None, sane_index_shape=None, legacy=False,
             )
         else:
             raise NotImplementedError("Not implemented")

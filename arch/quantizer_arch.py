@@ -558,10 +558,13 @@ class KeplerVectorQuantizer(nn.Module):
 
     def get_codebook_entry(self, indices, shape=None):
         # shape specifying (batch, height, width, channel)
-        if shape is None:
-            b, _, h, w = indices.shape
+        # shape for mage
+        if shape is None:  # for viz
+            b, c, h, w = indices.shape
             shape = (b, h, w, -1)
-        # indices = indices.repeat_interleave(self.partitions, dim=0)
+            indices = indices.repeat(1, 1, 1, self.partitions)
+        else:
+            shape = (*shape[:-1], -1)
 
         indices = indices.to(self.embedding.weight.device)
 
@@ -572,11 +575,28 @@ class KeplerVectorQuantizer(nn.Module):
 
         # get quantized latent vectors
         z_q = self.embedding(indices)
+        # print(z_q.shape)
         if self.par is not None:
             z_q = self.par.unpartition(z_q, shape)
-        # z_q = self.embedding(indices)
-        if shape is not None:
-            z_q = z_q.view(shape)
-            # reshape back to match original input shape
-            z_q = z_q.permute(0, 3, 1, 2).contiguous()
+        # print(z_q.shape)
+        z_q = z_q.view(shape)
+        # reshape back to match original input shape
+        z_q = z_q.permute(0, 3, 1, 2).contiguous()
         return z_q
+
+    # def get_codebook_entry(self, indices, shape):
+    #     # shape specifying (batch, height, width, channel)
+    #     if self.remap is not None:
+    #         indices = indices.reshape(shape[0], -1)  # add batch axis
+    #         indices = self.unmap_to_all(indices)
+    #         indices = indices.reshape(-1)  # flatten again
+    #
+    #     # get quantized latent vectors
+    #     z_q = self.embedding(indices)
+    #
+    #     if shape is not None:
+    #         z_q = z_q.view(shape)
+    #         # reshape back to match original input shape
+    #         z_q = z_q.permute(0, 3, 1, 2).contiguous()
+    #
+    #     return z_q
