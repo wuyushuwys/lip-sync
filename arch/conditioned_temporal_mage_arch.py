@@ -16,6 +16,7 @@ from utils.logging_tool import get_logger
 
 from .mage_basic_arch import MlmLayer, Block, CrossBlock, BertEmbeddings, LabelSmoothingCrossEntropy
 from .fema_temporal_vqgan_arch import FaceCoderTemporalNet
+from .quantizer_arch import KeplerVectorQuantizer
 from .ref_control_net_arch import RefControlNet
 from .auxiliary_arch import AudioNet, AudioEncoder, AudioPretrainedEncoder
 from .ops import PositionalEncoding, get_2d_sincos_pos_embed
@@ -115,7 +116,10 @@ class DoubleTemporalConditionedMAGE(nn.Module):
         # --------------------------------------------------------------------------
         # MAGE encoder specifics
         dropout_rate = 0.1
-        num_patches = self.vqgan.latent_resolution ** 2
+        if not isinstance(self.vqgan.quantizer, KeplerVectorQuantizer):
+            num_patches = self.vqgan.latent_resolution ** 2
+        else:
+            num_patches = self.vqgan.latent_resolution ** 2 * self.vqgan.quantizer.partitions
 
         self.token_emb = BertEmbeddings(vocab_size=vocab_size,
                                         hidden_size=embed_dim,
