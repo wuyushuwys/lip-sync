@@ -83,10 +83,10 @@ def main(args):
 
     logger.info(attr_extractor(args))
 
-    # if args.weight or args.ckpt:
-        # trainer.evaluating_epoch(epoch=start_epoch)
-        # if args.eval_only:
-        #     return logger.info('Finish evaluation')
+    if args.weight or args.ckpt:
+        trainer.evaluating_epoch(epoch=start_epoch)
+        if args.eval_only:
+            return logger.info('Finish evaluation')
 
     for epoch in range(start_epoch + 1, args.epochs + 1):
         # Train
@@ -94,7 +94,7 @@ def main(args):
             train_sampler.set_epoch(epoch)
         trainer.training_epoch(epoch=epoch)
         # Eval model
-        # trainer.evaluating_epoch(epoch=epoch)
+        trainer.evaluating_epoch(epoch=epoch)
 
         # save model weight
         trainer.save_model(os.path.join(args.job_dir, 'weights'))
